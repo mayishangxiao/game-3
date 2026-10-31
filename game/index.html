@@ -124,18 +124,59 @@
         letter-spacing: 0.34em;
         color: #9a93ae;
       }
-      #tap-gate .tg-go {
+      /* 引导层的两个按钮：「开始」进游戏（点它同时会横屏），「横屏」只把画面转过来、
+         不离开这一屏——想让按钮横着读再进游戏的人用它。
+         两个都是按钮：只有「开始」触发进入，横屏按钮必须 stopPropagation，
+         否则点它会连带触发 gate 上的「点任意处开始」。
+         pointer-events 在主模块接管前放开，否则内联脚本的「横屏」按钮点不到。 */
+      #tap-gate.hidden .tg-row {
+        pointer-events: none;
+      }
+      #tap-gate .tg-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
         margin-top: 26px;
+      }
+      #tap-gate .tg-go,
+      #tap-gate .tg-rot {
         font-size: 14px;
         letter-spacing: 0.2em;
-        color: var(--red);
-        padding: 9px 22px;
+        padding: 9px 18px;
         border: 1px solid #6b2330;
         border-radius: 2px;
+        background: transparent;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #tap-gate .tg-go {
+        color: var(--red);
         animation: pulse 1.6s ease-in-out infinite;
       }
-      /* 「点一下自动横屏」：只在竖屏出现（横屏本来就横，写了反而多余）。
-         竖屏时这段话在 gate 正下方，正立着读——点下去画面才转。 */
+      #tap-gate .tg-rot {
+        color: #C2BCD1;
+        display: none;
+        align-items: center;
+        gap: 6px;
+      }
+      #tap-gate .tg-rot:active {
+        background: #6b2330;
+        color: var(--paper);
+      }
+      #tap-gate .tg-rot .rb-icon {
+        font-size: 15px;
+        line-height: 1;
+        color: var(--red);
+      }
+      /* 竖屏才给「横屏」按钮：横屏状态下它没有意义。
+         而画面已经被 CSS 转过来之后，gate 本身是跟着转的（见 html.rot #tap-gate），
+         这一排按钮在用户眼里仍然是正的。 */
+      @media (orientation: portrait) {
+        #tap-gate .tg-rot {
+          display: inline-flex;
+        }
+      }
+      /* 「点一下自动横屏」：只在竖屏出现（横屏本来就横，写了反而多余）。 */
       #tap-gate .tg-tip {
         display: none;
         margin-top: 4px;
@@ -173,6 +214,32 @@
       }
       html.rot #rotate-hint {
         display: none;
+      }
+      /* 引导层**不跟着转**：它保持竖屏坐标系（inset:0 铺满视口），
+         里面的文字和按钮就天然是正的，也不用再做反向旋转。
+         之前这里也跟着 translate(100vw) rotate(90deg) 转过，随后又靠 .tg-in 反向旋转
+         转回来——两层旋转叠在一起极难调（正负 90°、四个方向都试过，不是跑出屏幕就是上下颠倒）。
+         现在只剩一层：画面横过去、引导层正着显示，玩家不用歪头看按钮。
+         例外是**已经开始**（html.started）：那时 gate 正在淡出，别让它突然跳回复位。 */
+      html.rot:not(.started) #tap-gate {
+        position: fixed;
+        inset: 0;
+      }
+      html.rot:not(.started) #tap-gate .tg-row {
+        justify-content: center;
+        margin-top: 8px;
+      }
+      /* .tg-in 现在只是一个普通容器：引导层不转了，内容自然是正的。
+         保留这条规则是为了「万一以后 gate 又要旋转」时有地方挂反向变换，
+         但当前**不要**在这里加任何 transform —— 加了就会和 gate 的旋转打架。 */
+      html.rot:not(.started) #tap-gate .tg-in {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        height: 100%;
       }
       /* 游戏内「横屏」按钮：竖屏时浮在右上角，点一下再强制横一次。
          旋转生效时它跟着容器一起转——所以必须放在 #game-root 外面（见 body 里的位置），
@@ -295,10 +362,17 @@
     </div>
 
     <div id="tap-gate">
-      <div class="tg-title">党史像素 RPG</div>
-      <div class="tg-sub">觉 醒 年 代 · 1840—1921</div>
-      <div class="tg-go">点 击 屏 幕 开 始</div>
-      <div class="tg-tip">点一下自动横屏</div>
+      <!-- tg-in 只是「反向旋转」的载体：横屏兜底时 #tap-gate 整体转了 90°，
+           这一层再转回来，玩家看到的仍是正的文字、左右并排的两个按钮。 -->
+      <div class="tg-in">
+        <div class="tg-title">党史像素 RPG</div>
+        <div class="tg-sub">觉 醒 年 代 · 1840—1921</div>
+        <div class="tg-row">
+          <button type="button" class="tg-go">点 击 屏 幕 开 始</button>
+          <button type="button" class="tg-rot" aria-label="横屏"><span class="rb-icon">⟳</span>横屏</button>
+        </div>
+        <div class="tg-tip">点一下自动横屏</div>
+      </div>
     </div>
 
     <div id="rotate-hint">
@@ -347,7 +421,38 @@
         }
         gate.addEventListener('pointerdown', pre);
         gate.addEventListener('touchstart', pre, { passive: true });
+        // 只挂 click：这里必须**逐击生效**（pre 自带 started 开关，每次点击都会重新计时），
+        // 不能像主模块那样挂 pointerdown/touchstart —— 那样「横屏」按钮的 pointerdown
+        // 冒泡上来会先把 gate 当成「点任意处开始」，按钮就白做了。
         gate.addEventListener('click', pre);
+
+        // 「横屏」按钮：只转画面，不离开这一屏。它是独立的新手势，
+        // 所以必须拦住冒泡 —— 否则会连带触发上面的 pre()/「点任意处开始」。
+        // 主模块起来之前没人能锁屏，这里先把容器用 CSS 转过去（与 html.rot 同一套样式），
+        // 主模块接管后 reflow() 会按真实状态重算，要撤就撤。
+        var rot = gate.querySelector('.tg-rot');
+        if (rot) {
+          var stop = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+          };
+          rot.addEventListener('pointerdown', stop);
+          rot.addEventListener('touchstart', stop, { passive: false });
+          rot.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            // 主模块已接管：用自定义事件显式通知它（它走「新手势重新申请全屏 + 锁屏」那条路）。
+            // 为什么要自定义事件而不是直接让它听这个 click：点击必须 stopPropagation，
+            // 否则会在 gate 上被当成「点任意处开始」，两个按钮就白做了。
+            // 也**不要**去 click() 游戏内的 #rotate-btn —— 那个按钮的点击会冒泡到 document，
+            // 它的处理逻辑会把引导层当成已开始、直接关掉。
+            window.__gateRotTapped = (window.__gateRotTapped || 0) + 1;
+            window.dispatchEvent(new CustomEvent('dsh:gate-rotate'));
+            // 主模块还没起来（弱网/隧道）：先用 CSS 把画面转过去，至少这一下有反应。
+            // 主模块接管后 reflow() 会按真实状态重算，要撤就撤。
+            if (!window.__dshGate) document.documentElement.classList.add('rot');
+          });
+        }
       })();
     </script>
 

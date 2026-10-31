@@ -208,6 +208,8 @@ export function installStartGate(game: Phaser.Game): GateState {
   };
   /** auto 模式下锁屏失败后是否允许 CSS 兜底；自检不过就永久关掉 */
   let rotationBlocked = rotMode === 'hint';
+  /** 引导层上的「横屏」按钮被点过：只转画面、不算开始（gate 与 tapped 都保持原样） */
+  let gateRotated = false;
 
   /** gate 还盖在屏幕上：点之前不转，引导层要保持正立 */
   const gateCovering = (): boolean => {
@@ -254,7 +256,10 @@ export function installStartGate(game: Phaser.Game): GateState {
     const portrait = isPortrait(vp);
     if (rotMode === 'auto' && state.wantLandscape && !portrait) state.wantLandscape = false;
 
-    const canRotate = rotMode === 'force' || ((state.tapped || !gateCovering()) && !rotationBlocked);
+    // 点之前的唯一例外是引导层上的「横屏」按钮（gateRotated）：它不开始游戏，
+    // 但明确表达了「我现在就要横着」，那就得让画面真的转过去。
+    const canRotate =
+      rotMode === 'force' || ((state.tapped || !gateCovering() || gateRotated) && !rotationBlocked);
     const rotated = canRotate && (rotMode === 'force' || (state.wantLandscape && portrait));
 
     if (rotated && !state.rotated) sanityChecked = false; // 重新转起来 = 几何变了，允许再自检一次
@@ -325,8 +330,13 @@ export function installStartGate(game: Phaser.Game): GateState {
   };
 
   const gate = document.getElementById('tap-gate');
-  const onTap = (): void => {
+  const onTap = (e?: Event): void => {
     if (state.tapped) return;
+    // 引导层上有两个按钮：点在「横屏」上只该转画面，不该进游戏。
+    // （pointerdown/touchstart 挂在 gate 上，按钮的点击会冒泡上来，必须在这里挡掉；
+    //  index.html 的内联脚本也对按钮做了 stopPropagation，两处都要有——旧内核可能不发 click。）
+    const t = e?.target as Element | null;
+    if (t && typeof t.closest === 'function' && t.closest('.tg-rot')) return;
     state.tapped = true;
     // 「点一下屏幕就横」：这一下点下去就立刻要求横屏，并把旋转同步做完——
     // begin() 里的全屏/锁屏是异步的，等它回来才转的话，竖屏下会先看到几帧正立的画面再突然翻过去。
@@ -347,17 +357,23 @@ export function installStartGate(game: Phaser.Game): GateState {
    * 场景是旋转被撤掉了（自检不过 / 用户中途横竖切换过 / 系统把锁屏放掉了）却还想横着玩：
    * 这一下是新手势，所以能把全屏和方向锁**重新申请一遍**（这是关键——纯 CSS 旋转不需要手势，
    * 但锁屏需要，而锁屏转出来的原生横屏比 CSS 转更清晰、也没有触点偏差的风险）。
+   *
+   * `fromGate`：从引导层的「横屏」按钮点进来时为 true —— 那种情况**不许**把 gate 当已开始，
+   * 否则点了「横屏」就直接进游戏了（两个按钮就白做了）。它只转画面，进游戏还得点「开始」。
    */
-  const onRotateButton = (): void => {
+  const onRotateButton = (fromGate = false): void => {
     if (rotMode === 'hint') return;
     // 先把旋转同步打开：即使下面的全屏/锁屏全被拒（iOS Safari 支持 requestFullscreen 的
     // 只有 video，screen.orientation 根本没有 lock），CSS 兜底也立刻把画面转过来。
     state.wantLandscape = true;
-    if (!state.tapped) {
+    if (!state.tapped && !fromGate) {
       // 已经进游戏但 gate 还在（比如用户直接点了水面）：当成已开始，免得旋转又被 gate 挡回去
       state.tapped = true;
       gate?.classList.add('hidden');
       document.documentElement.classList.add('started');
+    } else if (!state.tapped && fromGate) {
+      // 引导层上的「横屏」：不算开始，只是允许它在 gate 还盖着的时候就转
+      gateRotated = true;
     }
     reflow();
     // 手势还在：再有本事就把系统锁定也拿回来（成功时视口会自己转，reflow 随后撤掉 CSS 旋转）
@@ -380,6 +396,10 @@ export function installStartGate(game: Phaser.Game): GateState {
     gate.addEventListener('pointerdown', onTap, { once: true });
     gate.addEventListener('touchstart', onTap, { once: true, passive: true });
     gate.addEventListener('click', onTap, { once: true });
+    // 引导层上的「横屏」按钮只转画面、不进游戏。它的命中处理在 index.html 的内联脚本里
+    // （那段脚本在主模块之前就挂好，弱网下先点它也有反应），那里拦掉冒泡后派发 dsh:gate-rotate。
+    // 这里接住它，走同一套「新手势重新申请全屏 + 锁屏」的逻辑，但标记 fromGate，不许顺带把 gate 关掉。
+    window.addEventListener('dsh:gate-rotate', () => onRotateButton(true));
   } else {
     // 没有 gate 元素（理论上不会）就当已点击，至少保证方向逻辑生效
     onTap();
