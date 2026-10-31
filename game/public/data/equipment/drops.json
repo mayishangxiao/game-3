@@ -1,0 +1,36 @@
+{
+  "rules": [
+    {
+      "source_type": "mob",
+      "drop_chance": 0.08,
+      "slot_weights": { "weapon": 20, "head": 20, "body": 20, "legs": 20, "accessory": 20 },
+      "quality_weights": { "white": 72, "blue": 23, "purple": 5 }
+    },
+    {
+      "source_type": "standard",
+      "drop_chance": 0.08,
+      "slot_weights": { "weapon": 20, "head": 20, "body": 20, "legs": 20, "accessory": 20 },
+      "quality_weights": { "white": 72, "blue": 23, "purple": 5 }
+    },
+    {
+      "source_type": "ranged",
+      "drop_chance": 0.08,
+      "slot_weights": { "weapon": 20, "head": 20, "body": 20, "legs": 20, "accessory": 20 },
+      "quality_weights": { "white": 72, "blue": 23, "purple": 5 }
+    },
+    {
+      "source_type": "elite",
+      "drop_chance": 1.0,
+      "slot_weights": { "weapon": 24, "head": 19, "body": 19, "legs": 19, "accessory": 19 },
+      "quality_weights": { "white": 35, "blue": 45, "purple": 20 }
+    },
+    {
+      "source_type": "boss",
+      "drop_chance": 1.0,
+      "slot_weights": { "weapon": 24, "head": 19, "body": 19, "legs": 19, "accessory": 19 },
+      "quality_weights": { "white": 15, "blue": 50, "purple": 35 }
+    }
+  ],
+  "level_coeff": 1.0,
+  "pity": { "threshold": 5, "boost": 25 }
+}

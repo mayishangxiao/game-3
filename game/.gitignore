@@ -1,0 +1,20 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+.DS_Store
+.vite/
+coverage/
+*.log
+
+# ---- 验证缓存区（截图 / CDP 报告 / Edge profile），随时可删可重建 ----
+# 报告值得看，但不值得入库；重新跑 tools/cdp-*.mjs 会自动生成
+tools/_cdp/
+tools/_cdp2/
+tools/_cdp3/
+tools/_smoke/
+tools/__pycache__/
+__pycache__/
+
+# Edge 远程调试用的临时 profile（体积大且含本机路径）
+profile*/

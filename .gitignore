@@ -1,0 +1,21 @@
+# 工作区缓存（都可重建，随时可删）
+__pycache__/
+*.pyc
+
+# 工程区自身的忽略规则见 game/.gitignore
+game/node_modules/
+game/dist/
+game/tools/_cdp*/
+game/tools/_smoke/
+game/tools/__pycache__/
+
+# 临时探针（与游戏无关，见 README「临时/擦除型文件」）
+_dsh_sess_probe.js
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+*.log
+~$*.docx
+# agent �������ã�����/����ʱ���������
+.dsh/

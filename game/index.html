@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0D0B14" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>党史像素 RPG · 觉醒年代</title>
+    <!-- 空 favicon：否则每个页面都会多一个 404（弱网下也是多余的往返） -->
+    <link rel="icon" href="data:," />
+    <style>
+      :root {
+        --ink: #0d0b14;
+        --red: #c62828;
+        --paper: #f2ede4;
+      }
+      * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--ink);
+        color: var(--paper);
+        font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+        touch-action: none;
+        overscroll-behavior: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #game-root {
+        position: fixed;
+        inset: 0;
+        /* 不在这里做 flex 居中：Phaser 的 Scale.CENTER_BOTH 已经用 margin 居中画布，
+           两处同时居中会把画布向右顶出一段（实测偏移约 35px）。 */
+        padding: env(safe-area-inset-top) env(safe-area-inset-right)
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
+      }
+      #game-root canvas {
+        display: block;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+      /* 竖屏提示：整屏盖住，让玩家把手机横过来（不再用 CSS 旋转把画面拧 90°） */
+      #rotate-hint {
+        position: fixed;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: radial-gradient(circle at 50% 45%, #241b2e 0%, var(--ink) 72%);
+        z-index: 200;
+        text-align: center;
+        padding: 24px;
+      }
+      #rotate-hint.show {
+        display: flex;
+      }
+      #rotate-hint .icon {
+        font-size: 52px;
+        line-height: 1;
+        animation: spin 2.4s ease-in-out infinite;
+      }
+      #rotate-hint .rh-title {
+        font-size: 20px;
+        letter-spacing: 0.18em;
+        color: var(--paper);
+        text-shadow: 0 2px 0 #4a1520;
+      }
+      #rotate-hint p {
+        margin: 0;
+        font-size: 14px;
+        color: #c2bcd1;
+        letter-spacing: 0.08em;
+        line-height: 1.7;
+      }
+      @keyframes spin {
+        0%,
+        100% {
+          transform: rotate(0deg);
+        }
+        50% {
+          transform: rotate(90deg);
+        }
+      }
+      /* 点击开始（老掌机那种「点一下进游戏」，同时也是自动横屏的触发点） */
+      #tap-gate {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        background: radial-gradient(circle at 50% 42%, #241b2e 0%, var(--ink) 70%);
+        z-index: 300;
+        text-align: center;
+        transition: opacity 0.28s ease;
+      }
+      #tap-gate.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #tap-gate .tg-title {
+        font-size: 26px;
+        letter-spacing: 0.16em;
+        color: var(--paper);
+        text-shadow: 0 2px 0 #4a1520;
+      }
+      #tap-gate .tg-sub {
+        font-size: 11px;
+        letter-spacing: 0.34em;
+        color: #9a93ae;
+      }
+      #tap-gate .tg-go {
+        margin-top: 26px;
+        font-size: 14px;
+        letter-spacing: 0.2em;
+        color: var(--red);
+        padding: 9px 22px;
+        border: 1px solid #6b2330;
+        border-radius: 2px;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.55;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      /* 自动横屏兜底：整个游戏容器旋转 90°（浏览器不给锁屏时用）
+         注意：必须先把容器改成「宽=100vh、高=100vw」再旋转，否则旋转的只是一个竖屏盒子，
+         Phaser 会按竖屏比例缩放，画面缩成一条。 */
+      html.rot #game-root {
+        position: fixed;
+        inset: auto;
+        top: 0;
+        left: 0;
+        width: 100vh;
+        height: 100vw;
+        padding: 0;
+        transform: translateX(100vw) rotate(90deg);
+        transform-origin: top left;
+      }
+      html.rot #rotate-hint {
+        display: none;
+      }
+      /* 加载占位 */
+      #boot-hint {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--ink);
+        z-index: 90;
+        pointer-events: none;
+        font-size: 13px;
+        letter-spacing: 0.3em;
+        color: #6b6489;
+        transition: opacity 0.35s ease;
+      }
+      #boot-hint.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-root"></div>
+
+    <div id="boot-hint">正 在 唤 醒 一 八 四 〇 年</div>
+
+    <div id="tap-gate">
+      <div class="tg-title">党史像素 RPG</div>
+      <div class="tg-sub">觉 醒 年 代 · 1840—1921</div>
+      <div class="tg-go">点 击 屏 幕 开 始</div>
+    </div>
+
+    <div id="rotate-hint">
+      <div class="icon">▭</div>
+      <div class="rh-title">请 横 屏</div>
+      <p>把手机横过来<br />战场比竖屏宽一倍</p>
+    </div>
+
+    <!--
+      引导层的「先手」：主模块还没下完时用户就会点（隧道/弱网下这是常态）。
+      以前这一下点了完全没反馈，看起来就是「点不动」。现在立刻改文案，并且记住点过 ——
+      等主模块就绪后提示「再点一下」，因为全屏和锁屏都要求「新手势」，不能拿旧点击硬开。
+    -->
+    <script>
+      (function () {
+        var gate = document.getElementById('tap-gate');
+        if (!gate) return;
+        var go = gate.querySelector('.tg-go');
+        var timer = null;
+        // 计时器把「我在等」变成「它在动」：弱网/隧道下首屏要几秒到十几秒，
+        // 只写「载入中」用户会以为卡死，写秒数就知道没白等。
+        function tick() {
+          if (window.__dshGate) {
+            // 主模块已接管：停掉计时，文案交给它
+            if (timer) clearInterval(timer);
+            timer = null;
+            return;
+          }
+          var sec = Math.round((Date.now() - started) / 1000);
+          if (go) go.textContent = '载 入 中 ' + sec + 's …';
+        }
+        var started = 0;
+        function pre() {
+          // 引导层已由主模块接管：交给它（它才能用这一下手势去全屏/锁屏）
+          if (window.__dshGate) return;
+          window.__tapGatePending = true;
+          if (!started) {
+            started = Date.now();
+            if (go) {
+              go.style.animation = 'none';
+              go.style.opacity = '1';
+            }
+            timer = setInterval(tick, 1000);
+            tick();
+          }
+        }
+        gate.addEventListener('pointerdown', pre);
+        gate.addEventListener('touchstart', pre, { passive: true });
+        gate.addEventListener('click', pre);
+      })();
+    </script>
+
+    <!--
+      Phaser 不在应用 bundle 里：1.17 MB 经隧道传到手机要一分多钟（实测 70 s），
+      改由 src/vendor/loadPhaser.ts 先取 CDN、失败再退回同目录的本地副本。
+      这里不放 <script> 标签 —— 阻塞脚本一旦挂住，页面会一直停在引导层。
+    -->
+    <script type="module" src="/src/main.ts"></script>
+
+    <!--
+      手机排障面板：地址栏加 ?dbg=1 才出现。
+      故意写成内联脚本（不打包）：即使主模块加载失败，它也能报出 UA / 视口 / 触摸坐标，
+      这样「点不动」才有证据可查，而不是靠猜。
+    -->
+    <script>
+      (function () {
+        var diag = { taps: 0, last: null, errors: [], game: false };
+        window.__dshDiag = diag;
+        window.addEventListener('error', function (e) {
+          diag.errors.push(String((e && e.message) || 'error'));
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          diag.errors.push('reject: ' + String((e && e.reason && e.reason.message) || e.reason));
+        });
+        if (!/[?&]dbg=1/.test(location.search)) {
+          window.addEventListener(
+            'touchstart',
+            function (e) {
+              var t = e.touches && e.touches[0];
+              if (t) diag.last = { cx: Math.round(t.clientX), cy: Math.round(t.clientY) };
+            },
+            { passive: true },
+          );
+          return;
+        }
+
+        var box = document.createElement('pre');
+        box.style.cssText =
+          'position:fixed;left:0;top:0;z-index:999;margin:0;padding:4px 6px;' +
+          'font:9px/1.35 ui-monospace,Menlo,monospace;color:#9ef;background:rgba(0,0,0,.72);' +
+          'pointer-events:none;white-space:pre;max-width:100%;';
+        document.addEventListener('DOMContentLoaded', function () {
+          document.body.appendChild(box);
+        });
+
+        window.addEventListener(
+          'touchstart',
+          function (e) {
+            var t = e.touches && e.touches[0];
+            if (!t) return;
+            diag.taps += 1;
+            var mapped = null;
+            try {
+              mapped = window.__dshGate && window.__dshGate.map ? window.__dshGate.map(t.clientX, t.clientY) : null;
+            } catch (err) {
+              diag.errors.push('map: ' + err.message);
+            }
+            diag.last = {
+              cx: Math.round(t.clientX),
+              cy: Math.round(t.clientY),
+              gx: mapped ? Math.round(mapped.x) : null,
+              gy: mapped ? Math.round(mapped.y) : null,
+            };
+          },
+          { passive: true },
+        );
+
+        function line() {
+          var vv = window.visualViewport;
+          var g = window.__dshGame;
+          var gate = window.__dshGate || {};
+          var scenes = '';
+          try {
+            scenes = g ? g.scene.getScenes(true).map(function (s) { return s.scene.key; }).join(',') : '';
+          } catch (err) {
+            scenes = 'err';
+          }
+          diag.game = !!g;
+          var L = diag.last;
+          return [
+            'UA ' + navigator.userAgent.replace(/^Mozilla\/5\.0 /, '').slice(0, 46),
+            'win ' + window.innerWidth + 'x' + window.innerHeight + ' dpr' + (window.devicePixelRatio || 1),
+            'vv  ' + (vv ? Math.round(vv.width) + 'x' + Math.round(vv.height) + '@' + Math.round(vv.offsetTop) : '-'),
+            'scr ' + screen.width + 'x' + screen.height + ' ori' + (screen.orientation ? screen.orientation.type : '-'),
+            'game ' + (g ? 'ok' : 'NO') + ' scenes ' + scenes,
+            'gate tap' + (gate.tapped ? 1 : 0) + ' rot' + (gate.rotated ? 1 : 0) + ' lock' + (gate.locked ? 1 : 0) + ' fs' + (gate.fullscreen ? 1 : 0),
+            'html ' + document.documentElement.className,
+            'tap#' + diag.taps + ' ' + (L ? L.cx + ',' + L.cy + ' -> ' + L.gx + ',' + L.gy : '-'),
+            'ptr ' + (g ? Math.round(g.input.activePointer.x) + ',' + Math.round(g.input.activePointer.y) : '-'),
+            'err ' + (diag.errors.length ? diag.errors[diag.errors.length - 1].slice(0, 40) : 'none'),
+          ].join('\n');
+        }
+
+        setInterval(function () {
+          if (box.parentNode) box.textContent = line();
+        }, 400);
+      })();
+    </script>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

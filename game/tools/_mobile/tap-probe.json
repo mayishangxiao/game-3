@@ -1,0 +1,113 @@
+{
+  "bootMs": 987,
+  "beforeTap": {
+    "display": "flex",
+    "opacity": "1"
+  },
+  "afterGateTap": {
+    "tapped": true,
+    "rotated": true,
+    "locked": false,
+    "fullscreen": false,
+    "htmlClass": "started rot",
+    "gateDisplay": "none",
+    "scenes": [
+      "Title"
+    ],
+    "center": {
+      "x": 240.34632034632034,
+      "y": 135
+    }
+  },
+  "net": {
+    "count": 8,
+    "totalKb": 434.9,
+    "slowest": [
+      {
+        "n": "phaser/3.90.0/phaser.min.js",
+        "ms": 597,
+        "kb": 374.7
+      },
+      {
+        "n": "assets/boot-CYvVPe9J.js",
+        "ms": 12,
+        "kb": 49.9
+      },
+      {
+        "n": "assets/index-DKxUwmj_.js",
+        "ms": 6,
+        "kb": 1.9
+      },
+      {
+        "n": "data/config.json",
+        "ms": 6,
+        "kb": 1.6
+      },
+      {
+        "n": "data/knowledge/knowledge_all.json",
+        "ms": 6,
+        "kb": 4.3
+      },
+      {
+        "n": "data/index.json",
+        "ms": 5,
+        "kb": 0.5
+      }
+    ]
+  },
+  "geom": {
+    "displaySize": {
+      "w": 693.3333333333333,
+      "h": 390
+    },
+    "canvasBounds": {
+      "l": 0,
+      "t": 75.328125
+    },
+    "offset": {
+      "l": 75,
+      "t": 0
+    },
+    "client": {
+      "w": 693,
+      "h": 390
+    },
+    "canvasRect": {
+      "l": 0,
+      "t": 75.328125,
+      "w": 390,
+      "h": 693.328125
+    },
+    "rootRect": {
+      "l": 0,
+      "t": 0,
+      "w": 390,
+      "h": 844
+    },
+    "transform": "matrix(0, 1, -1, 0, 390, 0)",
+    "padding": "0px",
+    "inner": {
+      "w": 390,
+      "h": 844
+    },
+    "mapOfCenter": {
+      "x": 240.34632034632034,
+      "y": 135
+    }
+  },
+  "buttonHit": {
+    "x": 170,
+    "y": 421,
+    "d": 0.4632627100128484
+  },
+  "afterButtonTap": {
+    "scenes": [
+      "Hub"
+    ],
+    "pointer": {
+      "x": 239.65367965367966,
+      "y": 152.30769230769232
+    }
+  },
+  "errors": []
+}

@@ -1,0 +1,35 @@
+{
+ "id": "ch00_act2",
+ "chapter_id": "ch00",
+ "seq": 2,
+ "name": "太平天国运动",
+ "avatar": "av_lixiucheng",
+ "events": [
+  "ev_1851_jintian",
+  "ev_1853_tianjing",
+  "ev_1856_intrigue",
+  "ev_1859_zizheng",
+  "ev_1864_tianjing_fall",
+  "ev_1864_limitation"
+ ],
+ "primary_archetype": "G",
+ "secondary_archetypes": [
+  "C",
+  "J",
+  "I"
+ ],
+ "map_refs": [
+  "map_ch00_act2a",
+  "map_ch00_act2b"
+ ],
+ "bgm": "bgm_ch00_act2",
+ "first_clear_reward": "eq_leg_taiping_blue_01",
+ "exp_base": 480,
+ "nodes": [
+  "nd_1851_jintian_escort",
+  "nd_1853_tianjing_manage",
+  "nd_1856_intrigue",
+  "nd_1864_tianjing_fall",
+  "nd_1864_limitation"
+ ]
+}

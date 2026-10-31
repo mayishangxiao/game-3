@@ -1,0 +1,31 @@
+{
+  "format": "docx",
+  "verdict": "pass",
+  "checks": [
+    {
+      "id": "package",
+      "status": "pass"
+    }
+  ],
+  "summary": {
+    "paragraphs": 119,
+    "tables": [],
+    "sections": [
+      {
+        "page_twips": {
+          "w": "12240",
+          "h": "15840"
+        },
+        "margins_twips": {
+          "top": "1440",
+          "right": "1800",
+          "bottom": "1440",
+          "left": "1800",
+          "header": "720",
+          "footer": "720",
+          "gutter": "0"
+        }
+      }
+    ]
+  }
+}

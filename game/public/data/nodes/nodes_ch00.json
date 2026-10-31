@@ -1,0 +1,340 @@
+{
+  "nodes": [
+    {
+      "id": "nd_1839_humen_dialog",
+      "event_id": "ev_1839_humen",
+      "archetype": "F",
+      "type": "dialog",
+      "dialogue_ref": "dlg_ch00_act1_intro",
+      "enemy_ref": null,
+      "map_ref": "map_ch00_act1a",
+      "params": {
+        "mode": "explore",
+        "recommended_level": 1,
+        "crate_target": 8,
+        "next_node": "nd_1841_humen_battle",
+        "reward_knowledge": "kc_1839_humen",
+        "npc_talk": {
+          "npc": "obj_linzexu",
+          "dialogue": "dlg_ch00_act1_pool_lin"
+        }
+      },
+      "title": "林则徐赴粤",
+      "year": 1839
+    },
+    {
+      "id": "nd_1839_humen_pool",
+      "event_id": "ev_1839_humen",
+      "archetype": "F",
+      "type": "dialog",
+      "dialogue_ref": "dlg_ch00_act1_pool",
+      "enemy_ref": null,
+      "map_ref": "map_ch00_act1a",
+      "params": {
+        "mode": "explore",
+        "recommended_level": 1,
+        "reward_knowledge": "kc_1839_humen",
+        "crate_target": 0,
+        "objective": "看烟土在池中化尽，再走向出口"
+      },
+      "title": "虎门销烟",
+      "year": 1839
+    },
+    {
+      "id": "nd_1841_humen_battle",
+      "event_id": "ev_1841_humen_fort",
+      "archetype": "C",
+      "type": "combat",
+      "dialogue_ref": "dlg_ch00_act1_fort_intro",
+      "enemy_ref": null,
+      "map_ref": "map_ch00_act1b",
+      "params": {
+        "mode": "combat",
+        "recommended_level": 2,
+        "waves": [
+          {
+            "spawns": [
+              {
+                "enemy": "en_uk_infantry",
+                "count": 4,
+                "spawn": "right"
+              }
+            ]
+          },
+          {
+            "spawns": [
+              {
+                "enemy": "en_uk_infantry",
+                "count": 3,
+                "spawn": "right"
+              },
+              {
+                "enemy": "en_uk_grenadier",
+                "count": 2,
+                "spawn": "right"
+              }
+            ]
+          },
+          {
+            "spawns": [
+              {
+                "enemy": "en_uk_infantry",
+                "count": 3,
+                "spawn": "right"
+              },
+              {
+                "enemy": "en_gough",
+                "count": 1,
+                "spawn": "right"
+              }
+            ]
+          }
+        ],
+        "boss": "en_boss_steamfrigate",
+        "reward_knowledge": "kc_1841_humen_fort",
+        "reward_weapon": "wp_bow",
+        "hidden_knowledge": "kc_1841_sanyuanli",
+        "defeat_continues": true,
+        "dynasty_delta": -38,
+        "defeat_title": "虎门失守",
+        "defeat_lines": [
+          "1841 年 2 月 26 日，英军攻破虎门各炮台。",
+          "关天培亲燃大炮，力战殉国，年六十岁。",
+          "清军的岸炮打不穿英舰的蒸汽铁壳船体——这不是勇气的问题。"
+        ],
+        "treaty_lines": [
+          "1842 年 8 月 29 日，英舰泊于南京下关江面。",
+          "《南京条约》：割香港岛，赔款 2100 万银元，开五口通商。",
+          "中国开始沦为半殖民地半封建社会。"
+        ]
+      },
+      "title": "虎门炮台守卫战",
+      "year": 1841,
+      "banner": {
+        "time": "1841 年 2 月",
+        "place": "虎门 · 威远炮台",
+        "ours": "广东水师 · 虎门六炮台",
+        "enemy": "英舰 10 余艘 · 陆军 2000 余人",
+        "scene": "sea"
+      }
+    },
+    {
+      "id": "nd_1842_nanjing_choice",
+      "event_id": "ev_1842_nanjing",
+      "archetype": "I",
+      "type": "choice",
+      "dialogue_ref": "dlg_ch00_act1_nanjing",
+      "enemy_ref": null,
+      "map_ref": null,
+      "params": {
+        "mode": "cutscene",
+        "recommended_level": 1,
+        "prompt": "英舰已经泊在下关江面。签，还是不签？",
+        "options": [
+          {
+            "label": "拒签，再战",
+            "outcome": "军费已空、炮台尽失、援兵无望。历史没有给出这个选项。"
+          },
+          {
+            "label": "签字",
+            "outcome": "《南京条约》成为中国近代史上第一个不平等条约。"
+          }
+        ],
+        "must_pick": 1,
+        "reward_knowledge": "kc_1842_nanjing"
+      },
+      "title": "南京条约",
+      "year": 1842
+    },
+    {
+      "id": "nd_1851_jintian_escort",
+      "event_id": "ev_1851_jintian",
+      "archetype": "C",
+      "type": "dialog",
+      "dialogue_ref": "dlg_ch00_act2_intro",
+      "enemy_ref": null,
+      "map_ref": "map_ch00_act2a",
+      "params": {
+        "mode": "escort",
+        "recommended_level": 4,
+        "allies": 3,
+        "waves": [
+          {
+            "spawns": [
+              {
+                "enemy": "en_qing_green",
+                "count": 4,
+                "spawn": "right"
+              }
+            ]
+          },
+          {
+            "spawns": [
+              {
+                "enemy": "en_qing_green",
+                "count": 3,
+                "spawn": "right"
+              },
+              {
+                "enemy": "en_qing_cavalry",
+                "count": 2,
+                "spawn": "right"
+              }
+            ]
+          },
+          {
+            "spawns": [
+              {
+                "enemy": "en_qing_green",
+                "count": 3,
+                "spawn": "right"
+              },
+              {
+                "enemy": "en_qing_batou",
+                "count": 1,
+                "spawn": "right"
+              }
+            ]
+          }
+        ],
+        "reward_knowledge": "kc_1851_jintian"
+      },
+      "title": "金田村突围",
+      "year": 1851
+    },
+    {
+      "id": "nd_1853_tianjing_manage",
+      "event_id": "ev_1853_tianjing",
+      "archetype": "G",
+      "type": "management",
+      "dialogue_ref": "dlg_ch00_act2_tianjing",
+      "enemy_ref": null,
+      "map_ref": "map_ch00_act2b",
+      "params": {
+        "mode": "management",
+        "recommended_level": 5,
+        "months": 8,
+        "reward_knowledge": "kc_1853_tianjing",
+        "hidden_knowledge": "kc_1859_zizheng"
+      },
+      "title": "天京经营",
+      "year": 1853
+    },
+    {
+      "id": "nd_1856_intrigue",
+      "event_id": "ev_1856_intrigue",
+      "archetype": "J",
+      "type": "cutscene",
+      "dialogue_ref": "dlg_ch00_act2_intrigue",
+      "enemy_ref": null,
+      "map_ref": null,
+      "params": {
+        "mode": "cutscene",
+        "recommended_level": 5,
+        "reward_knowledge": "kc_1856_intrigue"
+      },
+      "title": "天京事变",
+      "year": 1856
+    },
+    {
+      "id": "nd_1864_tianjing_fall",
+      "event_id": "ev_1864_tianjing_fall",
+      "archetype": "C",
+      "type": "combat",
+      "dialogue_ref": null,
+      "enemy_ref": null,
+      "map_ref": "map_ch00_act2b",
+      "params": {
+        "mode": "combat",
+        "recommended_level": 5,
+        "waves": [
+          {
+            "spawns": [
+              {
+                "enemy": "en_qing_green",
+                "count": 5,
+                "spawn": "right"
+              }
+            ]
+          },
+          {
+            "spawns": [
+              {
+                "enemy": "en_qing_green",
+                "count": 4,
+                "spawn": "right"
+              },
+              {
+                "enemy": "en_qing_cavalry",
+                "count": 2,
+                "spawn": "right"
+              }
+            ]
+          },
+          {
+            "spawns": [
+              {
+                "enemy": "en_qing_green",
+                "count": 4,
+                "spawn": "right"
+              },
+              {
+                "enemy": "en_qing_batou",
+                "count": 1,
+                "spawn": "right"
+              }
+            ]
+          },
+          {
+            "spawns": [
+              {
+                "enemy": "en_qing_batou",
+                "count": 2,
+                "spawn": "right"
+              }
+            ]
+          }
+        ],
+        "boss": "en_boss_xiangarmy_a",
+        "boss_extra": [
+          "en_boss_xiangarmy_b"
+        ],
+        "reward_knowledge": "kc_1864_tianjing_fall"
+      },
+      "title": "天京陷落",
+      "year": 1864
+    },
+    {
+      "id": "nd_1864_limitation",
+      "event_id": "ev_1864_limitation",
+      "archetype": "I",
+      "type": "choice",
+      "dialogue_ref": "dlg_ch00_act2_fall",
+      "enemy_ref": null,
+      "map_ref": null,
+      "params": {
+        "mode": "choice",
+        "recommended_level": 5,
+        "prompt": "十四年，两万人到几十万人，最后还是败了。太平天国为什么不能成功？",
+        "options": [
+          {
+            "label": "因为没有好的武器和更多的兵",
+            "outcome": "清军的洋枪确实厉害。但十四年里，太平军也打过许多胜仗。"
+          },
+          {
+            "label": "因为没有科学理论指导、没有先进阶级领导",
+            "outcome": "这正是历史的结论。农民阶级是革命的主力军，但不是新的生产力的代表。"
+          },
+          {
+            "label": "因为运气不好，天京事变来得太早",
+            "outcome": "事变是结果，不是原因。一个无法约束自己的政权，迟早会走到这一步。"
+          }
+        ],
+        "must_pick": 1,
+        "reward_knowledge": "kc_1864_limitation"
+      },
+      "title": "农民阶级的局限性",
+      "year": 1864
+    }
+  ]
+}

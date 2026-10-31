@@ -1,0 +1,23 @@
+{
+  "name": "dangshi-pixel-rpg",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "党史像素 RPG —— 手机浏览器 16 位像素历史 RPG（Phaser 3 + TypeScript）",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "phaser": "3.90.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "5.9.3",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}

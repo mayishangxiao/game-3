@@ -1,0 +1,126 @@
+[WARN] Request took 11619ms: https://registry.npmjs.org/vercel
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 4, reused 0, downloaded 0, added 0
+Progress: resolved 12, reused 0, downloaded 2, added 0
+Progress: resolved 17, reused 0, downloaded 3, added 0
+Progress: resolved 23, reused 0, downloaded 8, added 0
+[WARN] Tarball download average speed 31 KiB/s (size 36 KiB) is below 50 KiB/s: https://registry.npmjs.org/chokidar/-/chokidar-4.0.0.tgz (GET)
+Progress: resolved 27, reused 0, downloaded 12, added 0
+Progress: resolved 30, reused 0, downloaded 14, added 0
+Progress: resolved 34, reused 0, downloaded 15, added 0
+[WARN] Tarball download average speed 4 KiB/s (size 7 KiB) is below 50 KiB/s: https://registry.npmjs.org/@vercel/express/-/express-23.0.0.tgz (GET)
+Progress: resolved 39, reused 0, downloaded 20, added 0
+Progress: resolved 39, reused 0, downloaded 24, added 0
+Progress: resolved 43, reused 0, downloaded 26, added 0
+Progress: resolved 43, reused 0, downloaded 27, added 0
+Progress: resolved 43, reused 0, downloaded 29, added 0
+Progress: resolved 43, reused 0, downloaded 30, added 0
+[WARN] Tarball download average speed 38 KiB/s (size 257 KiB) is below 50 KiB/s: https://registry.npmjs.org/@vercel/next/-/next-27.0.0.tgz (GET)
+Progress: resolved 43, reused 0, downloaded 31, added 0
+Progress: resolved 43, reused 0, downloaded 32, added 0
+Progress: resolved 43, reused 0, downloaded 33, added 0
+[WARN] GET https://registry.npmjs.org/@vercel%2Fstatic-build error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] Tarball download average speed 46 KiB/s (size 2346 KiB) is below 50 KiB/s: https://registry.npmjs.org/@vercel/container/-/container-23.0.1.tgz (GET)
+Progress: resolved 43, reused 0, downloaded 34, added 0
+[WARN] GET https://registry.npmjs.org/@vercel%2Ffastify error (23). Will retry in 10 seconds. 2 retries left.
+[WARN] Request took 60513ms: https://registry.npmjs.org/@vercel%2Fstatic-build
+Progress: resolved 43, reused 0, downloaded 35, added 0
+[WARN] GET https://registry.npmjs.org/@vercel/cli-support/-/cli-support-65.5.0.tgz error (23). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/@vercel/rust/-/rust-24.0.0.tgz error (23). Will retry in 10 seconds. 2 retries left.
+Progress: resolved 44, reused 0, downloaded 35, added 0
+[WARN] Request took 72613ms: https://registry.npmjs.org/@vercel%2Ffastify
+Progress: resolved 45, reused 0, downloaded 35, added 0
+Progress: resolved 49, reused 0, downloaded 35, added 0
+Progress: resolved 53, reused 0, downloaded 35, added 0
+Progress: resolved 66, reused 0, downloaded 38, added 0
+[WARN] Tarball download average speed 39 KiB/s (size 378 KiB) is below 50 KiB/s: https://registry.npmjs.org/@vercel/static-build/-/static-build-25.0.0.tgz (GET)
+Progress: resolved 91, reused 1, downloaded 51, added 0
+[WARN] Tarball download average speed 1 KiB/s (size 2 KiB) is below 50 KiB/s: https://registry.npmjs.org/is-buffer/-/is-buffer-2.0.5.tgz (GET)
+Progress: resolved 115, reused 1, downloaded 59, added 0
+Progress: resolved 122, reused 1, downloaded 74, added 0
+Progress: resolved 130, reused 1, downloaded 79, added 0
+[WARN] Tarball download average speed 4 KiB/s (size 4 KiB) is below 50 KiB/s: https://registry.npmjs.org/@vercel/cervel/-/cervel-0.1.89.tgz (GET)
+[WARN] Tarball download average speed 4 KiB/s (size 7 KiB) is below 50 KiB/s: https://registry.npmjs.org/resolve.exports/-/resolve.exports-2.0.3.tgz (GET)
+Progress: resolved 135, reused 1, downloaded 87, added 0
+[WARN] Tarball download average speed 1 KiB/s (size 5 KiB) is below 50 KiB/s: https://registry.npmjs.org/@napi-rs/keyring/-/keyring-1.2.0.tgz (GET)
+[WARN] Tarball download average speed 32 KiB/s (size 40 KiB) is below 50 KiB/s: https://registry.npmjs.org/node-fetch/-/node-fetch-2.6.7.tgz (GET)
+Progress: resolved 136, reused 1, downloaded 93, added 0
+[WARN] Tarball download average speed 21 KiB/s (size 24 KiB) is below 50 KiB/s: https://registry.npmjs.org/generic-pool/-/generic-pool-3.4.2.tgz (GET)
+Progress: resolved 136, reused 1, downloaded 97, added 0
+[WARN] Tarball download average speed 40 KiB/s (size 290 KiB) is below 50 KiB/s: https://registry.npmjs.org/undici/-/undici-6.29.1.tgz (GET)
+Progress: resolved 136, reused 1, downloaded 99, added 0
+[WARN] Tarball download average speed 39 KiB/s (size 445 KiB) is below 50 KiB/s: https://registry.npmjs.org/tar/-/tar-7.5.11.tgz (GET)
+Progress: resolved 136, reused 1, downloaded 100, added 0
+[WARN] Tarball download average speed 41 KiB/s (size 716 KiB) is below 50 KiB/s: https://registry.npmjs.org/@types/node/-/node-20.11.0.tgz (GET)
+Progress: resolved 136, reused 1, downloaded 101, added 0
+[WARN] GET https://registry.npmjs.org/@vercel%2Fsandbox error (ETIMEDOUT). Will retry in 10 seconds. 2 retries left.
+[WARN] Request took 28178ms: https://registry.npmjs.org/ws
+Progress: resolved 137, reused 1, downloaded 101, added 0
+[WARN] Tarball download average speed 12 KiB/s (size 34 KiB) is below 50 KiB/s: https://registry.npmjs.org/ws/-/ws-8.22.0.tgz (GET)
+Progress: resolved 137, reused 1, downloaded 102, added 0
+[WARN] Request took 38301ms: https://registry.npmjs.org/@vercel%2Fsandbox
+Progress: resolved 138, reused 1, downloaded 102, added 0
+[WARN] Tarball download average speed 34 KiB/s (size 279 KiB) is below 50 KiB/s: https://registry.npmjs.org/@vercel/sandbox/-/sandbox-3.3.0.tgz (GET)
+Progress: resolved 138, reused 1, downloaded 103, added 0
+[WARN] GET https://registry.npmjs.org/async-listen error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/@esbuild%2Flinux-loong64 error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/@vercel/cli-support/-/cli-support-65.5.0.tgz error (23). Will retry in 1 minute. 1 retries left.
+[WARN] GET https://registry.npmjs.org/@vercel/rust/-/rust-24.0.0.tgz error (23). Will retry in 1 minute. 1 retries left.
+[WARN] Request took 60425ms: https://registry.npmjs.org/async-listen
+Progress: resolved 139, reused 1, downloaded 103, added 0
+Progress: resolved 140, reused 1, downloaded 105, added 0
+[WARN] Request took 62455ms: https://registry.npmjs.org/@esbuild%2Flinux-loong64
+Progress: resolved 146, reused 1, downloaded 105, added 0
+[WARN] GET https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz error (23). Will retry in 10 seconds. 2 retries left.
+Progress: resolved 161, reused 3, downloaded 105, added 0
+[WARN] GET https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.27.0.tgz error (23). Will retry in 10 seconds. 2 retries left.
+Progress: resolved 190, reused 4, downloaded 117, added 0
+[WARN] Tarball download average speed 17 KiB/s (size 17 KiB) is below 50 KiB/s: https://registry.npmjs.org/undici-types/-/undici-types-5.26.5.tgz (GET)
+Progress: resolved 212, reused 4, downloaded 132, added 0
+[WARN] Tarball download average speed 5 KiB/s (size 5 KiB) is below 50 KiB/s: https://registry.npmjs.org/lru-cache/-/lru-cache-6.0.0.tgz (GET)
+[WARN] Tarball download average speed 8 KiB/s (size 18 KiB) is below 50 KiB/s: https://registry.npmjs.org/@vercel/oidc/-/oidc-3.2.0.tgz (GET)
+[WARN] Tarball download average speed 1 KiB/s (size 1 KiB) is below 50 KiB/s: https://registry.npmjs.org/is-docker/-/is-docker-2.2.1.tgz (GET)
+Progress: resolved 236, reused 4, downloaded 149, added 0
+[WARN] Tarball download average speed 2 KiB/s (size 6 KiB) is below 50 KiB/s: https://registry.npmjs.org/@edge-runtime/ponyfill/-/ponyfill-2.4.2.tgz (GET)
+[WARN] Tarball download average speed 4 KiB/s (size 4 KiB) is below 50 KiB/s: https://registry.npmjs.org/acorn-import-attributes/-/acorn-import-attributes-1.9.5.tgz (GET)
+Progress: resolved 250, reused 4, downloaded 163, added 0
+[WARN] Tarball download average speed 4 KiB/s (size 5 KiB) is below 50 KiB/s: https://registry.npmjs.org/arg/-/arg-4.1.0.tgz (GET)
+Progress: resolved 255, reused 4, downloaded 166, added 0
+[WARN] Tarball download average speed 31 KiB/s (size 45 KiB) is below 50 KiB/s: https://registry.npmjs.org/@sinclair/typebox/-/typebox-0.25.24.tgz (GET)
+Progress: resolved 258, reused 4, downloaded 168, added 0
+[WARN] Tarball download average speed 2 KiB/s (size 9 KiB) is below 50 KiB/s: https://registry.npmjs.org/tar-stream/-/tar-stream-3.1.7.tgz (GET)
+Progress: resolved 258, reused 4, downloaded 170, added 0
+[WARN] Tarball download average speed 8 KiB/s (size 12 KiB) is below 50 KiB/s: https://registry.npmjs.org/@isaacs/fs-minipass/-/fs-minipass-4.0.1.tgz (GET)
+Progress: resolved 258, reused 4, downloaded 171, added 0
+Progress: resolved 258, reused 4, downloaded 173, added 0
+[WARN] Tarball download average speed 23 KiB/s (size 130 KiB) is below 50 KiB/s: https://registry.npmjs.org/oxc-parser/-/oxc-parser-0.121.0.tgz (GET)
+[WARN] Tarball download average speed 6 KiB/s (size 29 KiB) is below 50 KiB/s: https://registry.npmjs.org/@vercel/cli-exec/-/cli-exec-1.0.1.tgz (GET)
+Progress: resolved 258, reused 4, downloaded 175, added 0
+[WARN] Request took 12921ms: https://registry.npmjs.org/pretty-ms
+Progress: resolved 259, reused 4, downloaded 175, added 0
+Progress: resolved 259, reused 4, downloaded 176, added 0
+Progress: resolved 259, reused 4, downloaded 177, added 0
+[WARN] GET https://registry.npmjs.org/yauzl error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/universalify error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/@napi-rs%2Fkeyring-linux-riscv64-gnu error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.27.0.tgz error (ECONNRESET). Will retry in 1 minute. 1 retries left.
+[WARN] GET https://registry.npmjs.org/@ts-morph/common/-/common-0.11.1.tgz error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz error (ECONNRESET). Will retry in 1 minute. 1 retries left.
+[WARN] GET https://registry.npmjs.org/@rolldown/binding-win32-x64-msvc/-/binding-win32-x64-msvc-1.0.0-rc.1.tgz error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/@napi-rs%2Fkeyring-win32-x64-msvc error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/@napi-rs%2Fkeyring-linux-arm64-musl error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/mime-db error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/universalify error (ETIMEDOUT). Will retry in 1 minute. 1 retries left.
+[WARN] GET https://registry.npmjs.org/yauzl error (ETIMEDOUT). Will retry in 1 minute. 1 retries left.
+[WARN] GET https://registry.npmjs.org/@napi-rs%2Fkeyring-linux-riscv64-gnu error (ETIMEDOUT). Will retry in 1 minute. 1 retries left.
+[WARN] GET https://registry.npmjs.org/@ts-morph/common/-/common-0.11.1.tgz error (ETIMEDOUT). Will retry in 1 minute. 1 retries left.
+[WARN] GET https://registry.npmjs.org/@rolldown/binding-win32-x64-msvc/-/binding-win32-x64-msvc-1.0.0-rc.1.tgz error (ETIMEDOUT). Will retry in 1 minute. 1 retries left.
+[WARN] GET https://registry.npmjs.org/@napi-rs%2Fkeyring-win32-x64-msvc error (ETIMEDOUT). Will retry in 1 minute. 1 retries left.
+[WARN] GET https://registry.npmjs.org/@napi-rs%2Fkeyring-linux-arm64-musl error (ETIMEDOUT). Will retry in 1 minute. 1 retries left.
+[WARN] GET https://registry.npmjs.org/mime-db error (23). Will retry in 1 minute. 1 retries left.
+C:\Users\Lecoo\AppData\Local\pnpm-cache\dlx\edbe54b53b3ee5dace0645eed5299565d431a89838d58138084078fab44c0067\1a188108189-21814:
+[ERR_PNPM_META_FETCH_FAIL] GET https://registry.npmjs.org/universalify: fetch failed
+
+This error happened while installing the dependencies of vercel@65.5.0
+ at @vercel/hono@23.0.0
+ at fs-extra@11.1.0

@@ -1,0 +1,20 @@
+{
+  "id": "ch00",
+  "name": "觉醒年代",
+  "subtitle": "七次失败，一次转向",
+  "time_text": "1840.6 — 1921.7",
+  "protagonist_chain": [
+    "av_guan_tianpei",
+    "av_lixiucheng",
+    "av_deng_shichang",
+    "av_tan_sitong",
+    "av_qiujin",
+    "av_chen_duxiu",
+    "av_student"
+  ],
+  "hub_map": null,
+  "corridor_bgm": "bgm_corridor",
+  "new_weapon": null,
+  "new_skill": null,
+  "completion_weight": { "events": 0.4, "knowledge": 0.3, "quiz": 0.2, "hidden": 0.1 }
+}
