@@ -49,13 +49,15 @@ $pnpm = "$env:USERPROFILE\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pnp
 
 标题页有「导出存档 / 导入存档」：导出的是一串可粘贴的文本（Base64），换域名、换设备、清缓存之后都能搬回去。手机上没有控制台，这是唯一的救存档手段——**换隧道地址就是换 localStorage，进度会「消失」**。
 
-手机端进入方式（老掌机那一套）：打开页面先看到一整屏的「点击屏幕开始」，点一下才会进游戏——这一下是必须的，因为 `requestFullscreen()` 与 `screen.orientation.lock('landscape')` 都要求用户手势，自动全屏会被浏览器拒绝。点完之后：
+手机端进入方式（老掌机那一套）：打开页面先看到一整屏的「点击屏幕开始」，**点一下就横屏**。点之前引导层保持正立（竖着能读），点下去之后：
 
-1. 能锁横屏就锁横屏（全屏 + `orientation.lock`）；
+1. 这一下点本身就是手势，立刻申请全屏 + `screen.orientation.lock('landscape')`；能锁上就交给系统转；
 2. 锁不上（iOS Safari 不支持 `lock`）就整屏 CSS 旋转 90°，靠 `#game-root` 的宽高互换铺满，同时把 Phaser 的父容器尺寸、`autoCenter` 与指针变换一起改掉，保证**触摸点仍然落在它看起来落在的位置**；
 3. 用户真的把手机横过来之后，`orientationchange` 会把 CSS 旋转撤掉，恢复原生横屏渲染。
 
-默认就是上面这套「自动横屏」。不想让它替用户转屏的话，地址后加 `?norot=1`：竖屏只弹「请把手机横过来」的整屏提示，画面绝不自己拧起来；`?rot=1` 则强制走 CSS 旋转（调试坐标反算用）。
+竖屏时右上角还有一个「⟳ 横屏」小按钮（`#rotate-btn`）：旋转被撤掉后还想横着玩，点它就能再强制横一次（它同样能重新申请全屏与锁屏，因为这也是一次新手势）。按钮会跟着画面一起旋转，所以转好之后它就贴在用户眼里的右上角。
+
+不想要自动转屏的话，地址后加 `?norot=1`：竖屏只弹「请把手机横过来」的整屏提示，画面绝不自己拧起来，也不显示那个按钮；`?rot=1` 则强制走 CSS 旋转（调试坐标反算用）。
 
 细节与坐标反算的推导在 [src/README.md](src/README.md) 的 `core/orientation.ts` / `systems/OrientationGate.ts` 两行；端到端判据在 [tools/README.md](tools/README.md) 末尾。
 

@@ -1,16 +1,16 @@
 /**
- * 「点击开始」入口 —— 复刻老掌机/老手游的进游戏手势，同时用它触发自动横屏。
+ * 「点击开始」入口 —— 复刻老掌机/老手游的进游戏手势，同时用它触发横屏。
  *
  * 为什么必须在点击里做：全屏与屏幕方向锁都要求用户手势，页面加载时自动调用一律被拒。
  *
- * 流程：点击 → 尽量全屏 → 尽量 lock('landscape') → 等一小会儿 → 若仍是竖屏，
- * 就改用 CSS 旋转容器兜底（iOS Safari 完全没有方向锁，只能这样），
+ * 流程：点一下屏幕 → 立刻要求横屏（wantLandscape）→ 尽量全屏 → 尽量 lock('landscape')
+ * → 若仍是竖屏，就改用 CSS 旋转容器兜底（iOS Safari 完全没有方向锁，只能这样），
  * 并把 Phaser 的触点换算改成旋转后的版本，否则点哪都偏 90°。
  */
 
 import Phaser from 'phaser';
 import { VIEW_H, VIEW_W } from '../core/constants';
-import { isPortrait, planOrientation, toGameSpace, unrotateToLocal } from '../core/orientation';
+import { isPortrait, toGameSpace, unrotateToLocal } from '../core/orientation';
 
 export interface GateState {
   tapped: boolean;
@@ -18,6 +18,8 @@ export interface GateState {
   locked: boolean;
   /** 是否正在用 CSS 旋转兜底 */
   rotated: boolean;
+  /** 是否还想让画面横着（点开始前竖屏就点一下，点了就要；真横过来或自检不过才放掉） */
+  wantLandscape: boolean;
   /** 调试/端到端用：把屏幕坐标换算成游戏内坐标（旋转兜底时才有意义） */
   map?: (cx: number, cy: number) => { x: number; y: number };
   /** 地址参数快照（E2E 要按模式分支，不能在脚本里猜） */
@@ -183,14 +185,15 @@ function centerCanvas(game: Phaser.Game): void {
 
 export function installStartGate(game: Phaser.Game): GateState {
   const params = new URLSearchParams(window.location.search);
-  // rot 模式三态：默认 auto = 点开始就自动横屏。
-  //   auto  —— 地址里两个参数都没写（线上部署就是这个状态）：先试全屏 + lock('landscape')，
-  //            锁不上就**自动用 CSS 把画面转 90° 铺满屏幕**——用户不用自己横手机；
-  //            一旦触点换算自检对不上，退回提示模式（宁可不转，也不能留一个点不动的画面）。
-  //   force —— `?rot=1`：强制走旋转兜底（调试旧的坐标反算链路）。
-  //   hint  —— `?norot=1`：永不自动转，竖屏只弹「请把手机横过来」。
-  // 之前默认是 hint（用户 2026-10-30 否掉了自动转屏）；本轮用户要求「游戏要能横屏」，
-  // 默认改回 auto：锁得上交给系统转，锁不上（iOS Safari / 微信内核）由 CSS 转过来。
+  // 横屏行为：**点一下屏幕就横**。
+  //   点「点击开始」之前：竖屏不转，引导层正立着，只写一句「点一下自动横屏」。
+  //   点下去之后（onTap，同步、不等异步）：wantLandscape = true，
+  //     真横屏 → 什么都不做；
+  //     锁得动 → 全屏 + lock('landscape')，交给系统转（transition 期间照旧保持 CSS 旋转，
+  //               避免「转了一半又被撤掉」的抖动，等视口真的横向了再放掉，见 reflow）；
+  //     锁不动（iOS Safari / 微信内核）或锁完还是竖的 → CSS 把容器转 90° 铺满。
+  //   用户把手机横过来 / 自检不过 → wantLandscape = false，画面回到原生横屏。
+  // 开关：`?rot=1` 强制 CSS 旋转（调试旧链路）；`?norot=1` 完全不转，只弹「请把手机横过来」。
   const rotMode: 'auto' | 'force' | 'hint' =
     params.get('rot') === '1' ? 'force' : params.get('norot') === '1' ? 'hint' : 'auto';
   // 自检只许做一次：兜底被关掉之后画布恢复普通布局，再拿它跑一次几何检查必然误判。
@@ -200,12 +203,13 @@ export function installStartGate(game: Phaser.Game): GateState {
     fullscreen: false,
     locked: false,
     rotated: false,
+    wantLandscape: false,
     url: { rot: params.get('rot') === '1', hint: params.get('norot') === '1' },
   };
   /** auto 模式下锁屏失败后是否允许 CSS 兜底；自检不过就永久关掉 */
   let rotationBlocked = rotMode === 'hint';
 
-  /** gate 还盖在屏幕上：此时旋转只会把「点击开始」拧起来，等点完再转 */
+  /** gate 还盖在屏幕上：点之前不转，引导层要保持正立 */
   const gateCovering = (): boolean => {
     const g = document.getElementById('tap-gate');
     return !!g && !g.classList.contains('hidden');
@@ -218,6 +222,16 @@ export function installStartGate(game: Phaser.Game): GateState {
     hint.classList.toggle('show', isPortrait(viewport()) && !state.rotated);
   };
 
+  /** 游戏内「横屏」小按钮：竖屏可见，点一下再强制横一次（旋转被撤销后的补救入口） */
+  const updateRotateButton = (): void => {
+    const btn = document.getElementById('rotate-btn');
+    if (!btn) return;
+    // 真横屏没必要显示；hint 模式也不显示（那种模式用户自己横过来）
+    const show = rotMode !== 'hint' && isPortrait(viewport());
+    btn.classList.toggle('show', show);
+    btn.classList.toggle('on', state.rotated);
+  };
+
   /** 触点换算自检：画布外接矩形的中心必须映回 (240,135)。对不上就说明几何与假设不符。 */
   const mappingSane = (): boolean => {
     const map = state.map;
@@ -227,23 +241,22 @@ export function installStartGate(game: Phaser.Game): GateState {
     return Math.abs(c.x - VIEW_W / 2) < 14 && Math.abs(c.y - VIEW_H / 2) < 14;
   };
 
+  /**
+   * 重新算一遍横屏策略。三句话：
+   *   1. 点之前不转（引导层要正立），点过之后（wantLandscape）才该横；
+   *   2. 已经横了（视口本身是横的，或系统锁屏把视口转过来了）就放掉 CSS 旋转——原生横屏最省事；
+   *   3. 还竖着就转：锁不上屏的直接 CSS 转，锁得上的先等系统转，但**先转着别撤**，
+   *      否则锁屏过渡的那几十毫秒里会看到画面转一半又弹回来。
+   * 唯一让步是触点自检不过（rotationBlocked）：宁可退回「请横屏」提示，也不能留一个转了却点不动的画面。
+   */
   const reflow = (): void => {
-    // force 模式下无视自检结果；auto 模式下 rotationBlocked 只可能由自检置真。
-    // gate 还盖着屏幕时不转：旋转兜底是给「进游戏之后」用的，点开始之前先把
-    // 「点击开始」拧起来反而怪（旧行为是加载即旋转，探针就是这么抓到 rotClass=true）。
-    // 但一旦用户点过（state.tapped），就不再撤销旋转——锁屏成功、系统把视口转成
-    // 横屏的那几十毫秒里，resize 会读到瞬时竖屏几何，撤销再恢复会让画面抖一下。
-    // 例外：自检不过（rotationBlocked）时必须撤销——留一个「转了但点不动」的画面，
-    // 比退回提示模式更糟（宁可不转，也不能骗人以为能玩）。
-    let canRotate = rotMode === 'force' || state.tapped || !gateCovering();
-    if (rotationBlocked && state.rotated) canRotate = true;
-    const plan =
-      rotMode === 'force'
-        ? 'rotate'
-        : rotationBlocked || !canRotate
-          ? 'landscape'
-          : planOrientation(viewport(), state.locked);
-    const rotated = plan === 'rotate';
+    const vp = viewport();
+    const portrait = isPortrait(vp);
+    if (rotMode === 'auto' && state.wantLandscape && !portrait) state.wantLandscape = false;
+
+    const canRotate = rotMode === 'force' || ((state.tapped || !gateCovering()) && !rotationBlocked);
+    const rotated = canRotate && (rotMode === 'force' || (state.wantLandscape && portrait));
+
     if (rotated && !state.rotated) sanityChecked = false; // 重新转起来 = 几何变了，允许再自检一次
     state.rotated = rotated;
     applyRotatedLayout(rotated);
@@ -258,6 +271,7 @@ export function installStartGate(game: Phaser.Game): GateState {
       );
     };
     updateHint();
+    updateRotateButton();
     // 容器尺寸变了要让 Phaser 重新量一次父容器；旋转时还要自己居中（Phaser 的量法在旋转下会算反）
     window.setTimeout(() => {
       game.scale.refresh();
@@ -275,6 +289,7 @@ export function installStartGate(game: Phaser.Game): GateState {
           sanityChecked = true;
           if (!mappingSane()) {
             rotationBlocked = true;
+            state.wantLandscape = false;
             reflow();
           }
         }
@@ -302,7 +317,8 @@ export function installStartGate(game: Phaser.Game): GateState {
       } catch {
         state.locked = false;
       }
-      // 锁屏成功后系统要几十到几百毫秒才把视口转过来
+      // 锁屏成功后系统要几十到几百毫秒才把视口转过来。这段时间里 CSS 旋转照旧保持着
+      // （reflow 会在视口真的变横时自己撤掉），所以这里只等一下，不主动撤销任何东西。
       await new Promise((r) => window.setTimeout(r, state.locked ? 500 : 0));
     }
     reflow();
@@ -312,16 +328,39 @@ export function installStartGate(game: Phaser.Game): GateState {
   const onTap = (): void => {
     if (state.tapped) return;
     state.tapped = true;
+    // 「点一下屏幕就横」：这一下点下去就立刻要求横屏，并把旋转同步做完——
+    // begin() 里的全屏/锁屏是异步的，等它回来才转的话，竖屏下会先看到几帧正立的画面再突然翻过去。
+    state.wantLandscape = true;
     (window as unknown as { __tapGatePending?: boolean }).__tapGatePending = false;
     gate?.classList.add('hidden');
     document.documentElement.classList.add('started');
-    // 引导层一消失就该决定要不要旋转画面（begin() 里的全屏/锁屏是异步的，
-    // 等它回来才转的话，竖屏下会先看到几帧歪着的画面）
     reflow();
     // 只把 opacity 置 0 的话，某些内置浏览器仍会把点击吃掉；到时彻底移出层叠树
     window.setTimeout(() => {
       if (gate) gate.style.display = 'none';
     }, 340);
+    void begin();
+  };
+
+  /**
+   * 游戏内「横屏」按钮：再强制横一次。
+   * 场景是旋转被撤掉了（自检不过 / 用户中途横竖切换过 / 系统把锁屏放掉了）却还想横着玩：
+   * 这一下是新手势，所以能把全屏和方向锁**重新申请一遍**（这是关键——纯 CSS 旋转不需要手势，
+   * 但锁屏需要，而锁屏转出来的原生横屏比 CSS 转更清晰、也没有触点偏差的风险）。
+   */
+  const onRotateButton = (): void => {
+    if (rotMode === 'hint') return;
+    // 先把旋转同步打开：即使下面的全屏/锁屏全被拒（iOS Safari 支持 requestFullscreen 的
+    // 只有 video，screen.orientation 根本没有 lock），CSS 兜底也立刻把画面转过来。
+    state.wantLandscape = true;
+    if (!state.tapped) {
+      // 已经进游戏但 gate 还在（比如用户直接点了水面）：当成已开始，免得旋转又被 gate 挡回去
+      state.tapped = true;
+      gate?.classList.add('hidden');
+      document.documentElement.classList.add('started');
+    }
+    reflow();
+    // 手势还在：再有本事就把系统锁定也拿回来（成功时视口会自己转，reflow 随后撤掉 CSS 旋转）
     void begin();
   };
 
@@ -344,6 +383,19 @@ export function installStartGate(game: Phaser.Game): GateState {
   } else {
     // 没有 gate 元素（理论上不会）就当已点击，至少保证方向逻辑生效
     onTap();
+  }
+
+  // 游戏内「横屏」按钮：同样三种事件都挂（它不出现在 gate 里，要一直可用，所以不加 once）
+  const rotateBtn = document.getElementById('rotate-btn');
+  if (rotateBtn) {
+    rotateBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      onRotateButton();
+    });
+    rotateBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      onRotateButton();
+    });
   }
 
   window.addEventListener('resize', reflow);

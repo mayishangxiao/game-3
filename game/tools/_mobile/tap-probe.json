@@ -1,5 +1,5 @@
 {
-  "bootMs": 987,
+  "bootMs": 506,
   "beforeTap": {
     "display": "flex",
     "opacity": "1"
@@ -21,37 +21,37 @@
   },
   "net": {
     "count": 8,
-    "totalKb": 434.9,
+    "totalKb": 435,
     "slowest": [
       {
         "n": "phaser/3.90.0/phaser.min.js",
-        "ms": 597,
+        "ms": 249,
         "kb": 374.7
       },
       {
-        "n": "assets/boot-CYvVPe9J.js",
+        "n": "assets/boot-RfSzsNUJ.js",
         "ms": 12,
-        "kb": 49.9
-      },
-      {
-        "n": "assets/index-DKxUwmj_.js",
-        "ms": 6,
-        "kb": 1.9
-      },
-      {
-        "n": "data/config.json",
-        "ms": 6,
-        "kb": 1.6
-      },
-      {
-        "n": "data/knowledge/knowledge_all.json",
-        "ms": 6,
-        "kb": 4.3
+        "kb": 50
       },
       {
         "n": "data/index.json",
-        "ms": 5,
+        "ms": 8,
         "kb": 0.5
+      },
+      {
+        "n": "data/knowledge/knowledge_all.json",
+        "ms": 8,
+        "kb": 4.3
+      },
+      {
+        "n": "data/equipment/drops.json",
+        "ms": 8,
+        "kb": 0.6
+      },
+      {
+        "n": "assets/index-OEiNTMOk.js",
+        "ms": 7,
+        "kb": 1.9
       }
     ]
   },

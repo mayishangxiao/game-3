@@ -134,6 +134,20 @@
         border-radius: 2px;
         animation: pulse 1.6s ease-in-out infinite;
       }
+      /* 「点一下自动横屏」：只在竖屏出现（横屏本来就横，写了反而多余）。
+         竖屏时这段话在 gate 正下方，正立着读——点下去画面才转。 */
+      #tap-gate .tg-tip {
+        display: none;
+        margin-top: 4px;
+        font-size: 11px;
+        letter-spacing: 0.22em;
+        color: #857c9c;
+      }
+      @media (orientation: portrait) {
+        #tap-gate .tg-tip {
+          display: block;
+        }
+      }
       @keyframes pulse {
         0%,
         100% {
@@ -159,6 +173,95 @@
       }
       html.rot #rotate-hint {
         display: none;
+      }
+      /* 游戏内「横屏」按钮：竖屏时浮在右上角，点一下再强制横一次。
+         旋转生效时它跟着容器一起转——所以必须放在 #game-root 外面（见 body 里的位置），
+         否则竖屏下会被转到屏幕外或被 CSS 变换反着放。 */
+      #rotate-btn {
+        position: fixed;
+        right: 10px;
+        top: 10px;
+        z-index: 250;
+        display: none;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: var(--paper);
+        background: rgba(26, 20, 36, 0.86);
+        border: 1px solid #6b2330;
+        border-radius: 3px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #rotate-btn.show {
+        display: inline-flex;
+      }
+      #rotate-btn:active {
+        background: #6b2330;
+      }
+      #rotate-btn .rb-icon {
+        font-size: 14px;
+        line-height: 1;
+        color: var(--red);
+      }
+      /* 已经转过就把「点我」的语气收一收，避免玩家以为没生效 */
+      #rotate-btn.on .rb-txt::after {
+        content: '（已横屏）';
+        color: #857c9c;
+        letter-spacing: 0;
+        font-size: 10px;
+      }
+      /* 旋转兜底生效时整个屏幕在用户眼里是横的，按钮必须跟着“转到那个坐标系里”，
+         否则它停在竖屏角度、玩家看着是躺着的。
+
+         做法：给按钮套一个与 #game-root 完全相同的盒子（宽=100vh、高=100vw，再转 90°），
+         按钮盒子用 absolute 贴在**这个盒子的右上角**（right/top）——
+         旋转把「容器右上角」映射成屏幕左上角，正好是用户眼里的“竖屏时的右上角”。
+         注意不能用 getBoundingClientRect 推坐标：CSS 变换只在绘制阶段生效，
+         它返回的仍是未变换的布局盒子（踩过一次）。 */
+      html.rot #rotate-btn {
+        position: fixed;
+        left: 0;
+        top: 0;
+        right: auto;
+        width: 100vh;
+        height: 100vw;
+        padding: 0;
+        display: block;
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        transform: translateX(100vw) rotate(90deg);
+        transform-origin: top left;
+        pointer-events: none;
+      }
+      html.rot #rotate-btn > * {
+        pointer-events: auto;
+      }
+      /* 真正的按钮盒子：贴在这个「转好的容器」的右上角。
+         旋转把 (u,v) 映到屏幕 (100vw - v, u)，所以容器右上角 (宽,0) 落在屏幕 (100vw, 宽)
+         ——也就是用户把手机顺时针转 90° 之后看到的**右上角**。 */
+      html.rot #rotate-btn .rb-inner {
+        position: absolute;
+        right: 10px;
+        top: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: var(--paper);
+        background: rgba(26, 20, 36, 0.86);
+        border: 1px solid #6b2330;
+        border-radius: 3px;
+      }
+      /* 旋转后按钮的点击区必须落在容器盒子内，否则 pointer-events 被外层 none 吃掉 */
+      html.rot #rotate-btn .rb-inner,
+      html.rot #rotate-btn .rb-inner * {
+        pointer-events: auto;
       }
       /* 加载占位 */
       #boot-hint {
@@ -186,10 +289,16 @@
 
     <div id="boot-hint">正 在 唤 醒 一 八 四 〇 年</div>
 
+    <!-- 游戏内「横屏」按钮：竖屏才显示（样式与显隐都在 OrientationGate.updateRotateButton） -->
+    <div id="rotate-btn" role="button" tabindex="0" aria-label="强制横屏">
+      <span class="rb-inner"><span class="rb-icon">⟳</span><span class="rb-txt">横屏</span></span>
+    </div>
+
     <div id="tap-gate">
       <div class="tg-title">党史像素 RPG</div>
       <div class="tg-sub">觉 醒 年 代 · 1840—1921</div>
       <div class="tg-go">点 击 屏 幕 开 始</div>
+      <div class="tg-tip">点一下自动横屏</div>
     </div>
 
     <div id="rotate-hint">
