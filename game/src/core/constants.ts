@@ -262,17 +262,17 @@ export const PART_NAMES = ['head', 'torso', 'arm', 'leg', 'weapon'] as const;
 export type PartName = (typeof PART_NAMES)[number];
 export type PartFacing = 'front' | 'side';
 
-/** 哪些兵种已经切成四件套（头/身/臂/腿）。不在表里的兵种继续用整张贴图（`ART.units`）。 */
-export const PART_ART: Record<string, PartName[]> = {
-  qing_officer: ['head', 'torso', 'arm', 'leg'],
-  qing_green: ['head', 'torso', 'arm', 'leg'],
-  qing_batou: ['head', 'torso', 'arm', 'leg'],
-  uk_infantry: ['head', 'torso', 'arm', 'leg'],
-  uk_grenadier: ['head', 'torso', 'arm', 'leg'],
-  gough: ['head', 'torso', 'arm', 'leg'],
-  // 林则徐不拿兵器
-  lin_zexu: ['head', 'torso', 'arm', 'leg'],
-};
+/**
+ * 哪些兵种用「积木小人」分件（头/身/臂/腿）。
+ *
+ * **现在是空的**：用户要求全库统一回 `art/units/` 那套整张贴图风格
+ * （24×32，方头、红制服、2 头身——就是 `uk_grenadier_down.png` 那个样子），
+ * 分件小人不再使用。分件机制本身完整保留：往这里填 `{ 兵种: ['head', …] }`
+ * 就会自动切回可摆手的积木小人，`CharacterRig` 不用动。
+ *
+ * 分件图仍在 `public/art/parts/`，`import_parts.py` 也还在——只是不再加载。
+ */
+export const PART_ART: Record<string, PartName[]> = {};
 
 /**
  * 兵器不走贴图，用矩形现画。
