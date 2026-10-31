@@ -104,6 +104,19 @@ const probe = `(function () {
     })() : false,
     rotBox: cr ? { x: Math.round(cr.left), y: Math.round(cr.top), w: Math.round(cr.width), h: Math.round(cr.height) } : null,
     goBox: go ? (function () { var g = go.getBoundingClientRect(); return { x: Math.round(g.left), y: Math.round(g.top), w: Math.round(g.width), h: Math.round(g.height) }; })() : null,
+    // 「请横屏」提示层：它是 z-index 250 的整屏覆盖，只要 show 着就会把引导层整个盖掉，
+    // 真机上「两个按钮没出现」就是这么来的（headless 的 getClientRects 看不见这层）。
+    // 引导层还在时不显示的判据必须留在这里，别再靠肉眼发现。
+    hintShown: (function () {
+      var h = document.getElementById('rotate-hint');
+      return !!h && h.classList.contains('show') && getComputedStyle(h).display !== 'none';
+    })(),
+    // 「开始」按钮中心最上面那层元素必须还是它自己（不能被提示层/别的浮层压住）
+    goTopmost: go ? (function () {
+      var g = go.getBoundingClientRect();
+      var hit = document.elementFromPoint((g.left + g.right) / 2, (g.top + g.bottom) / 2);
+      return !!hit && (hit === go || (typeof hit.closest === 'function' && hit.closest('.tg-go') === go));
+    })() : false,
     canvasW: canvasRect ? Math.round(canvasRect.width) : 0,
     canvasH: canvasRect ? Math.round(canvasRect.height) : 0,
     rootTransform: root ? getComputedStyle(root).transform : null
@@ -255,6 +268,10 @@ async function main() {
 
     report.verdict = {
       twoButtonsVisible: before.goShown === true && before.rotShown === true,
+      // 引导层还在时「请横屏」提示层不许出现，也不许压住「开始」按钮。
+      // 这条是 headless 探针之前漏掉、真机才暴露的：提示层是整屏覆盖，一盖上来两个按钮就全看不见。
+      hintHiddenWhileGateCovering: before.hintShown === false,
+      startButtonTopmost: before.goTopmost === true,
       sideBySide,
       rotButtonHitTest: before.rotHit === true,
       notRotatedBeforeTap: before.rotClass === false,
@@ -274,6 +291,8 @@ async function main() {
     };
     report.verdict.ok =
       report.verdict.twoButtonsVisible &&
+      report.verdict.hintHiddenWhileGateCovering &&
+      report.verdict.startButtonTopmost &&
       report.verdict.sideBySide &&
       report.verdict.rotButtonHitTest &&
       report.verdict.notRotatedBeforeTap &&

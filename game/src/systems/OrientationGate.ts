@@ -217,11 +217,19 @@ export function installStartGate(game: Phaser.Game): GateState {
     return !!g && !g.classList.contains('hidden');
   };
 
-  /** 竖屏且没在旋转时，显示「请把手机横过来」（旋转兜底生效时 CSS 会把它藏掉） */
+  /**
+   * 竖屏且没在旋转时，显示「请把手机横过来」（旋转兜底生效时 CSS 会把它藏掉）。
+   * **引导层还盖着的时候一律不显示**：那一屏上有「点击屏幕开始 / 横屏」两个按钮，
+   * 提示层是 z-index 250 的整屏覆盖，一盖上来按钮就全看不见了（真机上就是这么「没变」的）。
+   * 只有在玩家点了开始、离开引导层之后，竖屏才需要提示他自己把手机横过来。
+   */
   const updateHint = (): void => {
     const hint = document.getElementById('rotate-hint');
     if (!hint) return;
-    hint.classList.toggle('show', isPortrait(viewport()) && !state.rotated);
+    hint.classList.toggle(
+      'show',
+      isPortrait(viewport()) && !state.rotated && !gateCovering() && state.tapped,
+    );
   };
 
   /** 游戏内「横屏」小按钮：竖屏可见，点一下再强制横一次（旋转被撤销后的补救入口） */
