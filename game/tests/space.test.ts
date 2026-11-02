@@ -99,4 +99,32 @@ describe('nearestOpenPoint', () => {
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) all.push(`${x},${y}`);
     expect(nearestOpenPoint(24, 24, { ...query(all), maxRing: 2 })).toBeNull();
   });
+
+  it('起点在地图外时仍能找回地图里的空地（甲方「小兵被打出地图」的那条路）', () => {
+    // 敌人被击退到右边界外 40px：gx = 12 > cols(10)。
+    // 之前 LevelScene.landingNear 把 blocked 的形参当成瓦片索引用，像素值被当列号
+    // → 越界 → 一律 true → 这里会返回 null，敌人就永远捞不回来。
+    const p = nearestOpenPoint(cols * TILE + 40, 3 * TILE, query([]));
+    expect(p).not.toBeNull();
+    expect(p!.x).toBeGreaterThanOrEqual(0);
+    expect(p!.x).toBeLessThan(cols * TILE);
+    expect(p!.y).toBeGreaterThanOrEqual(0);
+    expect(p!.y).toBeLessThan(rows * TILE);
+  });
+
+  it('blocked 收到的是像素坐标，不是瓦片索引', () => {
+    const seen: number[] = [];
+    const tile = 16;
+    nearestOpenPoint(40, 24, {
+      cols: 10,
+      rows: 6,
+      tile,
+      blocked: (px: number) => {
+        seen.push(px);
+        return false;
+      },
+    });
+    // 一旦有人又把像素当索引传，这里会出现 0~9 这种小整数
+    for (const v of seen) expect(v % tile).toBe(tile / 2);
+  });
 });

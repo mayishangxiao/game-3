@@ -104,6 +104,14 @@ main.ts
   会把物体往安全位置推（见 `constants.CONTROL_LAYOUT` + `tests/data.test.ts` 的「箱子不在按键区」断言）。
 - **海水是碰撞格**：`MapRenderer.extraSolid` 回调在 `isSolidAtWorld()` 里最先问，敌人与掉落都要用
   `LevelScene.landingNear()` 落回岸上，否则玩家打不到也捡不到。
+- **`nearestOpenPoint` 的 `blocked` 收的是像素坐标，不是瓦片索引**。`LevelScene.landingNear()` 原来把形参
+  命名成 `gx/gy` 又当列号用，像素值 376 被当成列号 → 越界 → 一律返回 true → 环形搜索永远返回 null →
+  退化回原坐标。后果是**击退把敌人推出地图后没有任何落点可回去**（甲方三次截图报「小兵被打出地图」）。
+  `tests/space.test.ts` 现在有一条用例直接跑「起点在地图外」并断言 `blocked` 收到的是格心像素。
+- **击退要查落点**：`CharacterRig.knockback(dx, dy, unsafe?)` 是 tween 直接平移、不经过地形，
+  调用方（`LevelScene.damageEnemy`）必须传 `enemySpotUnsafe`，它内部会对不可站的落点做二分收缩。
+  另外 `LevelScene.rescueStrayEnemies()` 每帧兜底，把「地图外 / 军舰压出的海面 / 原始海面 / 墙里」
+  的敌人拉回最近空地——判据统一在 `enemySpotUnsafe()`，别在别处另写一套，两处漂移过一次。
 - **剧情闸门写在数据里**：`node.params.npc_talk = { npc, dialogue }` 决定「先说谁的台词、什么时候放开箱子」，
   代码里不留 if-else 拼章节。
 - **本帧按下标志只能由 `LevelScene.update()` 末尾的 `controls.endFrame()` 清**（UIScene 里清会吞掉单点）。

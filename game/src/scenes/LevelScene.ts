@@ -334,6 +334,78 @@ export class LevelScene extends Phaser.Scene {
     this.hudTimer = 0;
 
     void this.boot();
+
+    // E2E / 探针用：把「敌人和地形」交出去，用来验证「小兵不会被打出地图」。
+    // 甲方三次截图报这个 bug，光靠 cdp-e2e 的截图看不住，得能主动把敌人推到界外再观察。
+    (window as unknown as { __dshLevel?: unknown }).__dshLevel = {
+      /** 存活敌人的世界坐标（脚底） */
+      enemies: () => this.enemies.filter((e) => e.alive).map((e, i) => ({ i, x: e.x, y: e.y, hp: e.hp })),
+      /** 全部敌人（含已死的），排查用 */
+      allEnemies: () => this.enemies.map((e, i) => ({ i, x: e.x, y: e.y, alive: e.alive, hp: e.hp })),
+      /** 地图尺寸与「这个坐标能不能站」 */
+      map: () =>
+        this.map
+          ? {
+              w: this.map.pixelWidth,
+              h: this.map.pixelHeight,
+              cols: this.map.def.width,
+              rows: this.map.def.height,
+            }
+          : null,
+      unsafe: (x: number, y: number) => this.enemySpotUnsafe(x, y),
+      /** 排查用：碰撞格矩阵（'#' = 撞墙/海，'.' = 可站），一行一行的字符串 */
+      grid: () => {
+        const m = this.map;
+        if (!m) return null;
+        const cols = m.def.width;
+        const rows = m.def.height;
+        const solidRows: string[] = [];
+        for (let gy = 0; gy < rows; gy++) {
+          let s = '';
+          for (let gx = 0; gx < cols; gx++) s += m.isSolidAtTile(gx, gy) ? '#' : '.';
+          solidRows.push(s);
+        }
+        return { cols, rows, solidRows };
+      },
+      /** 排查用：从某点找最近空地的全过程（敌人被捞出界时用来定位「为什么找不到落点」） */
+      traceLanding: (wx: number, wy: number) => {
+        const m = this.map;
+        if (!m) return null;
+        const gx = Math.floor(wx / TILE);
+        const gy = Math.floor(wy / TILE);
+        const blocked = (cx: number, cy: number) => {
+          if (this.isSeaAt(cx, cy)) return true;
+          if (m.isSeaAtWorld(cx, cy)) return true;
+          return m.isSolidAtTile(Math.floor(cx / TILE), Math.floor(cy / TILE));
+        };
+        const trail: unknown[] = [];
+        for (let ring = 0; ring <= 16; ring++) {
+          const cands: Array<[number, number]> = [];
+          for (let d = -ring; d <= ring; d++) {
+            cands.push([gx - ring, gy + d]);
+            cands.push([gx + ring, gy + d]);
+          }
+          const hits = cands.map(([cx, cy]) => {
+            const inMap = cx >= 0 && cy >= 0 && cx < m.def.width && cy < m.def.height;
+            return { cx, cy, inMap, b: inMap ? blocked((cx + 0.5) * TILE, (cy + 0.5) * TILE) : null };
+          });
+          trail.push({ ring, open: hits.filter((h) => h.inMap && h.b === false) });
+        }
+        return { start: { wx, wy, gx, gy }, trail };
+      },
+      /** 强行把第 i 个敌人挪到 (x,y)，用来复现「被打出地图」 */
+      teleport: (i: number, x: number, y: number) => {
+        const e = this.enemies.filter((v) => v.alive)[i];
+        if (!e) return false;
+        e.teleportTo(x, y);
+        return true;
+      },
+      /** 跑一次每帧兜底（探针等不到 update 时手动触发） */
+      rescue: () => {
+        this.rescueStrayEnemies();
+        return this.enemies.filter((e) => e.alive).length;
+      },
+    };
   }
 
   private async boot(): Promise<void> {
@@ -1852,7 +1924,10 @@ export class LevelScene extends Phaser.Scene {
     // 否则两个兵会精确重叠成一个 —— 手机上看着像只有一个人。
     const jx = ((this.spawnedTotal * 7) % 11) - 5;
     const jy = ((this.spawnedTotal * 5) % 9) - 4;
-    const e = new Enemy(this, p.x + jx, p.y + jy, def, stats);
+    // 出怪点可能正好压在海面上（地图作者画 spawn 标记时看不见水陆边界），
+    // 出生就校正一次，别让玩家看到「小兵从海里冒出来」。
+    const land = this.enemySpotUnsafe(p.x + jx, p.y + jy) ? this.landingNear(p.x, p.y) : { x: p.x + jx, y: p.y + jy };
+    const e = new Enemy(this, land.x, land.y, def, stats);
     this.enemies.push(e);
     this.spawnedTotal += 1;
   }
@@ -2335,7 +2410,15 @@ export class LevelScene extends Phaser.Scene {
     const dx = e.x - this.player.x;
     const dy = e.y - this.player.y;
     const len = Math.hypot(dx, dy) || 1;
-    if (e.def.tier !== 'boss') e.rig.knockback((dx / len) * kb, (dy / len) * kb);
+    // 击退是 tween 直接平移，不查地形；落点必须在陆地上，否则小兵会被打出地图。
+    // 这里把「落点是否可站」交给调用方判断，不可站就缩到贴着边界。
+    if (e.def.tier !== 'boss') {
+      e.rig.knockback(
+        (dx / len) * kb,
+        (dy / len) * kb,
+        (tx, ty) => this.enemySpotUnsafe(tx, ty),
+      );
+    }
     if (res.crit) this.cameras.main.shake(60, fb.screenshake_amp / 1000);
 
     if (died) this.onEnemyDeath(e);
@@ -2558,14 +2641,19 @@ export class LevelScene extends Phaser.Scene {
    */
   private landingNear(wx: number, wy: number): { x: number; y: number } {
     if (!this.map) return { x: wx, y: wy };
+    const map = this.map;
     const q = {
-      cols: this.map.def.width,
-      rows: this.map.def.height,
+      cols: map.def.width,
+      rows: map.def.height,
       tile: TILE,
-      blocked: (gx: number, gy: number) => {
-        const cx = (gx + 0.5) * TILE;
-        const cy = (gy + 0.5) * TILE;
-        return this.isSeaAt(cx, cy) || this.map!.isSolidAtTile(gx, gy);
+      // 注意：`blocked` 收到的是**像素坐标**（nearestOpenPoint 传的是 tile 中心
+      // `p.x / p.y`），不是瓦片索引。这里原来把形参命名成 gx/gy、又拿去当索引用，
+      // 于是像素值 376 被当成列号 → 越界 → 一律返回 true → 永远找不到空地，
+      // 直接退化成「原坐标返回」。后果：敌人被击退到界外后没有任何落点可回去。
+      blocked: (px: number, py: number) => {
+        if (this.isSeaAt(px, py)) return true;
+        if (map.isSeaAtWorld(px, py)) return true;
+        return map.isSolidAtTile(Math.floor(px / TILE), Math.floor(py / TILE));
       },
     };
     return nearestOpenPoint(wx, wy, q) ?? { x: wx, y: wy };
@@ -2758,6 +2846,42 @@ export class LevelScene extends Phaser.Scene {
     if (!spot) return;
     this.player.rig.setPosition(spot.x, spot.y);
     emitToast('水太深了，退回岸上');
+  }
+
+  /**
+   * 把「掉出地图」的敌人捞回来。
+   *
+   * 甲方第三次报「小兵又被打出地图」——截图中英军站在地图右侧那片原始海面上，
+   * 玩家够不到。三种越界来源都绕过碰撞：
+   *   1. `CharacterRig.knockback()` 用 tween 直接平移，完全不查地形（击退是主因）；
+   *   2. 刷怪点 `spawn` 落在海面上时，敌人当场就站在水里；
+   *   3. 军舰压出的 `seaTiles` 盖住了敌人脚下。
+   *
+   * 判定必须同时查三样：地图外/墙里（`isSolidAtWorld`）、军舰压出的海面（`isSeaAt`）、
+   * **地图数据里的原始海面**（`map.isSeaAtWorld`）。只查前两者是之前那份补丁漏掉
+   * 原始海面的原因——那片蓝不在碰撞格里，`isSolidAtWorld` 对它恒为 false。
+   */
+  private rescueStrayEnemies(): void {
+    const map = this.map;
+    if (!map) return;
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i];
+      if (!e.alive) continue;
+      if (!this.enemySpotUnsafe(e.x, e.y)) continue;
+      const spot = this.landingNear(e.x, e.y);
+      e.teleportTo(spot.x, spot.y);
+    }
+  }
+
+  /**
+   * 敌人站在 (wx, wy) 会不会掉出去：地图外 / 墙里 / 军舰压出的海面 / 原始海面。
+   * 击退落点与每帧兜底共用这一条判据，避免两处判定漂移。
+   */
+  private enemySpotUnsafe(wx: number, wy: number): boolean {
+    const map = this.map;
+    if (!map) return false;
+    if (this.isSeaAt(wx, wy) || map.isSeaAtWorld(wx, wy)) return true;
+    return map.isSolidAtWorld(wx, wy);
   }
 
   /** 军舰压到最左侧：虎门水道被突破，走剧情杀（战败链），不通关 */
@@ -2983,15 +3107,8 @@ export class LevelScene extends Phaser.Scene {
     // 这里把人挪回最近的可站点，避免「站水里动不了」。
     if (this.seaTiles.size > 0) this.ejectPlayerFromSea();
     // 敌人也会被击退/被船推着掉进海里：落到水里就打不到了（甲方报的 bug）。
-    // 这里把泡在水里的敌人拉回最近的岸地，等于让他们「爬上岸继续打」。
-    if (this.seaTiles.size > 0) {
-      for (const e of this.enemies) {
-        if (!e.alive) continue;
-        if (!this.isSeaAt(e.x, e.y)) continue;
-        const s = this.landingNear(e.x, e.y);
-        e.rig.setPosition(s.x, s.y);
-      }
-    }
+    // 这里把越界、落海、泡在水里的敌人都拉回最近的岸地，等于让他们「爬上岸继续打」。
+    this.rescueStrayEnemies();
 
     // 攻击 / 闪避
     if (controls.attackPressed || controls.attackHeld) {

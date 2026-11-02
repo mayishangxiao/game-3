@@ -534,6 +534,16 @@ export class Enemy {
     return pts.some(([px, py]) => map.isSolidAtWorld(px, py));
   }
 
+  /** 直接把身体挪到某点（脱困、登岸用）。血条等部件会在下一帧 `syncBar()` 跟上 */
+  teleportTo(x: number, y: number): void {
+    this.rig.setPosition(x, y);
+  }
+
+  /** 脚下的世界坐标（血条、脱困判定都以「脚」为基准） */
+  get footPoint(): { x: number; y: number } {
+    return { x: this.x, y: this.y + ENEMY_FOOT_Y };
+  }
+
   destroy(): void {
     this.hpBg.destroy();
     this.hpFill.destroy();

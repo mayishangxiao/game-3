@@ -648,13 +648,33 @@ export class CharacterRig extends Phaser.GameObjects.Container {
     this.torso.setFillStyle(this.baseBody);
   }
 
-  /** 击退位移（设计书 6.1.4：近战 18px / 远程 8px） */
-  knockback(dx: number, dy: number): void {
+  /**
+   * 击退位移（设计书 6.1.4：近战 18px / 远程 8px）。
+   *
+   * `unsafe` 是落点校验：调进来一个坐标，返回 true 表示那里不能站（地图外 / 墙里 / 海面）。
+   * 有它的原因：这里是 tween 直接平移，**完全不查地形**，敌方小兵在岸边被打时会被
+   * 一帧推出地图（甲方三次截图报「小兵被打出地图」）。传了校验就把落点夹在边界内。
+   */
+  knockback(dx: number, dy: number, unsafe?: (x: number, y: number) => boolean): void {
     if (this.dead) return;
+    let tx = this.x + dx;
+    let ty = this.y + dy;
+    if (unsafe && unsafe(tx, ty)) {
+      // 二分收缩：退到「还能站」的最远位置，而不是干脆不击退——手感要保住。
+      let lo = 0;
+      let hi = 1;
+      for (let i = 0; i < 6; i++) {
+        const mid = (lo + hi) / 2;
+        if (unsafe(this.x + dx * mid, this.y + dy * mid)) hi = mid;
+        else lo = mid;
+      }
+      tx = this.x + dx * lo;
+      ty = this.y + dy * lo;
+    }
     this.scene.tweens.add({
       targets: this,
-      x: this.x + dx,
-      y: this.y + dy,
+      x: tx,
+      y: ty,
       duration: 120,
       ease: 'Quad.easeOut',
     });

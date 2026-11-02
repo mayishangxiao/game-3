@@ -376,6 +376,17 @@ export class MapRenderer {
   }
 
   /**
+   * 世界坐标是否落在**地图数据里那片原始海面**上。
+   *
+   * 和 `extraSolid` 的区别：原始海面只影响绘制，没进碰撞格，`isSolidAtWorld` 对它
+   * 返回 false。所以敌人被击退到海里/地图外时得单独查这一条，否则没人发现他掉下去了
+   * （甲方截图报的「小兵又被打出地图」）。
+   */
+  isSeaAtWorld(wx: number, wy: number): boolean {
+    return this.isSeaPixel(wx, wy);
+  }
+
+  /**
    * 破烂的炮台：贴着地面第一行画一道塌了的胸墙，再摆两门炸坏的岸炮。
    *
    * 用户原话「也没有破烂的炮台」——之前战场只是一片石台，没有「这里是炮台」的证据。
