@@ -11,6 +11,7 @@
 import Phaser from 'phaser';
 import { VIEW_H, VIEW_W } from '../core/constants';
 import { isPortrait, toGameSpace, unrotateToLocal } from '../core/orientation';
+import { GATE_SKIP_KEY, hasGateBeenStarted, rememberGateStarted } from '../scenes/BootScene';
 
 export interface GateState {
   tapped: boolean;
@@ -350,7 +351,19 @@ export function installStartGate(game: Phaser.Game): GateState {
     // begin() 里的全屏/锁屏是异步的，等它回来才转的话，竖屏下会先看到几帧正立的画面再突然翻过去。
     state.wantLandscape = true;
     (window as unknown as { __tapGatePending?: boolean }).__tapGatePending = false;
+    // 记一笔「引导层已经点过了」：标题页的「重新开始」走的是 scene.restart()，不重新加载页面
+    // （见 BootScene.GATE_SKIP_KEY），BootScene 下次起来要靠它把引导层收掉，否则新画出来的
+    // 标题按钮的第一下会被一个已经「点过」的引导层吃掉——玩家看到的就是「点了没反应」。
+    try {
+      sessionStorage.setItem(GATE_SKIP_KEY, '1');
+    } catch {
+      /* 隐私模式：写不进去也不影响本次会话 */
+    }
+    rememberGateStarted();
     gate?.classList.add('hidden');
+    // 立刻不再吃点击：`.hidden` 只是淡出（340ms），这段时间里引导层仍盖在游戏上面，
+    // 玩家点标题按钮会落到它身上——看起来就是「点了没反应」。
+    if (gate) gate.style.pointerEvents = 'none';
     document.documentElement.classList.add('started');
     reflow();
     // 只把 opacity 置 0 的话，某些内置浏览器仍会把点击吃掉；到时彻底移出层叠树
@@ -378,6 +391,7 @@ export function installStartGate(game: Phaser.Game): GateState {
       // 已经进游戏但 gate 还在（比如用户直接点了水面）：当成已开始，免得旋转又被 gate 挡回去
       state.tapped = true;
       gate?.classList.add('hidden');
+      if (gate) gate.style.pointerEvents = 'none';
       document.documentElement.classList.add('started');
     } else if (!state.tapped && fromGate) {
       // 引导层上的「横屏」：不算开始，只是允许它在 gate 还盖着的时候就转
@@ -408,6 +422,22 @@ export function installStartGate(game: Phaser.Game): GateState {
     // （那段脚本在主模块之前就挂好，弱网下先点它也有反应），那里拦掉冒泡后派发 dsh:gate-rotate。
     // 这里接住它，走同一套「新手势重新申请全屏 + 锁屏」的逻辑，但标记 fromGate，不许顺带把 gate 关掉。
     window.addEventListener('dsh:gate-rotate', () => onRotateButton(true));
+
+    /**
+     * 开局时的重新入局：下面任何一条都不产生手势（刚加载完、或者出错后重进），
+     * 而**没有手势，全屏与方向锁申请必然被拒**；更糟的是只要 `state.tapped` 还是 false，
+     * 下面的 onTap 就会把这第一下点击**只用来关引导层**，玩家以为自己点的是标题页按钮。
+     *
+     * 所以这里先查一次浏览器自己记着的全屏状态：已经有 game-root 在整屏、或者这段代码
+     * 跑过一次（模块重复执行/热更），就直接算「已经开始」，让标题页立刻可点。
+     * 手机上两者都不成立（进页面必然是全屏外的竖屏），照旧要看引导层，不受影响。
+     */
+    const startAlreadyBegun =
+      (window as unknown as { __dshGateInstalled?: boolean }).__dshGateInstalled === true ||
+      document.fullscreenElement === document.getElementById('game-root') ||
+      hasGateBeenStarted();
+    (window as unknown as { __dshGateInstalled?: boolean }).__dshGateInstalled = true;
+    if (startAlreadyBegun) onTap();
   } else {
     // 没有 gate 元素（理论上不会）就当已点击，至少保证方向逻辑生效
     onTap();

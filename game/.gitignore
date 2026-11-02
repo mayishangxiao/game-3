@@ -19,8 +19,9 @@ __pycache__/
 # Edge 远程调试用的临时 profile（体积大且含本机路径）
 profile*/
 
-# 例外：引导层两按钮的专项探针是源码（11 条判据写在这里），其余 _cdp 脚本与输出仍忽略
+# 例外：引导层两按钮 / 标题页按钮的专项探针是源码（判据写在文件里），其余 _cdp 脚本与输出仍忽略
 !tools/_cdp/
 tools/_cdp/*
 !tools/_cdp/gate-buttons.mjs
+!tools/_cdp/title-menu.mjs
 tools/_cdp/*/
