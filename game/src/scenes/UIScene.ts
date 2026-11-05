@@ -8,6 +8,7 @@ import { DEPTH, HUD_H, PALETTE, VIEW_H, VIEW_W } from '../core/constants';
 import { InputSystem } from '../systems/InputSystem';
 import { EV, bus, getCannonVisible, getControlsVisible, getHudVisible, getSceneLabel, setControlsVisible, type HudPayload, type SceneLabelPayload, type ToastPayload } from '../core/EventBus';
 import { DYNASTY_MAX } from '../core/cannon';
+import { FONT_UI } from '../gfx/TextStyle';
 
 const BAR_X = 6;
 const BAR_W = 84;
@@ -88,7 +89,7 @@ export class UIScene extends Phaser.Scene {
 
     this.levelText = this.add
       .text(BAR_X + BAR_W + 4, HUD_Y + 5, 'Lv1', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#C2BCD1',
       })
@@ -97,7 +98,7 @@ export class UIScene extends Phaser.Scene {
 
     this.weaponText = this.add
       .text(VIEW_W - 6, HUD_Y + 5, '腰刀', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#F2EDE4',
       })
@@ -108,7 +109,7 @@ export class UIScene extends Phaser.Scene {
     // 贴着战役条底部排；战役条高度随第三行变化，所以在 onSceneLabel 里重新定位。
     this.objectiveText = this.add
       .text(6, 38, '', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#F0C419',
         backgroundColor: '#0D0B14',
@@ -120,7 +121,7 @@ export class UIScene extends Phaser.Scene {
     // 清王朝血条：挂在左上角，跨场景常驻。老师要的「中间有个代表清王朝的血条」
     this.dynastyText = this.add
       .text(6, 4, '清王朝', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '8px',
         color: '#F0C419',
       })
@@ -138,7 +139,7 @@ export class UIScene extends Phaser.Scene {
       .setDepth(DEPTH.hud + 2);
     this.defeatTag = this.add
       .text(6 + DYN_W + 6, 16, '战败', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '8px',
         color: '#E85C4A',
       })
@@ -155,7 +156,7 @@ export class UIScene extends Phaser.Scene {
       .setVisible(false);
     this.sceneText = this.add
       .text(6, 21, '', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '8px',
         color: '#F2EDE4',
       })
@@ -164,7 +165,7 @@ export class UIScene extends Phaser.Scene {
       .setVisible(false);
     this.yearText = this.add
       .text(6, 21, '', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '8px',
         color: '#F0C419',
       })
@@ -176,8 +177,8 @@ export class UIScene extends Phaser.Scene {
     // 战斗开场卡里写全，这里留一行常驻小字，玩家随时能对照。
     this.detailText = this.add
       .text(6, 31, '', {
-        fontFamily: 'sans-serif',
-        fontSize: '7px',
+        fontFamily: FONT_UI,
+        fontSize: '8px',
         color: '#C2BCD1',
       })
       .setOrigin(0, 0)
@@ -187,7 +188,7 @@ export class UIScene extends Phaser.Scene {
     // 屏幕中央提示
     this.toastText = this.add
       .text(VIEW_W / 2, 96, '', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '12px',
         color: '#F2EDE4',
         backgroundColor: '#0D0B14',
@@ -207,7 +208,7 @@ export class UIScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     this.pauseText = this.add
       .text(VIEW_W - 26, 8, '暂停', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#F2EDE4',
       })
@@ -427,13 +428,13 @@ export class UIScene extends Phaser.Scene {
     );
     push(
       this.add
-        .text(cx, cy - 40, '暂　停', { fontFamily: 'sans-serif', fontSize: '18px', color: '#F0C419' })
+        .text(cx, cy - 40, '暂　停', { fontFamily: FONT_UI, fontSize: '18px', color: '#F0C419' })
         .setOrigin(0.5)
         .setDepth(DEPTH.overlay + 3),
     );
     push(
       this.add
-        .text(cx, cy - 20, '战斗进度已冻结', { fontFamily: 'sans-serif', fontSize: '8px', color: '#C2BCD1' })
+        .text(cx, cy - 20, '战斗进度已冻结', { fontFamily: FONT_UI, fontSize: '8px', color: '#C2BCD1' })
         .setOrigin(0.5)
         .setDepth(DEPTH.overlay + 3),
     );
@@ -449,7 +450,7 @@ export class UIScene extends Phaser.Scene {
         .setDepth(DEPTH.overlay + 3)
         .setInteractive({ useHandCursor: true });
       const label = this.add
-        .text(cx, b.y, b.label, { fontFamily: 'sans-serif', fontSize: '11px', color: '#F2EDE4' })
+        .text(cx, b.y, b.label, { fontFamily: FONT_UI, fontSize: '11px', color: '#F2EDE4' })
         .setOrigin(0.5)
         .setDepth(DEPTH.overlay + 4);
       box.on('pointerdown', () => b.onTap());

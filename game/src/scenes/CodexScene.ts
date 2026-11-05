@@ -8,6 +8,7 @@ import { DEPTH, PALETTE, VIEW_H, VIEW_W } from '../core/constants';
 import { dataLoader } from '../core/DataLoader';
 import { knowledgeBonus } from '../core/balance';
 import { getSave } from './BootScene';
+import { FONT_UI } from '../gfx/TextStyle';
 
 export class CodexScene extends Phaser.Scene {
   private index = 0;
@@ -29,13 +30,13 @@ export class CodexScene extends Phaser.Scene {
     this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W - 16, VIEW_H - 20, PALETTE.ink, 0.92).setStrokeStyle(1, PALETTE.greyPlum);
 
     this.add
-      .text(16, 16, '知识图鉴', { fontFamily: 'sans-serif', fontSize: '14px', color: '#F2EDE4', fontStyle: 'bold' })
+      .text(16, 16, '知识图鉴', { fontFamily: FONT_UI, fontSize: '14px', color: '#F2EDE4', fontStyle: 'bold' })
       .setDepth(DEPTH.hud);
 
     const bonusPct = Math.round((knowledgeBonus(this.owned.length, dataLoader.getBalance()) - 1) * 100);
     this.add
       .text(VIEW_W - 16, 18, `已收集 ${this.owned.length} / ${dataLoader.getKnowledge().length}　全属性 +${bonusPct}%`, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#F0C419',
       })
@@ -43,20 +44,20 @@ export class CodexScene extends Phaser.Scene {
       .setDepth(DEPTH.hud);
 
     this.titleText = this.add.text(16, 40, '', {
-      fontFamily: 'sans-serif',
+      fontFamily: FONT_UI,
       fontSize: '12px',
       color: '#F0C419',
       wordWrap: { width: VIEW_W - 32 },
     });
 
     this.metaText = this.add.text(16, 68, '', {
-      fontFamily: 'sans-serif',
+      fontFamily: FONT_UI,
       fontSize: '9px',
       color: '#948DAB',
     });
 
     this.bodyText = this.add.text(16, 88, '', {
-      fontFamily: 'sans-serif',
+      fontFamily: FONT_UI,
       fontSize: '10px',
       color: '#F2EDE4',
       lineSpacing: 4,
@@ -64,12 +65,12 @@ export class CodexScene extends Phaser.Scene {
     });
 
     this.pageText = this.add
-      .text(VIEW_W / 2, VIEW_H - 14, '', { fontFamily: 'sans-serif', fontSize: '9px', color: '#6B6489' })
+      .text(VIEW_W / 2, VIEW_H - 14, '', { fontFamily: FONT_UI, fontSize: '9px', color: '#6B6489' })
       .setOrigin(0.5);
 
     this.add
       .text(16, VIEW_H - 14, '← → 翻页　Esc 返回长廊', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#6B6489',
       })
@@ -88,7 +89,7 @@ export class CodexScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.back());
     this.add
-      .text(VIEW_W - 40, VIEW_H - 16, '返回', { fontFamily: 'sans-serif', fontSize: '9px', color: '#F2EDE4' })
+      .text(VIEW_W - 40, VIEW_H - 16, '返回', { fontFamily: FONT_UI, fontSize: '9px', color: '#F2EDE4' })
       .setOrigin(0.5);
 
     this.render();

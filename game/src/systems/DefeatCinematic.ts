@@ -16,6 +16,7 @@ import { DEFEAT_BEATS, DEFEAT_TEXT, beatStart } from '../core/defeat';
 import { backdropImage } from '../gfx/Backdrop';
 import { setControlsVisible, setHudVisible } from '../core/EventBus';
 import { audio } from './AudioKit';
+import { FONT_UI } from '../gfx/TextStyle';
 
 export interface DefeatCinematicOptions {
   /** 大字，默认「虎门城破」 */
@@ -74,7 +75,7 @@ export class DefeatCinematic {
     // 大字 + 副行 + 落款。origin 0.5，缩放从小到大会自然居中放大。
     const big = scene.add
       .text(VIEW_W / 2, VIEW_H / 2 - 14, title, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '36px',
         color: '#F2EDE4',
         fontStyle: 'bold',
@@ -87,7 +88,7 @@ export class DefeatCinematic {
       .setScale(0.28);
     const sub = scene.add
       .text(VIEW_W / 2, VIEW_H / 2 + 20, line, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '20px',
         color: '#D9534F',
         fontStyle: 'bold',
@@ -96,7 +97,7 @@ export class DefeatCinematic {
       .setDepth(DEPTH.overlay + 4)
       .setAlpha(0);
     const foot = scene.add
-      .text(VIEW_W / 2, VIEW_H / 2 + 46, note, { fontFamily: 'sans-serif', fontSize: '10px', color: '#C2BCD1' })
+      .text(VIEW_W / 2, VIEW_H / 2 + 46, note, { fontFamily: FONT_UI, fontSize: '10px', color: '#C2BCD1' })
       .setOrigin(0.5)
       .setDepth(DEPTH.overlay + 4)
       .setAlpha(0);

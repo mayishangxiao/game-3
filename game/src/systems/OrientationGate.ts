@@ -184,6 +184,26 @@ function centerCanvas(game: Phaser.Game): void {
   game.canvas.style.marginTop = `${Math.max(0, (vp.width - size.height) / 2)}px`;
 }
 
+/**
+ * 后缓冲分辨率实验已回退：直接改 canvas.width + renderer.resize + 相机视口在 Phaser 3.90 FIT
+ * 模式下会黑屏（相机坐标系与后缓冲对不上）。本函数保留为调试角标，只读不改。
+ */
+function fitBackingResolution(game: Phaser.Game): void {
+  const cssW = game.canvas.clientWidth;
+  const cssH = game.canvas.clientHeight;
+  if (cssW < 10 || cssH < 10) return;
+  let dbg = document.getElementById('dbg-res');
+  if (!dbg) {
+    dbg = document.createElement('div');
+    dbg.id = 'dbg-res';
+    dbg.style.cssText =
+      'position:fixed;left:4px;bottom:4px;z-index:9999;background:#000;color:#0f0;' +
+      'font:10px monospace;padding:2px 4px;line-height:1.3;pointer-events:none;';
+    document.body.appendChild(dbg);
+  }
+  dbg.textContent = `buf=${game.canvas.width}x${game.canvas.height} css=${cssW}x${cssH} dpr=${window.devicePixelRatio || 1}`;
+}
+
 export function installStartGate(game: Phaser.Game): GateState {
   const params = new URLSearchParams(window.location.search);
   // 横屏行为：**点一下屏幕就横**。
@@ -289,6 +309,7 @@ export function installStartGate(game: Phaser.Game): GateState {
     // 容器尺寸变了要让 Phaser 重新量一次父容器；旋转时还要自己居中（Phaser 的量法在旋转下会算反）
     window.setTimeout(() => {
       game.scale.refresh();
+      fitBackingResolution(game);
       if (rotated) centerCanvas(game);
     }, 60);
     // 布局稳定后再量一次：换算对不上就宁可不转，也不能留一个点不动的画面。

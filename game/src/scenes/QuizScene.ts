@@ -22,6 +22,7 @@ import {
 import { getSave, persist } from './BootScene';
 import type { ChapterBundle } from '../core/DataLoader';
 import type { QuizQuestion } from '../core/types';
+import { FONT_UI } from '../gfx/TextStyle';
 
 export class QuizScene extends Phaser.Scene {
   private chapterId = 'ch00';
@@ -56,7 +57,7 @@ export class QuizScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(PALETTE.night);
     const tip = this.add
       .text(VIEW_W / 2, VIEW_H / 2, '正在抽题……', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '11px',
         color: '#948DAB',
       })
@@ -92,7 +93,7 @@ export class QuizScene extends Phaser.Scene {
     );
     this.root.add(
       this.add.text(14, 12, `${this.bundle.meta.name} · 章末测验`, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '10px',
         color: '#C2BCD1',
       }),
@@ -100,7 +101,7 @@ export class QuizScene extends Phaser.Scene {
     this.root.add(
       this.add
         .text(VIEW_W - 14, 12, `第 ${this.cursor + 1} / ${this.questions.length} 题`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '10px',
           color: '#F0C419',
         })
@@ -109,7 +110,7 @@ export class QuizScene extends Phaser.Scene {
 
     this.root.add(
       this.add.text(14, 36, q.question, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '12px',
         color: '#F2EDE4',
         wordWrap: { width: VIEW_W - 28 },
@@ -126,7 +127,7 @@ export class QuizScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       const label = this.add
         .text(20, y, `${'ABCD'[i]}. ${opt}`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '11px',
           color: '#F2EDE4',
           wordWrap: { width: VIEW_W - 60 },
@@ -143,7 +144,7 @@ export class QuizScene extends Phaser.Scene {
     this.root.add(
       this.add
         .text(VIEW_W / 2, VIEW_H - 12, '点击选项作答　A/B/C/D 键亦可', {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9px',
           color: '#6B6489',
         })
@@ -190,7 +191,7 @@ export class QuizScene extends Phaser.Scene {
 
     // 解释
     const explain = this.add.text(16, VIEW_H - 54, `${ok ? '答对。' : '答错。'}${q.explanation}`, {
-      fontFamily: 'sans-serif',
+      fontFamily: FONT_UI,
       fontSize: '9.5px',
       color: ok ? '#7EC08A' : '#F2A08C',
       wordWrap: { width: VIEW_W - 32 },
@@ -204,7 +205,7 @@ export class QuizScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     const nextLabel = this.add
       .text(VIEW_W - 46, VIEW_H - 16, this.cursor + 1 >= this.questions.length ? '看结果' : '下一题', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '10px',
         color: '#F2EDE4',
       })
@@ -238,7 +239,7 @@ export class QuizScene extends Phaser.Scene {
     this.root.add(
       this.add
         .text(VIEW_W / 2, 20, `测验结果　${r.correct} / ${r.total}`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '14px',
           color: r.passed ? '#7EC08A' : '#F2A08C',
           fontStyle: 'bold',
@@ -248,7 +249,7 @@ export class QuizScene extends Phaser.Scene {
     this.root.add(
       this.add
         .text(VIEW_W / 2, 42, r.passed ? '通过' : `未通过（需答对 ${QUIZ_PASS_THRESHOLD} 题）`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '10px',
           color: '#C2BCD1',
         })
@@ -261,7 +262,7 @@ export class QuizScene extends Phaser.Scene {
       .join('　');
     this.root.add(
       this.add
-        .text(VIEW_W / 2, 58, dots, { fontFamily: 'sans-serif', fontSize: '10px', color: '#948DAB' })
+        .text(VIEW_W / 2, 58, dots, { fontFamily: FONT_UI, fontSize: '10px', color: '#948DAB' })
         .setOrigin(0.5, 0),
     );
 
@@ -270,14 +271,14 @@ export class QuizScene extends Phaser.Scene {
     const tier = completionTier(completion);
     this.root.add(
       this.add.text(16, 82, `章节完成度　${completion}%　·　${tier.label}`, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '11px',
         color: '#F0C419',
       }),
     );
     this.root.add(
       this.add.text(16, 100, tier.note, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9.5px',
         color: '#C2BCD1',
         wordWrap: { width: VIEW_W - 32 },
@@ -292,7 +293,7 @@ export class QuizScene extends Phaser.Scene {
         .join('；');
       this.root.add(
         this.add.text(16, 122, `建议补看：${titles}`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9px',
           color: '#F2A08C',
           wordWrap: { width: VIEW_W - 32 },
@@ -303,7 +304,7 @@ export class QuizScene extends Phaser.Scene {
     if (perfectBonusGranted(r.correct, r.total)) {
       this.root.add(
         this.add.text(16, 146, '满分奖励：已解锁一张隐藏知识卡的延伸解读。', {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9px',
           color: '#F0C419',
         }),
@@ -320,7 +321,7 @@ export class QuizScene extends Phaser.Scene {
 
     this.root.add(
       this.add.text(16, 166, unlockMsg, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9.5px',
         color: '#C2BCD1',
         wordWrap: { width: VIEW_W - 32 },
@@ -328,7 +329,7 @@ export class QuizScene extends Phaser.Scene {
     );
     this.root.add(
       this.add.text(16, 186, `累计知识卡 ${save.knowledge.length} 张　已通关节点 ${save.progress.nodes_done.length} 个`, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#6B6489',
       }),
@@ -355,7 +356,7 @@ export class QuizScene extends Phaser.Scene {
       .setStrokeStyle(1, PALETTE.ink)
       .setInteractive({ useHandCursor: true });
     const label = this.add
-      .text(x, y, text, { fontFamily: 'sans-serif', fontSize: '10px', color: '#F2EDE4' })
+      .text(x, y, text, { fontFamily: FONT_UI, fontSize: '10px', color: '#F2EDE4' })
       .setOrigin(0.5);
     this.root.add(rect);
     this.root.add(label);

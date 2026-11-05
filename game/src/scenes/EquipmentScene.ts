@@ -17,6 +17,7 @@ import {
 } from '../core/balance';
 import { getSave, persist } from './BootScene';
 import type { ItemInstance, Slot } from '../core/types';
+import { FONT_UI } from '../gfx/TextStyle';
 
 const SLOT_NAMES: { key: Slot; label: string }[] = [
   { key: 'weapon', label: '武器' },
@@ -195,7 +196,7 @@ export class EquipmentScene extends Phaser.Scene {
     );
     c.add(
       this.add.text(14, 10, '装备与背包', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '13px',
         color: '#F2EDE4',
         fontStyle: 'bold',
@@ -204,7 +205,7 @@ export class EquipmentScene extends Phaser.Scene {
     c.add(
       this.add
         .text(VIEW_W - 14, 12, `零件 ${save.scrap}`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '11px',
           color: '#F0C419',
         })
@@ -213,7 +214,7 @@ export class EquipmentScene extends Phaser.Scene {
 
     // ---- 左：五槽位 ----
     c.add(
-      this.add.text(14, 32, '已装备', { fontFamily: 'sans-serif', fontSize: '9px', color: '#948DAB' }),
+      this.add.text(14, 32, '已装备', { fontFamily: FONT_UI, fontSize: '9px', color: '#948DAB' }),
     );
     SLOT_NAMES.forEach((s, i) => {
       const y = 48 + i * 30;
@@ -234,7 +235,7 @@ export class EquipmentScene extends Phaser.Scene {
       );
       c.add(
         this.add.text(20, y, s.label, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '10px',
           color: '#C2BCD1',
         }),
@@ -243,7 +244,7 @@ export class EquipmentScene extends Phaser.Scene {
         const v = enhancedValue(it);
         c.add(
           this.add.text(58, y, `${it.name}${it.enhance > 0 ? ` +${it.enhance}` : ''}`, {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '9.5px',
             color: qualityColor(it.quality),
           }),
@@ -251,7 +252,7 @@ export class EquipmentScene extends Phaser.Scene {
         c.add(
           this.add
             .text(190, y, `${it.stat.toUpperCase()} ${v}`, {
-              fontFamily: 'sans-serif',
+              fontFamily: FONT_UI,
               fontSize: '9px',
               color: '#F0C419',
             })
@@ -259,7 +260,7 @@ export class EquipmentScene extends Phaser.Scene {
         );
       } else {
         c.add(
-          this.add.text(58, y, '（空）', { fontFamily: 'sans-serif', fontSize: '9.5px', color: '#6B6489' }),
+          this.add.text(58, y, '（空）', { fontFamily: FONT_UI, fontSize: '9.5px', color: '#6B6489' }),
         );
       }
     });
@@ -270,7 +271,7 @@ export class EquipmentScene extends Phaser.Scene {
     this.page = Math.min(this.page, totalPages - 1);
     c.add(
       this.add.text(226, 32, `背包 ${items.length} / ${save.bag.slots}`, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#948DAB',
       }),
@@ -279,7 +280,7 @@ export class EquipmentScene extends Phaser.Scene {
     if (items.length === 0) {
       c.add(
         this.add.text(226, 56, '背包是空的。\n去副本里刷点装备。', {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '10px',
           color: '#6B6489',
           lineSpacing: 4,
@@ -316,7 +317,7 @@ export class EquipmentScene extends Phaser.Scene {
       const affix = it.affixes.length > 0 ? ` ·${it.affixes.length}词` : '';
       c.add(
         this.add.text(228, y, `${qualityLabel(it.quality)} ${it.name}${it.enhance > 0 ? `+${it.enhance}` : ''}${affix}`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9px',
           color: active ? '#F2EDE4' : qualityColor(it.quality),
         }),
@@ -324,7 +325,7 @@ export class EquipmentScene extends Phaser.Scene {
       c.add(
         this.add
           .text(462, y, `${it.stat.toUpperCase()} ${enhancedValue(it)}`, {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '9px',
             color: '#C2BCD1',
           })
@@ -350,7 +351,7 @@ export class EquipmentScene extends Phaser.Scene {
           dy,
           `${qualityLabel(det.quality)} ${det.name}${det.enhance > 0 ? ` +${det.enhance}` : ''}`,
           {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '10px',
             color: qualityColor(det.quality),
           },
@@ -362,7 +363,7 @@ export class EquipmentScene extends Phaser.Scene {
           dy + 13,
           `${slotLabel}　${det.stat.toUpperCase()} ${enhancedValue(det)}（基础 ${det.value}）`,
           {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '9px',
             color: '#C2BCD1',
           },
@@ -371,7 +372,7 @@ export class EquipmentScene extends Phaser.Scene {
       if (det.affixes.length > 0) {
         c.add(
           this.add.text(dx + 6, dy + 26, det.affixes.map((a) => `${a.id} +${a.value}`).join('　'), {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '8.5px',
             color: '#948DAB',
             wordWrap: { width: 172 },
@@ -381,7 +382,7 @@ export class EquipmentScene extends Phaser.Scene {
       } else {
         c.add(
           this.add.text(dx + 6, dy + 26, this.equipSel ? '正装备着（卸下后才可拆解）' : '没有随机词条', {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '8.5px',
             color: '#6B6489',
           }),
@@ -393,7 +394,7 @@ export class EquipmentScene extends Phaser.Scene {
       c.add(
         this.add
           .text(346, 226, `第 ${this.page + 1} / ${totalPages} 页`, {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '8.5px',
             color: '#6B6489',
           })
@@ -404,7 +405,7 @@ export class EquipmentScene extends Phaser.Scene {
     // ---- 底部操作 ----
     c.add(
       this.add.text(14, VIEW_H - HUD_H - 30, this.message, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9.5px',
         color: '#F0C419',
         wordWrap: { width: VIEW_W - 28 },
@@ -452,7 +453,7 @@ export class EquipmentScene extends Phaser.Scene {
       .setStrokeStyle(1, PALETTE.ink);
     const t = this.add
       .text(x, y, text, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: enabled ? '#F2EDE4' : '#6B6489',
       })

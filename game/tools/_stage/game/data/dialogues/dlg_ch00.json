@@ -1,0 +1,249 @@
+{
+  "dialogues": [
+    {
+      "id": "dlg_ch00_act1_intro",
+      "speaker": "narrator",
+      "lines": [
+        {
+          "text": "道光十九年六月，虎门海滩。\n钦差大臣林则徐到了广东。",
+          "emotion": "neutral"
+        },
+        {
+          "text": "他在奏折里写道：\n“若犹泄泄视之，数十年后，\n中原几无可以御敌之兵。”",
+          "emotion": "worried"
+        },
+        {
+          "text": "缴来的烟土共一万九千一百八十七箱，\n都堆在海滩上——\n要全部投进销烟池。",
+          "emotion": "neutral",
+          "action": {
+            "type": "flag",
+            "value": "pool_started"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act1_pool",
+      "speaker": "narrator",
+      "lines": [
+        {
+          "text": "海水浸泡，再加石灰。\n池水沸腾，烟土化尽——\n退潮时随潮水入海，不留一星。",
+          "emotion": "neutral"
+        },
+        {
+          "text": "二十三天，销烟二百三十七万余斤。\n要让洋人看清楚：\n中国人不是好欺的。",
+          "emotion": "neutral"
+        },
+        {
+          "text": "“若鸦片一日未绝，\n本大臣一日不回。”",
+          "emotion": "neutral",
+          "action": {
+            "type": "knowledge",
+            "item": "kc_1839_humen"
+          }
+        },
+        {
+          "text": "可是海面上，英国的兵船\n已经来了。",
+          "emotion": "worried",
+          "action": {
+            "type": "end"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act1_pool_lin",
+      "speaker": "lin_zexu",
+      "lines": [
+        {
+          "text": "鸦片一日未绝，本大臣一日不回。",
+          "emotion": "proud"
+        },
+        {
+          "text": "这滩上两万余箱烟土，\n一箱不留，全数销尽。",
+          "emotion": "neutral"
+        },
+        {
+          "text": "你们把箱子搬进池里，\n浇上海水与石灰便是。\n动手罢。",
+          "emotion": "neutral"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act1_fort_intro",
+      "speaker": "guan_tianpei",
+      "lines": [
+        {
+          "text": "我是广东水师提督关天培。\n威远炮台，就交给我了。",
+          "emotion": "neutral"
+        },
+        {
+          "text": "炮台修了三年，招募水勇三千。\n可朝廷的军费，一年比一年少。",
+          "emotion": "worried"
+        },
+        {
+          "text": "炮弹不多，火枪更少。\n手里的刀，还是老样子。",
+          "emotion": "neutral"
+        },
+        {
+          "text": "守住这里。",
+          "emotion": "proud",
+          "action": {
+            "type": "bgm",
+            "value": "bgm_battle"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act1_cannon",
+      "speaker": "guan_tianpei",
+      "lines": [
+        {
+          "text": "这门炮，还能打。\n弹药库里只剩三十几发。",
+          "emotion": "worried"
+        },
+        {
+          "text": "省着用。",
+          "emotion": "neutral"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act1_nanjing",
+      "speaker": "narrator",
+      "lines": [
+        {
+          "text": "道光二十二年七月，\n英舰皋华丽号泊在南京下关江面。",
+          "emotion": "sad"
+        },
+        {
+          "text": "条约的条款已经拟好：\n割香港岛，赔款两千一百万银元，\n开广州、厦门、福州、宁波、上海五口。",
+          "emotion": "sad"
+        },
+        {
+          "text": "这是中国近代史上\n第一个不平等条约。\n——也是此后一百年的开端。",
+          "emotion": "sad",
+          "action": {
+            "type": "knowledge",
+            "item": "kc_1842_nanjing"
+          }
+        },
+        {
+          "text": "旧中国的第一次失败，\n记在了这里。",
+          "emotion": "sad",
+          "action": {
+            "type": "end"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act2_intro",
+      "speaker": "li_xiucheng",
+      "lines": [
+        {
+          "text": "我是李秀成。\n从金田村出来的那一天，\n我们只有两万人。",
+          "emotion": "neutral"
+        },
+        {
+          "text": "清军在后面追。\n带着这三个弟兄走，\n一个都不能少。",
+          "emotion": "worried"
+        },
+        {
+          "text": "往东。",
+          "emotion": "proud",
+          "action": {
+            "type": "bgm",
+            "value": "bgm_battle"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act2_tianjing",
+      "speaker": "hong_xiuquan",
+      "lines": [
+        {
+          "text": "定都天京了。\n从今往后，这里就是\n太平天国的都城。",
+          "emotion": "proud"
+        },
+        {
+          "text": "粮草、兵员、民心。\n三件事，每月只有六点可分。",
+          "emotion": "neutral"
+        },
+        {
+          "text": "《天朝田亩制度》上写着\n“无人不饱暖”。\n你去分分看。",
+          "emotion": "worried",
+          "action": {
+            "type": "knowledge",
+            "item": "kc_1853_tianjing"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act2_intrigue",
+      "speaker": "narrator",
+      "lines": [
+        {
+          "text": "咸丰六年八月，天京。",
+          "emotion": "sad"
+        },
+        {
+          "text": "东王杨秀清被杀，\n北王韦昌辉被处死，\n翼王石达开带兵出走。",
+          "emotion": "sad"
+        },
+        {
+          "text": "几个月前还是\n“无处不均匀”的天京，\n如今血流在宫墙下。",
+          "emotion": "sad"
+        },
+        {
+          "text": "不是哪一个人的错。\n是这个政权\n没有办法约束自己。",
+          "emotion": "sad",
+          "action": {
+            "type": "knowledge",
+            "item": "kc_1856_intrigue"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act2_fall",
+      "speaker": "li_xiucheng",
+      "lines": [
+        {
+          "text": "同治三年六月，天京。\n城墙被轰开的时候，\n粮仓早就空了。",
+          "emotion": "sad"
+        },
+        {
+          "text": "十四年，从金田到天京。\n我们打过很多胜仗。",
+          "emotion": "sad"
+        },
+        {
+          "text": "可我们终究没能\n走出一条新路。",
+          "emotion": "sad",
+          "action": {
+            "type": "knowledge",
+            "item": "kc_1864_tianjing_fall"
+          }
+        },
+        {
+          "text": "把这件事记下来。\n后来的人会明白，\n光靠农民，是不行的。",
+          "emotion": "neutral",
+          "action": {
+            "type": "end"
+          }
+        }
+      ]
+    }
+  ],
+  "npcs": {
+    "lin_zexu": "林则徐",
+    "guan_tianpei": "关天培",
+    "narrator": "旁白",
+    "li_xiucheng": "李秀成",
+    "hong_xiuquan": "洪秀全",
+    "hong_renxuan": "洪仁玕"
+  }
+}

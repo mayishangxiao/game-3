@@ -7,6 +7,7 @@
 
 import Phaser from 'phaser';
 import { CONTROL_HIT_PAD, CONTROL_LAYOUT, DEPTH, PALETTE, VIEW_H, VIEW_W } from '../core/constants';
+import { FONT_UI } from '../gfx/TextStyle';
 
 /** 共享输入状态（跨场景单例） */
 export const controls = {
@@ -127,7 +128,7 @@ export class InputSystem {
     this.cannonLabel.setColor('#F0C419');
     this.cannonCd = this.scene.add
       .text(LAYOUT.cannon.x, LAYOUT.cannon.y + LAYOUT.cannon.r + 7, '', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#C2BCD1',
       })
@@ -150,7 +151,7 @@ export class InputSystem {
       .setVisible(false);
     this.interactLabel = scene.add
       .text(LAYOUT.interact.x, LAYOUT.interact.y, '查', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '13px',
         color: '#0D0B14',
       })
@@ -190,7 +191,7 @@ export class InputSystem {
       .setDepth(DEPTH.hud);
     const text = s.add
       .text(cfg.x, cfg.y, label, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: cfg.r > 22 ? '16px' : '13px',
         color: '#F2EDE4',
       })

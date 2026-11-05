@@ -9,6 +9,7 @@
 
 import Phaser from 'phaser';
 import { CHAR_H, CHAR_W, DEPTH, PALETTE, PART_ART, PartFacing, PartName, partKey, SHIP_FRAME, WEAPON_KIND } from '../core/constants';
+import { markPixel } from './PixelArt';
 
 /** 舰船一次开炮动作的时长（毫秒）：比人形长一倍，舷炮齐射才看得清 */
 const SHIP_ATTACK_MS = 340;
@@ -155,7 +156,7 @@ export class CharacterRig extends Phaser.GameObjects.Container {
         this.shipKeys = art;
         // 96×48 的贴图：底边压在水下 8px 处，吃水线（第 40 行）正好落在容器原点，
         // 这样海面是按玩家脚下的 y 画的，船不会浮在半空。
-        this.shipImage = scene.add.image(0, 8, art[0]).setOrigin(0.5, 1);
+        this.shipImage = markPixel(scene.add.image(0, 8, art[0]).setOrigin(0.5, 1));
         this.add(this.shipImage);
       } else {
         this.buildShip(scene, this.baseBody);
@@ -174,7 +175,7 @@ export class CharacterRig extends Phaser.GameObjects.Container {
       this.unitKey = unit;
       this.hideRectParts();
       // 24×32 的贴图脚底对齐容器原点：环境里角色坐标就是「站着的那一点」
-      this.unitImage = scene.add.image(0, 0, `${unit}_down`).setOrigin(0.5, 1);
+      this.unitImage = markPixel(scene.add.image(0, 0, `${unit}_down`).setOrigin(0.5, 1));
       this.add(this.unitImage);
     }
 
@@ -236,7 +237,7 @@ export class CharacterRig extends Phaser.GameObjects.Container {
 
     // 手臂支点：绕肩转，兵器和手一起走（不分开算，省得抡刀时刀飞出去）
     this.armPivot = scene.add.container(P.shoulderX, P.shoulder);
-    const arm = scene.add.image(0, 0, partKey(unit, 'front', 'arm')).setOrigin(0.5, 0);
+    const arm = markPixel(scene.add.image(0, 0, partKey(unit, 'front', 'arm')).setOrigin(0.5, 0));
     this.armPivot.add(arm);
     const weapon = this.buildWeapon(scene, unit);
     if (weapon) this.armPivot.add(weapon);
@@ -261,7 +262,7 @@ export class CharacterRig extends Phaser.GameObjects.Container {
 
     const key = partKey(unit, 'front', 'weapon');
     if (scene.textures.exists(key)) {
-      const img = scene.add.image(0, 0, key).setOrigin(0.5, 1);
+      const img = markPixel(scene.add.image(0, 0, key).setOrigin(0.5, 1));
       img.setScale(Math.min(1, P.weaponMaxH / img.height));
       c.add(img);
       this.weaponPartImg = img;
@@ -295,7 +296,10 @@ export class CharacterRig extends Phaser.GameObjects.Container {
       const put = (img: Phaser.GameObjects.Image | null, part: PartName) => {
         if (!img) return;
         const key = partKey(this.partsUnit, facing, part);
-        if (img.texture.key !== key) img.setTexture(key);
+        if (img.texture.key !== key) {
+        img.setTexture(key);
+        markPixel(img);
+      }
       };
       put(this.legBack, 'leg');
       put(this.legFront, 'leg');
@@ -313,7 +317,10 @@ export class CharacterRig extends Phaser.GameObjects.Container {
   private applyUnitFacing(): void {
     if (!this.unitImage || !this.unitKey) return;
     const key = `${this.unitKey}_${this.facing}`;
-    if (this.unitImage.texture.key !== key) this.unitImage.setTexture(key);
+    if (this.unitImage.texture.key !== key) {
+        this.unitImage.setTexture(key);
+        markPixel(this.unitImage);
+      }
   }
 
   /**

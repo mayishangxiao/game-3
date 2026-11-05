@@ -11,6 +11,7 @@
 
 import Phaser from 'phaser';
 import { BG_TEX, PALETTE, VIEW_H, VIEW_W } from '../core/constants';
+import { markPixel } from './PixelArt';
 
 /** 敌舰剪影：只在背景层出现，不参与战斗 */
 interface Silhouette {
@@ -273,7 +274,7 @@ export function backdropTexture(scene: Phaser.Scene, key = 'bg_sea_battle'): str
  */
 export function backdropImage(scene: Phaser.Scene, depth: number): Phaser.GameObjects.Image {
   if (scene.textures.exists(BG_TEX.intro)) {
-    return scene.add.image(0, 0, BG_TEX.intro).setOrigin(0, 0).setDepth(depth);
+    return markPixel(scene.add.image(0, 0, BG_TEX.intro).setOrigin(0, 0).setDepth(depth));
   }
   return scene.add.image(0, 0, backdropTexture(scene)).setOrigin(0, 0).setDepth(depth);
 }
@@ -396,7 +397,7 @@ export function horizonImage(
     prefer === 'dusk' ? [BG_TEX.horizonDusk, BG_TEX.horizon] : [BG_TEX.horizon, BG_TEX.horizonDusk];
   for (const key of order) {
     if (scene.textures.exists(key)) {
-      const img = scene.add.image(0, 0, key).setOrigin(0, 0).setDepth(depth);
+      const img = markPixel(scene.add.image(0, 0, key).setOrigin(0, 0).setDepth(depth));
       if (zoom !== 1) {
         img.setScale(zoom);
         // 水平居中：放大后左右各多出一截海面，让中间的舰队落在画面正中

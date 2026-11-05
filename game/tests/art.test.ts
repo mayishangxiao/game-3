@@ -174,10 +174,10 @@ describe('正式美术资源', () => {
     }
   });
 
-  it('第一幕两张图除了边界之外没有一格空气墙（甲方要求：除了边界全去掉）', () => {
+  it('第一幕两张图除了边界和销烟池之外没有一格空气墙（甲方要求：除了边界全去掉）', () => {
     // 撞得住的格子必须看得见：边界用海/湿沙/礁石包边，场地内部一格不挡。
-    // 这条以前没人挡，结果 act1b 有 6 行实心远景带 + 右 6 列实心海面 + 4 根柱子，
-    // 玩家在空地上莫名其妙被挡住（`paintWalls` 还把它们画成了石墙色块）。
+    // 例外（2026-11 甲方新要求）：销烟池放大、人进不去，它的木框(6)/石灰(7)是看得见的装饰实心，
+    // 不是空气墙——只允许这两种砖在内部实心，其余任何内部实心格都算 bug。
     for (const file of ['map_ch00_act1a.json', 'map_ch00_act1b.json']) {
       const map = JSON.parse(readFileSync(join(PUBLIC, 'data', 'maps', file), 'utf8')) as {
         width: number;
@@ -186,9 +186,7 @@ describe('正式美术资源', () => {
         layers: { name: string; data: number[][] }[];
       };
       const col = map.layers.find((l) => l.name === 'collision')!.data;
-      // 可走场地的**行范围**：从第一条整行可走的格子算到倒数第二条。
-      // 边界是「看起来像海边」的几行（海、湿沙），行数可以大于 1 行，
-      // 但只要某一整行能走，它就是场地而不是边界。
+      const ground = map.layers.find((l) => l.name === 'ground')!.data;
       const rowOpen = (y: number) =>
         Array.from({ length: map.width - 2 }, (_, i) => col[y][i + 1]).every((v) => v === 0);
       let top = 0;
@@ -197,7 +195,7 @@ describe('正式美术资源', () => {
       const open: [number, number][] = [];
       for (let y = top + 1; y < map.height - 1; y++) {
         for (let x = 1; x < map.width - 1; x++) {
-          if (col[y][x] !== 0) open.push([x, y]);
+          if (col[y][x] !== 0 && ground[y][x] !== 6 && ground[y][x] !== 7) open.push([x, y]);
         }
       }
       expect(open, `${file} 场地内部仍有空气墙：${JSON.stringify(open)}`).toEqual([]);

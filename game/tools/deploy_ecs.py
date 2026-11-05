@@ -38,7 +38,7 @@ NGINX_CONF = """server {
     gzip_min_length 1024;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
 
-    location /assets/ {
+    location /game/assets/ {
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
@@ -49,7 +49,13 @@ NGINX_CONF = """server {
     location = /index.html {
         add_header Cache-Control "no-cache";
     }
+    location = /game/index.html {
+        add_header Cache-Control "no-cache";
+    }
 
+    location /game/ {
+        try_files $uri $uri/ /game/index.html;
+    }
     location / {
         try_files $uri $uri/ /index.html;
     }

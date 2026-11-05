@@ -23,6 +23,7 @@
     "level_suppress_threshold": 5,
     "level_suppress_def_factor": 0.7
   },
+  "player_damage_mult": 0.5,
   "dodge": {
     "invincible_ms": 180,
     "cooldown_ms": 1200,

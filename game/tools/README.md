@@ -46,6 +46,7 @@ node tools/serve.mjs dist 4173        # 极简静态服务器，无依赖；手�
 | `check-title-stop.mjs` | 走真实入口 `Title.startGame` 时 TitleScene 是否被正确停止、Enter 键是否在两个场景上重复触发 |
 | `analyze_shots.py` | 截图体检：确认画面真的渲染了内容（不是纯黑/纯色），统计主色分布是否落在 24 色调色板内 |
 | `_cdp/props-probe.mjs` | **场景布景专项**：`kind:'prop'` 的 Sunny Land 道具只画不登记（不进 `worldObjects`），单元测试只能证明「文件在、尺寸对」，证明不了「这一格真的摆了块路障」。这个探针逐图开真实关卡（第一幕战斗 / 第二幕两节点 / 副本 dg01），点掉开场卡片与月度分配面板，把镜头挪到布景带，断言「每件都有 `sunny_*` 贴图、`drawn:true`、坐标不越界」，并逐图截图。端口 9411。用法同 `cdp-e2e.mjs`，产物在 `<outDir>/props.json` + `p1…p6*.png` |
+| `_cdp/text-probe.mjs` | **文字清晰度 + 半血剧情杀专项**：① 报渲染后端实况（`cssW/bufW/dpr`、canvas 的 `image-rendering`、纹理 `scaleMode`）；② 读开场卡里的「战力对比」四段文本是否都在（`/战力对比/`、`/^我$/`、`/^敌$/`、`/^差距/`）；③ 直接调 `lv.spawnBossEntities(en_boss_steamfrigate)` 把军舰摆出来、打掉一半血，按 `lv.finalStrikeStage` 的阶段推进（`warn`→`hit`→`defeat`）截图，而不是 sleep 墙钟——无头浏览器里 sleep 会拍空帧；④ 断言战败链真的接上了（`defeated:true`、`mode:'cutscene'`、`hp:0`）。端口 9416，产物 `t1-banner…t5-defeat.png` + `text-probe.json`。**注意 `pixelFilters=false` 是预期的**：无头 Edge 走 Canvas 渲染器，而 Phaser 的 Canvas 后端不实现纹理滤镜 |
 | `_cdp/act1-shot.mjs` | **第一幕人工评审**：把 act1a（销烟池）与 act1b（威远炮台）各拍「出生点」与「平移后」两张，用来肉眼确认「除边界外无空气墙、布景不浮空、观众已去掉」。没有断言，只是截图工具。端口 9413。闸门清场逻辑抄自 `_cdp/parts.mjs` 的 `settleIntro`（DOM 遮罩 → `tapCard()` → `dialogue.advance()`，循环到连续 6 帧全静） |
 
 **E2E 脚本写作要点**（都是踩过坑才写下来的）：

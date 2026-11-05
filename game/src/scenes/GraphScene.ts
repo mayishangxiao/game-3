@@ -20,6 +20,7 @@ import {
 import { getSave, persist } from './BootScene';
 import { emitToast } from '../core/EventBus';
 import type { EventCard } from '../core/types';
+import { FONT_UI } from '../gfx/TextStyle';
 
 interface NodeView {
   id: string;
@@ -76,7 +77,7 @@ export class GraphScene extends Phaser.Scene {
   private buildHeader(): void {
     this.add
       .text(14, 10, '知识图谱', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '13px',
         color: '#F2EDE4',
         fontStyle: 'bold',
@@ -84,7 +85,7 @@ export class GraphScene extends Phaser.Scene {
       .setDepth(DEPTH.hud);
     this.add
       .text(14, 26, '点两个事件，把它们之间的因果连起来', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '8.5px',
         color: '#6B6489',
       })
@@ -92,7 +93,7 @@ export class GraphScene extends Phaser.Scene {
 
     this.progressText = this.add
       .text(VIEW_W - 14, 12, '', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '11px',
         color: '#F0C419',
       })
@@ -101,7 +102,7 @@ export class GraphScene extends Phaser.Scene {
 
     this.hintText = this.add
       .text(VIEW_W / 2, VIEW_H - 12, '已收集的事件才能连线。Esc 返回长廊。', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#6B6489',
       })
@@ -115,7 +116,7 @@ export class GraphScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     this.add
       .text(VIEW_W - 44, VIEW_H - 26, '返回', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#F2EDE4',
       })
@@ -165,7 +166,7 @@ export class GraphScene extends Phaser.Scene {
 
       const year = this.add
         .text(x, y - 15, String(yearOf(ev)), {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '7px',
           color: got ? '#8F87A8' : '#3C3757',
         })
@@ -173,7 +174,7 @@ export class GraphScene extends Phaser.Scene {
         .setDepth(DEPTH.hud);
       const label = this.add
         .text(x, y + 14, wrapLabel(ev.title, 8), {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '7.5px',
           color: got ? '#C2BCD1' : '#4A4468',
           align: 'center',

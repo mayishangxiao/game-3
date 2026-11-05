@@ -9,6 +9,7 @@ import type { MapRenderer } from '../gfx/MapRenderer';
 import { PALETTE, SHIP_TEX, TILE, unitArtOf } from '../core/constants';
 import { computeDamage, type Rng } from '../core/balance';
 import type { BalanceConfig, BossPhase, EnemyDef } from '../core/types';
+import { FONT_UI } from '../gfx/TextStyle';
 
 export type AiState = 'idle' | 'chase' | 'windup' | 'cooldown' | 'return' | 'stunned';
 
@@ -44,6 +45,16 @@ interface BossAction {
 
 const BOSS_TELEGRAPH = { broadside: 700, landing_boat: 480, ram: 640 } as const;
 const BOSS_RECOVER = { broadside: 1900, landing_boat: 2100, ram: 1500 } as const;
+
+/**
+ * Boss 招式间隔的整体倍率（甲方「敌方射速翻倍」）。
+ *
+ * 普通敌兵靠数据里的 `attack_cooldown_ms` 调，但 Boss 走的是另一套循环：
+ * 前摇（BOSS_TELEGRAPH，玩家躲红圈的时间，不能动）+ 恢复（BOSS_RECOVER）。
+ * 只砍恢复这一头 → 开火频率翻倍，而预警时间一秒都不少，玩家仍然躲得掉。
+ * 前摇跟着缩会让「看到红圈已经贴脸」，那不是加快节奏，是变相无视提示。
+ */
+const BOSS_RECOVER_SCALE = 0.5;
 
 const ENEMY_BASE_SPEED = 44;
 const ENEMY_FOOT_W = 12;
@@ -99,6 +110,11 @@ export class Enemy {
   private bossTimer = 2000;
   private bossAction: BossAction | null = null;
   private bossCycle = 0;
+  /**
+   * 半血「全屏打击」是否已经放过（甲方：剧情杀，只放一次）。
+   * 放在实体上而不是场景里：场景切节点会重建实体，这个标志天然跟着「这一场」走。
+   */
+  private finalStrikeDone = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number, def: EnemyDef, stats: { hp: number; atk: number; def: number }) {
     this.scene = scene;
@@ -165,7 +181,7 @@ export class Enemy {
       // 位置压在血条上方 14px —— 血条在 -30（精英），这样小字在 -44，不会盖住帽子。
       this.auraLabel = scene.add
         .text(x, y - 44, `指挥 · 攻 +${aura.atk_pct}%`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '8px',
           color: '#F0C419',
         })
@@ -230,11 +246,20 @@ export class Enemy {
     }
   }
 
+  /**
+   * 半血必杀的挂钩：实体发现血量刚跌破一半时回调一次，由场景演出（全屏打击）。
+   * 不放在 `EnemyCallbacks` 里，是因为那个回调包只在 `update()` 的这一次调用里有效，
+   * 而溺水式地传一个「打完这枪才触发」的演出没地方存。
+   */
+  onFinalStrike: ((e: Enemy) => void) | null = null;
+
   takeDamage(damage: number, crit: boolean, cfg: BalanceConfig): boolean {
     if (!this.alive) return false;
+    const prevHp = this.hp;
     this.hp = Math.max(0, this.hp - damage);
     this.rig.hitFlash(crit ? 110 : 60);
     this.updatePhase();
+    if (this.checkFinalStrike(prevHp)) this.onFinalStrike?.(this);
 
     if (this.def.tier === 'elite' && this.hp <= 0) {
       this.hp = 0;
@@ -257,7 +282,7 @@ export class Enemy {
   private spawnDamageText(damage: number, crit: boolean): void {
     const t = this.scene.add
       .text(this.x, this.y - 22, String(damage), {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: crit ? '14px' : '10px',
         color: crit ? '#E85C4A' : '#F2EDE4',
         fontStyle: crit ? 'bold' : 'normal',
@@ -327,7 +352,7 @@ export class Enemy {
       const kind = attacks[this.bossCycle % attacks.length] as BossAction['kind'];
       this.bossCycle += 1;
       this.bossAction = { kind, windup: BOSS_TELEGRAPH[kind] ?? 600, fired: false };
-      this.bossTimer = BOSS_RECOVER[kind] ?? 1800;
+      this.bossTimer = (BOSS_RECOVER[kind] ?? 1800) * BOSS_RECOVER_SCALE;
       cb.onTelegraph?.(this, 0);
     }
     this.rig.tick(dtMs, false);
@@ -359,6 +384,25 @@ export class Enemy {
         break;
       }
     }
+  }
+
+  /**
+   * 半血剧本杀：这支 Boss 的血量刚跌破一半时返回 true，并且**只返回一次**。
+   *
+   * 为什么由实体自己判：Boss 有几段血、掉血走的是 `takeDamage`，场景那边每次都要比一遍血量；
+   * 这里记住「已经报过」就不会因为一帧里挨了两下而重复触发。
+   * 只有 `tier === 'boss'` 且带 `final_strike` 的敌人才会报——是否放全屏打击是内容决定的事，
+   * 天京那两位湘军统领就只换招不放必杀。
+   */
+  private checkFinalStrike(prevHp: number): boolean {
+    if (this.def.tier !== 'boss' || !this.def.final_strike) return false;
+    if (this.finalStrikeDone) return false;
+    const half = this.maxHp / 2;
+    if (prevHp > half && this.hp <= half) {
+      this.finalStrikeDone = true;
+      return true;
+    }
+    return false;
   }
 
   /** 撞角冲刺结束后由场景调用：进入弱点期 */
@@ -491,6 +535,8 @@ export class Enemy {
     const res = computeDamage(
       {
         atk: this.atk * this.auraMult,
+        // 敌人出手不吃 `player_damage_mult`（那一条只折玩家这一侧）。
+        // 但 `computeDamage` 里 `atk × weaponMult` 是乘在一起的，所以这里显式写 1。
         weaponMult: 1,
         targetDef: 0, // 玩家防御在 Player.takeDamage 内统一扣除
         attackerLevel: 1,

@@ -1,6 +1,14 @@
 /**
  * 真正的启动入口 —— 由 main.ts 在 Phaser 就绪后动态载入。
  * 依据设计书 1.5.1 技术约束：内部分辨率 480×270，整数倍放大，像素清晰，手机横屏。
+ *
+ * 渲染策略（甲方 m01507「游戏内所有文字像素感太强，用清晰的标准字体」之后改的）：
+ *  - **画布不再是 pixelArt 模式**（`pixelArt:false / antialias:true / roundPixels:false`），
+ *    否则整块画布只有 480×270 个像素，一个字 10px 高，放大到手机屏上必然发糊；
+ *  - Canvas 里的**图形**仍然按 480×270 的逻辑坐标摆（`scale: FIT`），只是落到物理像素时是平滑的；
+ *  - 像素类资源（小人、瓦片、道具、炮火帧……）各自在创建时标 `NEAREST` 并做整数倍缩放，
+ *    保持硬边；文字走标准字体 + 平滑，二者在同一画布上并存。
+ *  见 `src/gfx/PixelArt.ts`（纹理滤镜）与 `src/gfx/TextStyle.ts`（字体族）。
  */
 
 import Phaser from 'phaser';
@@ -14,6 +22,7 @@ import { CodexScene } from './scenes/CodexScene';
 import { QuizScene } from './scenes/QuizScene';
 import { EquipmentScene } from './scenes/EquipmentScene';
 import { GraphScene } from './scenes/GraphScene';
+import { installTextResolution } from './gfx/TextResolution';
 import { installStartGate } from './systems/OrientationGate';
 import { controls } from './systems/InputSystem';
 
@@ -22,20 +31,32 @@ export function boot(): Phaser.Game {
   // 免得将来有人把 main.ts 的加载顺序改回去，最后变成一块黑屏。
   if (!Phaser) throw new Error('Phaser 未加载：检查 main.ts 里的 loadPhaser() 顺序');
 
+  // 所有 Text 统一按 TEXT_RESOLUTION 倍栅格生成（见 gfx/TextResolution.ts）。
+  // 必须在任何场景 create 之前装好——第一屏的 BootScene 就有文字。
+  installTextResolution();
+
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     parent: 'game-root',
     width: VIEW_W,
     height: VIEW_H,
     backgroundColor: PALETTE.ink,
-    pixelArt: true,
-    roundPixels: true,
-    antialias: false,
+    // 像素资源靠纹理滤镜保持硬边（gfx/PixelArt 的 markPixel），画布本身不锁像素网格：
+    // 锁了以后字只有 10 来个物理像素高，怎么调字体都糊。
+    pixelArt: false,
+    // 像素图是整数倍缩放的，取整与否对它们没有影响；而文字要的是亚像素摆位，
+    // roundPixels 会把文本框吸附到整格上，小字号看起来一顿一顿的。
+    roundPixels: false,
+    antialias: true,
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
       width: VIEW_W,
       height: VIEW_H,
+      // 手机横屏物理像素往往远超 480×270。按 CSS 尺寸给后缓冲（最多 2.667 倍，4K 屏封顶），
+      // 再让浏览器把这一整张图平滑缩到屏幕上——文字因此是「先按高分辨率画，再缩小」，
+      // 而不是「画小再放大」。1 表示老式「后缓冲 = 逻辑尺寸」。
+      zoom: 1 / Math.min(window.devicePixelRatio || 1, 2.667),
     },
     physics: {
       // 本作使用自写的轴分离碰撞（配合瓦片网格），不启用物理引擎，减小包体

@@ -46,10 +46,15 @@
         padding: env(safe-area-inset-top) env(safe-area-inset-right)
           env(safe-area-inset-bottom) env(safe-area-inset-left);
       }
+      /* 画布本体**不再**用 image-rendering: pixelated。
+         那一条会把后缓冲（480×270 逻辑分辨率）直接按最近邻铺满屏幕，
+         于是每个字只有十几个物理像素、边缘成方齿——甲方说的「像素感太强」就是它。
+         像素美术的硬边现在由纹理滤镜（src/gfx/PixelArt.ts 的 NEAREST）保证，
+         画布这一层要的是平滑缩小，文字才锐利。
+         例外：手机省电模式/某些 iOS 版本会强制最近邻，那种情况下字会略糙，
+         但图的观感仍是像素，属于可接受的降级。 */
       #game-root canvas {
         display: block;
-        image-rendering: pixelated;
-        image-rendering: crisp-edges;
       }
       /* 竖屏提示：整屏盖住，让玩家把手机横过来（不再用 CSS 旋转把画面拧 90°） */
       #rotate-hint {

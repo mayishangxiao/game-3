@@ -13,6 +13,7 @@ import { effectiveStats } from '../core/balance';
 import { dungeonUnlocked, getDungeonState } from '../core/dungeon';
 import { emitToast } from '../core/EventBus';
 import type { ActDef, ChapterMeta } from '../core/types';
+import { FONT_UI } from '../gfx/TextStyle';
 
 interface DoorEntry {
   actId: string;
@@ -123,7 +124,7 @@ export class HubScene extends Phaser.Scene {
       this.corridor.add(
         this.add
           .text(x, y + 26, year, {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '8px',
             color: '#C2BCD1',
             align: 'center',
@@ -140,7 +141,7 @@ export class HubScene extends Phaser.Scene {
         .setOrigin(0.5);
       const label = this.add
         .text(0, -26, act ? `${i + 1}. ${act.name}` : `${i + 1}. 未开放`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9px',
           color: a.implemented ? '#F2EDE4' : '#6B6489',
         })
@@ -180,7 +181,7 @@ export class HubScene extends Phaser.Scene {
     this.add.rectangle(VIEW_W / 2, 12, VIEW_W, 24, PALETTE.ink, 0.86).setDepth(DEPTH.hud);
     this.add
       .text(8, 12, `${this.meta.name} · ${this.meta.period}`, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '10px',
         color: '#F2EDE4',
       })
@@ -191,14 +192,14 @@ export class HubScene extends Phaser.Scene {
         VIEW_W - 8,
         12,
         `Lv${s.player.level}　HP ${stats.hp}　知识卡 ${s.knowledge.length}`,
-        { fontFamily: 'sans-serif', fontSize: '10px', color: '#C2BCD1' },
+        { fontFamily: FONT_UI, fontSize: '10px', color: '#C2BCD1' },
       )
       .setOrigin(1, 0.5)
       .setDepth(DEPTH.hud + 1);
 
     this.add
       .text(8, VIEW_H - 12, '← → 选幕　E 进入', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#6B6489',
       })
@@ -229,7 +230,7 @@ export class HubScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       this.add
         .text(x, y, b.badge ? `${b.label} ${b.badge}` : b.label, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9px',
           color: b.enabled ? '#F2EDE4' : '#6B6489',
         })
@@ -271,7 +272,7 @@ export class HubScene extends Phaser.Scene {
           .setDepth(DEPTH.hud);
         this.add
           .text(10, 30, '副本（可重复刷）', {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '9px',
             color: '#948DAB',
           })
@@ -290,7 +291,7 @@ export class HubScene extends Phaser.Scene {
           const label = unlocked ? `${d.name}　${st.clears} 次` : `${d.name}（未解锁）`;
           this.add
             .text(84, y, label, {
-              fontFamily: 'sans-serif',
+              fontFamily: FONT_UI,
               fontSize: '8px',
               color: unlocked ? '#F2EDE4' : '#6B6489',
             })

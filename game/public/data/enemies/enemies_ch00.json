@@ -12,7 +12,7 @@
         "detect_radius": 120,
         "attack_range": 26,
         "attack_windup_ms": 300,
-        "attack_cooldown_ms": 350
+        "attack_cooldown_ms": 175
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -35,7 +35,7 @@
         "detect_radius": 160,
         "attack_range": 180,
         "attack_windup_ms": 500,
-        "attack_cooldown_ms": 900
+        "attack_cooldown_ms": 450
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -58,7 +58,7 @@
         "detect_radius": 180,
         "attack_range": 34,
         "attack_windup_ms": 450,
-        "attack_cooldown_ms": 400
+        "attack_cooldown_ms": 200
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -81,7 +81,7 @@
         "detect_radius": 200,
         "attack_range": 34,
         "attack_windup_ms": 420,
-        "attack_cooldown_ms": 360,
+        "attack_cooldown_ms": 180,
         "aura": {
           "radius": 220,
           "atk_pct": 20
@@ -101,14 +101,14 @@
       "name": "英军蒸汽炮舰",
       "tier": "boss",
       "hp_base": 1206,
-      "atk_base": 28,
+      "atk_base": 56,
       "def_base": 10,
       "spd": 0.5,
       "ai_params": {
         "detect_radius": 300,
         "attack_range": 190,
         "attack_windup_ms": 700,
-        "attack_cooldown_ms": 1200
+        "attack_cooldown_ms": 600
       },
       "frames": 8,
       "atlas": "placeholder",
@@ -154,7 +154,13 @@
         "w": 96,
         "h": 48
       },
-      "body": "ship"
+      "body": "ship",
+      "final_strike": {
+        "warn": "炮舰主炮转向炮台 —— 全线预警",
+        "hit_line": "蒸汽炮舰只用了主炮的一轮齐射。虎门的岸炮连它的铁壳都打不穿。",
+        "hp_mult": 3,
+        "warn_ms": 2600
+      }
     },
     {
       "id": "en_qing_green",
@@ -168,7 +174,7 @@
         "detect_radius": 110,
         "attack_range": 26,
         "attack_windup_ms": 380,
-        "attack_cooldown_ms": 420
+        "attack_cooldown_ms": 210
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -191,7 +197,7 @@
         "detect_radius": 200,
         "attack_range": 200,
         "attack_windup_ms": 620,
-        "attack_cooldown_ms": 950
+        "attack_cooldown_ms": 475
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -214,7 +220,7 @@
         "detect_radius": 170,
         "attack_range": 32,
         "attack_windup_ms": 460,
-        "attack_cooldown_ms": 420
+        "attack_cooldown_ms": 210
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -237,7 +243,7 @@
         "detect_radius": 220,
         "attack_range": 40,
         "attack_windup_ms": 520,
-        "attack_cooldown_ms": 520
+        "attack_cooldown_ms": 260
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -295,7 +301,7 @@
         "detect_radius": 240,
         "attack_range": 200,
         "attack_windup_ms": 700,
-        "attack_cooldown_ms": 1400
+        "attack_cooldown_ms": 700
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -342,7 +348,7 @@
         "detect_radius": 130,
         "attack_range": 26,
         "attack_windup_ms": 320,
-        "attack_cooldown_ms": 380
+        "attack_cooldown_ms": 190
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -365,7 +371,7 @@
         "detect_radius": 140,
         "attack_range": 28,
         "attack_windup_ms": 340,
-        "attack_cooldown_ms": 400
+        "attack_cooldown_ms": 200
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -388,7 +394,7 @@
         "detect_radius": 190,
         "attack_range": 30,
         "attack_windup_ms": 420,
-        "attack_cooldown_ms": 380
+        "attack_cooldown_ms": 190
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -411,7 +417,7 @@
         "detect_radius": 120,
         "attack_range": 26,
         "attack_windup_ms": 320,
-        "attack_cooldown_ms": 400
+        "attack_cooldown_ms": 200
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -434,7 +440,7 @@
         "detect_radius": 170,
         "attack_range": 190,
         "attack_windup_ms": 520,
-        "attack_cooldown_ms": 1000
+        "attack_cooldown_ms": 500
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -457,7 +463,7 @@
         "detect_radius": 220,
         "attack_range": 36,
         "attack_windup_ms": 500,
-        "attack_cooldown_ms": 480
+        "attack_cooldown_ms": 240
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -515,7 +521,7 @@
         "detect_radius": 140,
         "attack_range": 28,
         "attack_windup_ms": 330,
-        "attack_cooldown_ms": 400
+        "attack_cooldown_ms": 200
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -538,7 +544,7 @@
         "detect_radius": 180,
         "attack_range": 200,
         "attack_windup_ms": 540,
-        "attack_cooldown_ms": 1100
+        "attack_cooldown_ms": 550
       },
       "frames": 43,
       "atlas": "placeholder",
@@ -561,7 +567,7 @@
         "detect_radius": 200,
         "attack_range": 32,
         "attack_windup_ms": 440,
-        "attack_cooldown_ms": 400
+        "attack_cooldown_ms": 200
       },
       "frames": 43,
       "atlas": "placeholder",

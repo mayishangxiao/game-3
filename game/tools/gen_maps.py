@@ -65,10 +65,22 @@ for y in range(H):
 # 木栈道一条
 for x in range(6, 24):
     ground[6][x] = 4
-# 销烟池（3×2 的木框 + 石灰），位于中偏右——纯装饰，不再挡人
-for x in range(16, 20):
-    ground[9][x] = 6
-    ground[10][x] = 7
+# 销烟池（7 宽 × 4 高的木框 + 石灰），位于中偏右——甲方 2026-11 要求「做大、人进不去」：
+# 整圈木框 + 内部石灰全部实心，玩家只能站在池边交互；paintWalls 对 6/7 号砖留了例外，不画墙皮。
+for x in range(15, 22):
+    ground[8][x] = 6
+    ground[11][x] = 6
+    collision[8][x] = 6
+    collision[11][x] = 6
+for y in range(9, 11):
+    ground[y][15] = 6
+    ground[y][21] = 6
+    collision[y][15] = 6
+    collision[y][21] = 6
+for y in range(9, 11):
+    for x in range(16, 21):
+        ground[y][x] = 7
+        collision[y][x] = 7
 
 map_a = {
     "id": "map_ch00_act1a",
@@ -102,7 +114,7 @@ map_a = {
             "id": "obj_pool",
             "kind": "deposit",
             "x": 18,
-            "y": 10,
+            "y": 12,
             "label": "投入销烟池",
             "color": "#948DAB",
             "payload": "pool",

@@ -124,6 +124,26 @@ export interface BannerDef {
   enemy?: string;
   /** 背景图种类（现在只有程序化的海战背景，留位给美术图） */
   scene?: 'sea' | 'land';
+  /**
+   * 战力对比（甲方 m01507「开局要说明双方战力的差距」）。
+   *
+   * 这一段是**结论**，不是参数：谁打得到谁、谁的炮打不穿谁。
+   * 所以不写成数字表，而是写成「打不穿 / 够不着」这种玩家一读就懂的句子，
+   * 每个字符串一段，左端会画一条强调竖线和「敌我对比」小标题。
+   */
+  power?: PowerCompareDef;
+}
+
+/** 开局战力对比块。`gap` 是可选的「差距」结论，单独一行，用红色强调。 */
+export interface PowerCompareDef {
+  /** 小标题，默认「战力对比」 */
+  title?: string;
+  /** 我方，例如「我：岸炮 60 门，打的是打好几年、停着的旧式兵船」 */
+  ours: string;
+  /** 敌方，例如「敌：蒸汽炮舰 10 余艘，铁壳船身，舰炮射程与我的炮台相当」 */
+  enemy: string;
+  /** 结论行，例如「差距：它的炮够得着我，我的炮够不着它的要害。」 */
+  gap?: string;
 }
 
 /* ============ 7.2.6 maps/map_*.json ============ */
@@ -257,6 +277,26 @@ export interface EnemyDef {
   size?: { w: number; h: number };
   /** 占位形体：'ship' 画成铁壳蒸汽炮舰（英军 Boss），缺省人形 */
   body?: 'human' | 'ship';
+  /**
+   * 半血剧情杀（甲方：军舰半血时全屏打击，伤害 = 角色血量的三倍，必死）。
+   *
+   * 只在 `tier === 'boss'` 的敌人上生效。写了 `true` 的 Boss 血量跌破一半时，
+   * 场景会放一次全屏打击并强制战败——这是剧情节点，不是「数值太狠」的意外。
+   * 文案也在数据里，`{hp}` 会被替换成角色当前最大生命值。
+   */
+  final_strike?: FinalStrikeDef;
+}
+
+/** 半血必杀的参数（enemies/*.json → final_strike） */
+export interface FinalStrikeDef {
+  /** 演出前的那句预警（显示在屏幕中央的横幅上） */
+  warn: string;
+  /** 命中后的一句台词/说明，跟战败卡一起读 */
+  hit_line: string;
+  /** 伤害 = 角色最大生命 × 这个倍率（甲方要求 3） */
+  hp_mult: number;
+  /** 预警时长（ms）：这段时间世界冻结，玩家只能看着 */
+  warn_ms: number;
 }
 
 /* ============ 7.2.9 equipment/items_base.json ============ */
@@ -351,6 +391,13 @@ export interface BalanceConfig {
     level_suppress_threshold: number;
     level_suppress_def_factor: number;
   };
+  /**
+   * 玩家出手的整体倍率（config.json → player_damage_mult，甲方要求「我方攻击减半」= 0.5）。
+   *
+   * 只乘玩家这一侧，敌人打玩家的伤害不动：这样「我方打不动、对方打得狠」的战力差距
+   * 是数据里一句话就能调的，不用挨个改武器倍率。缺省按 1 处理（老存档/旧配置不会变弱）。
+   */
+  player_damage_mult?: number;
   dodge: { invincible_ms: number; cooldown_ms: number; distance_px: number };
   level_coeff: { base: number; per_level: number };
   weapons: Record<string, WeaponDef>;

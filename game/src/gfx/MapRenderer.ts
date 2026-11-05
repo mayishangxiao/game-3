@@ -17,6 +17,7 @@
 import Phaser from 'phaser';
 import { DEPTH, PALETTE, SCAR_TEX, TILE, darkerOf, lighterOf } from '../core/constants';
 import type { MapDef, MapLayer, MapTrigger } from '../core/types';
+import { markPixel } from './PixelArt';
 
 export interface SolidGrid {
   cols: number;
@@ -128,6 +129,9 @@ export class MapRenderer {
     for (let y = Math.max(1, skyRows); y < rows - 1; y++) {
       for (let x = 1; x < cols - 1; x++) {
         if (!this.grid.solid[y][x]) continue;
+        // 销烟池的木框(6)/石灰(7)本身就是画好的装饰实心，不刷紫灰墙皮，否则池子被盖住
+        const poolTile = this.groundData?.[y]?.[x];
+        if (poolTile === 6 || poolTile === 7) continue;
         // 只有「下面还有可走地面」的格子才需要提示玩家：贴边的实心块本来就是画面边界
         const openBelow = y + 1 < rows - 1 && !this.grid.solid[y + 1][x];
         const openAbove = y - 1 >= 0 && !this.grid.solid[y - 1][x];
@@ -183,7 +187,7 @@ export class MapRenderer {
     // 残破化痕迹画在地砖之上、远景之下（远景条所在的那几行不沾血，免得船身上糊一片）
     if (this.def.battle_scars) this.paintScars(ctx, w, h, skyRows * TILE);
     tex.refresh();
-    this.groundImg = this.scene.add.image(0, 0, key).setOrigin(0, 0).setDepth(DEPTH.ground);
+    this.groundImg = markPixel(this.scene.add.image(0, 0, key).setOrigin(0, 0).setDepth(DEPTH.ground));
   }
 
   /**

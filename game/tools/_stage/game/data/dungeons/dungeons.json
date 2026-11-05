@@ -1,0 +1,192 @@
+{
+ "dungeons": [
+  {
+   "id": "dg01_alley",
+   "name": "租界暗巷",
+   "chapter_id": "ch00",
+   "map_ref": "map_dg01_alley",
+   "unlock_act": "ch00_act1",
+   "recommended_level": 3,
+   "desc": "窄巷、竹尖坑与铜锣。练的是用地形，不是拼手速。",
+   "waves": [
+    {
+     "spawns": [
+      {
+       "enemy": "en_concession_patrol",
+       "count": 3,
+       "spawn": "right"
+      }
+     ]
+    },
+    {
+     "spawns": [
+      {
+       "enemy": "en_concession_patrol",
+       "count": 2,
+       "spawn": "right"
+      },
+      {
+       "enemy": "en_thug",
+       "count": 3,
+       "spawn": "right"
+      }
+     ]
+    },
+    {
+     "spawns": [
+      {
+       "enemy": "en_thug",
+       "count": 2,
+       "spawn": "right"
+      },
+      {
+       "enemy": "en_elite_informant",
+       "count": 1,
+       "spawn": "right"
+      }
+     ]
+    }
+   ],
+   "boss": null,
+   "quality_weights": {
+    "white": 45,
+    "blue": 40,
+    "purple": 15
+   },
+   "unique_drop": "eq_acc_concession_blue_01"
+  },
+  {
+   "id": "dg02_bandit",
+   "name": "广州城外匪寨",
+   "chapter_id": "ch00",
+   "map_ref": "map_dg02_bandit",
+   "unlock_act": "ch00_act2",
+   "recommended_level": 5,
+   "desc": "寨门广场与高台。匪兵成阵、弩手压阵，最后是头目。",
+   "waves": [
+    {
+     "spawns": [
+      {
+       "enemy": "en_bandit",
+       "count": 4,
+       "spawn": "right"
+      }
+     ]
+    },
+    {
+     "spawns": [
+      {
+       "enemy": "en_bandit",
+       "count": 3,
+       "spawn": "right"
+      },
+      {
+       "enemy": "en_bandit_crossbow",
+       "count": 2,
+       "spawn": "right"
+      }
+     ]
+    },
+    {
+     "spawns": [
+      {
+       "enemy": "en_bandit",
+       "count": 3,
+       "spawn": "right"
+      },
+      {
+       "enemy": "en_bandit_crossbow",
+       "count": 2,
+       "spawn": "right"
+      }
+     ]
+    },
+    {
+     "spawns": [
+      {
+       "enemy": "en_bandit",
+       "count": 4,
+       "spawn": "right"
+      }
+     ]
+    }
+   ],
+   "boss": "en_boss_bandit_chief",
+   "quality_weights": {
+    "white": 40,
+    "blue": 42,
+    "purple": 18
+   },
+   "unique_drop": "eq_wp_dao_bandit_blue_01"
+  },
+  {
+   "id": "dg03_dock",
+   "name": "沪上码头",
+   "chapter_id": "ch00",
+   "map_ref": "map_dg03_dock",
+   "unlock_act": "ch00_act2",
+   "recommended_level": 6,
+   "desc": "货箱、吊机与汽灯。打手成群，监工在远处放冷枪。",
+   "waves": [
+    {
+     "spawns": [
+      {
+       "enemy": "en_gang_thug",
+       "count": 4,
+       "spawn": "right"
+      }
+     ]
+    },
+    {
+     "spawns": [
+      {
+       "enemy": "en_gang_thug",
+       "count": 3,
+       "spawn": "right"
+      },
+      {
+       "enemy": "en_factory_overseer",
+       "count": 2,
+       "spawn": "right"
+      }
+     ]
+    },
+    {
+     "spawns": [
+      {
+       "enemy": "en_gang_thug",
+       "count": 4,
+       "spawn": "right"
+      },
+      {
+       "enemy": "en_factory_overseer",
+       "count": 1,
+       "spawn": "right"
+      }
+     ]
+    },
+    {
+     "spawns": [
+      {
+       "enemy": "en_gang_thug",
+       "count": 2,
+       "spawn": "right"
+      },
+      {
+       "enemy": "en_elite_dock",
+       "count": 1,
+       "spawn": "right"
+      }
+     ]
+    }
+   ],
+   "boss": null,
+   "quality_weights": {
+    "white": 40,
+    "blue": 42,
+    "purple": 18
+   },
+   "unique_drop": "eq_leg_dock_blue_01"
+  }
+ ]
+}

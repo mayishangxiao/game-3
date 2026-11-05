@@ -90,6 +90,8 @@ import type {
   SaveData,
   WeaponDef,
 } from '../core/types';
+import { FONT_UI } from '../gfx/TextStyle';
+import { markPixel } from '../gfx/PixelArt';
 
 /** 地图物件挂的附加显示对象：光晕/箱盖是矩形，NPC 脚下的影子是椭圆 */
 type WorldExtra =
@@ -113,6 +115,15 @@ interface LevelInit {
  * 但给了足够时间看清炮的分档伤害与军舰推进，演示时不会三分钟就结束。
  */
 const DEMO_INCOMING_DAMAGE_MULT = 0.55;
+
+/**
+ * 玩家出手的整体倍率（甲方要求「我方角色攻击减半」）。
+ *
+ * 从 `config.json → player_damage_mult` 读，读不到按 1：数据文件是内容层，
+ * 改这一头不用碰代码，也不会让老配置突然变弱。配置在 `create()` 的世界构建阶段同步进来，
+ * 而所有出手判定都在 `update()` 之后，所以这里用模块级变量是安全的（见 `applyPlayerDamageMult`）。
+ */
+let PLAYER_DMG = 1;
 
 /** 把敌方伤害按演示倍率折一下，最少 1 点（不能因为折扣出现「打了不掉血」） */
 function incoming(damage: number): number {
@@ -265,6 +276,10 @@ export class LevelScene extends Phaser.Scene {
   private cannonCd = 0;
   /** 本次关卡是否已经输过（战败演出后继续推进，HUD 上标出来） */
   private defeated = false;
+  /** 半血必杀是否正在演出（防止演出期间又被别的伤害源触发一次） */
+  private finalStrikeRunning = false;
+  /** 半血剧情杀的当前阶段（'none' | 'warn' | 'hit' | 'defeat'），只给探针与截图脚本读 */
+  finalStrikeStage: 'none' | 'warn' | 'hit' | 'defeat' = 'none';
   /** 全屏卡片（战败/条约/牺牲）的「点击继续」回调；E2E 可直接调 tapCard() */
   private pendingCardTap: (() => void) | null = null;
   /** Boss 军舰：停在岸边原地开炮（m12276 之后它不再前压，见 `bossCharge`） */
@@ -410,6 +425,8 @@ export class LevelScene extends Phaser.Scene {
     this.introOpen = false;
     this.cannonCd = 0;
     this.defeated = false;
+    this.finalStrikeStage = 'none';
+    this.finalStrikeRunning = false;
     this.bossShip = null;
     this.seaTiles.clear();
     this.shipTimer = 0;
@@ -572,11 +589,13 @@ export class LevelScene extends Phaser.Scene {
     const data = this.registry.get('levelInit') as LevelInit;
     this.cfg = dataLoader.getBalance();
     this.save = getSave();
+    // 甲方「我方攻击减半」：倍率来自内容层，缺省 1（旧配置不会突然变弱）
+    PLAYER_DMG = this.cfg.player_damage_mult ?? 1;
 
     this.cameras.main.setBackgroundColor(PALETTE.ink);
     const loading = this.add
       .text(VIEW_W / 2, VIEW_H / 2, '载入中……', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '11px',
         color: '#948DAB',
       })
@@ -717,7 +736,7 @@ export class LevelScene extends Phaser.Scene {
     overlay.add(
       this.add
         .text(240, 30, `${d.name}　通关`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '14px',
           color: '#F0C419',
           fontStyle: 'bold',
@@ -730,7 +749,7 @@ export class LevelScene extends Phaser.Scene {
       overlay.add(
         this.add
           .text(240, 60, '这次什么都没掉。', {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '10px',
             color: '#948DAB',
           })
@@ -745,7 +764,7 @@ export class LevelScene extends Phaser.Scene {
         overlay.add(
           this.add
             .text(48, 56 + i * 15, `${qualityLabel(it.quality)}　${it.name}${affix}`, {
-              fontFamily: 'sans-serif',
+              fontFamily: FONT_UI,
               fontSize: '10px',
               color,
             })
@@ -756,7 +775,7 @@ export class LevelScene extends Phaser.Scene {
         overlay.add(
           this.add
             .text(48, 56 + 6 * 15, `…另有 ${gained.length - 6} 件已入背包`, {
-              fontFamily: 'sans-serif',
+              fontFamily: FONT_UI,
               fontSize: '9px',
               color: '#6B6489',
             })
@@ -769,7 +788,7 @@ export class LevelScene extends Phaser.Scene {
     overlay.add(
       this.add
         .text(240, 162, pityHint(st), {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9.5px',
           color: isPityReady(st) ? '#F0C419' : '#C2BCD1',
         })
@@ -779,7 +798,7 @@ export class LevelScene extends Phaser.Scene {
     overlay.add(
       this.add
         .text(240, 178, `累计通关 ${st.clears} 次　经验 +${expGain}`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9px',
           color: '#6B6489',
         })
@@ -816,7 +835,7 @@ export class LevelScene extends Phaser.Scene {
     overlay.add(
       this.add
         .text(240, 90, '倒在半路上了', {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '13px',
           color: '#F2A08C',
         })
@@ -826,7 +845,7 @@ export class LevelScene extends Phaser.Scene {
     overlay.add(
       this.add
         .text(240, 112, '副本不扣任何东西，重来就行。', {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9.5px',
           color: '#C2BCD1',
         })
@@ -859,7 +878,7 @@ export class LevelScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setInteractive({ useHandCursor: true });
     const t = this.add
-      .text(x, y, text, { fontFamily: 'sans-serif', fontSize: '10px', color: '#F2EDE4' })
+      .text(x, y, text, { fontFamily: FONT_UI, fontSize: '10px', color: '#F2EDE4' })
       .setOrigin(0.5)
       .setScrollFactor(0);
     c.add(r);
@@ -960,7 +979,7 @@ export class LevelScene extends Phaser.Scene {
     overlay.add(
       this.add
         .text(VIEW_W / 2, 56, title, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '18px',
           color: '#F0C419',
           fontStyle: 'bold',
@@ -977,7 +996,7 @@ export class LevelScene extends Phaser.Scene {
       overlay.add(
         this.add
           .text(VIEW_W / 2, 96 + i * 24, ln, {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '10.5px',
             color: '#F2EDE4',
             align: 'center',
@@ -989,7 +1008,7 @@ export class LevelScene extends Phaser.Scene {
     });
     const hint = this.add
       .text(VIEW_W / 2, VIEW_H - 34, '点击继续', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '10px',
         color: '#C2BCD1',
       })
@@ -1050,7 +1069,7 @@ export class LevelScene extends Phaser.Scene {
     c.add(
       this.add
         .text(VIEW_W / 2, 30, b.time, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '20px',
           color: '#F0C419',
           fontStyle: 'bold',
@@ -1061,7 +1080,7 @@ export class LevelScene extends Phaser.Scene {
     c.add(
       this.add
         .text(VIEW_W / 2, 52, b.place, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '13px',
           color: '#F2EDE4',
         })
@@ -1070,36 +1089,144 @@ export class LevelScene extends Phaser.Scene {
     );
     c.add(this.add.rectangle(VIEW_W / 2, 64, 84, 1, PALETTE.star, 0.85).setScrollFactor(0));
 
+    // ── 底部信息区：自下而上量着摆
+    // 块高不是常数（两段战力描述都可能被 wordWrap 折行，480 宽的中文一行只放得下十来个字），
+    // 所以先按顶边算每一块的高度，再从「点击开始战斗」那条线上往上累加。
+    // 早先按固定行距硬摆，截图里正文第二行直接压在「差距」那行上。
+    const HINT_Y = VIEW_H - 18;
+    const BOTTOM_PAD = 10;
+    const LEFT = 118;
+    const TEXT_X = 134;
+    const WRAP_W = VIEW_W - TEXT_X - 46;
+    const probeText = (value: string, size: string) => {
+      const t = this.add.text(0, 0, value, { fontFamily: FONT_UI, fontSize: size, wordWrap: { width: WRAP_W } });
+      const h = t.height;
+      t.destroy();
+      return h;
+    };
+    type Block = { height: number; build: (y: number) => void };
+    const blocks: Block[] = [];
+    // 兵力那组的配重（顺序是「先对比块、后兵力」），用来给暗带定中心
+    let troopHeight = 0;
+
+    if (b.power) {
+      const p = b.power;
+      const descLines: Array<[string, string]> = [
+        ['我', p.ours],
+        ['敌', p.enemy],
+      ];
+      // 标签是一行小字，正文可能折成两行；整块高度按正文的实际行高算，标签垂直居中到第一行
+      const lineH = descLines.map(([, v]) => probeText(v, '11px'));
+      const gapH = p.gap ? probeText(p.gap, '11px') : 0;
+      blocks.push({
+        height: 14 + lineH.reduce((a, h) => a + h + 4, 0) + (p.gap ? gapH + 8 : 0),
+        build: (y) => {
+          c.add(this.add.rectangle(VIEW_W / 2, y - 6, VIEW_W - 96, 1, PALETTE.star, 0.5).setScrollFactor(0));
+          c.add(
+            this.add
+              .text(LEFT, y, p.title ?? '战力对比', {
+                fontFamily: FONT_UI,
+                fontSize: '10px',
+                color: '#F0C419',
+                fontStyle: 'bold',
+              })
+              .setOrigin(0, 0)
+              .setScrollFactor(0),
+          );
+          let cursor = y + 14;
+          descLines.forEach(([tag, value], i) => {
+            c.add(
+              this.add
+                .text(LEFT, cursor + 1, tag, {
+                  fontFamily: FONT_UI,
+                  fontSize: '11px',
+                  color: tag === '敌' ? '#E85C4A' : '#7FD1AE',
+                  fontStyle: 'bold',
+                })
+                .setOrigin(0, 0)
+                .setScrollFactor(0),
+            );
+            c.add(
+              this.add
+                .text(TEXT_X, cursor, value, {
+                  fontFamily: FONT_UI,
+                  fontSize: '11px',
+                  color: '#F2EDE4',
+                  wordWrap: { width: WRAP_W },
+                })
+                .setOrigin(0, 0)
+                .setScrollFactor(0),
+            );
+            cursor += lineH[i] + 4;
+          });
+          if (p.gap) {
+            c.add(
+              this.add
+                .text(LEFT, cursor + 4, p.gap, {
+                  fontFamily: FONT_UI,
+                  fontSize: '11px',
+                  color: '#F0C419',
+                  wordWrap: { width: VIEW_W - LEFT - 46 },
+                })
+                .setOrigin(0, 0)
+                .setScrollFactor(0),
+            );
+          }
+        },
+      });
+    }
+
     const rows: Array<[string, string]> = [];
     if (b.ours) rows.push(['我方', b.ours]);
     if (b.enemy) rows.push(['敌军', b.enemy]);
-    rows.forEach(([label, value], i) => {
-      const y = VIEW_H - 74 + i * 20;
-      c.add(
-        this.add
-          .text(120, y, label, {
-            fontFamily: 'sans-serif',
-            fontSize: '10px',
-            color: label === '敌军' ? '#E85C4A' : '#C2BCD1',
-          })
-          .setOrigin(0, 0.5)
-          .setScrollFactor(0),
-      );
-      c.add(
-        this.add
-          .text(146, y, value, {
-            fontFamily: 'sans-serif',
-            fontSize: '11px',
-            color: '#F2EDE4',
-          })
-          .setOrigin(0, 0.5)
-          .setScrollFactor(0),
-      );
-    });
+    if (rows.length > 0) {
+      troopHeight = rows.length * 20;
+      blocks.push({
+        height: troopHeight,
+        build: (y) => {
+          // 兵力两行落在底图上最亮的一段（地平线高光），单靠卡片整体压暗读不清，
+          // 所以给这一组单独垫一条暗带——比把整块底图再压暗更不伤画面
+          c.add(
+            this.add.rectangle(VIEW_W / 2, y + troopHeight / 2, VIEW_W, troopHeight + 6, PALETTE.ink, 0.42).setScrollFactor(0),
+          );
+          rows.forEach(([label, value], i) => {
+            const ly = y + i * 20;
+            c.add(
+              this.add
+                .text(LEFT, ly, label, {
+                  fontFamily: FONT_UI,
+                  fontSize: '10px',
+                  color: label === '敌军' ? '#E85C4A' : '#C2BCD1',
+                })
+                .setOrigin(0, 0.5)
+                .setScrollFactor(0),
+            );
+            c.add(
+              this.add
+                .text(146, ly, value, {
+                  fontFamily: FONT_UI,
+                  fontSize: '11px',
+                  color: '#F2EDE4',
+                })
+                .setOrigin(0, 0.5)
+                .setScrollFactor(0),
+            );
+          });
+        },
+      });
+    }
+
+    // 从下往上排：最后一块贴住「点击开始战斗」上方，前面一块叠在它上面
+    let cursorY = HINT_Y - BOTTOM_PAD;
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      cursorY -= blocks[i].height;
+      blocks[i].build(cursorY);
+      cursorY -= 8;
+    }
 
     const hint = this.add
       .text(VIEW_W / 2, VIEW_H - 18, '点击开始战斗', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '10px',
         color: '#F0C419',
       })
@@ -1167,7 +1294,7 @@ export class LevelScene extends Phaser.Scene {
     c.add(
       this.add
         .text(VIEW_W / 2, 34, '弓 术 精 进', {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '18px',
           color: '#F0C419',
           fontStyle: 'bold',
@@ -1178,7 +1305,7 @@ export class LevelScene extends Phaser.Scene {
     c.add(
       this.add
         .text(VIEW_W / 2, 54, `第 ${this.waveIndex} 波已清 · 选一项强化（只作用于弓）`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '10px',
           color: '#C2BCD1',
         })
@@ -1190,7 +1317,7 @@ export class LevelScene extends Phaser.Scene {
     c.add(
       this.add
         .text(VIEW_W / 2, 70, cur ? `当前：${cur}` : '当前：单发弓箭', {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9px',
           color: '#8E88A0',
         })
@@ -1236,7 +1363,7 @@ export class LevelScene extends Phaser.Scene {
       c.add(
         this.add
           .text(x, cardY - 30, u.name, {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '14px',
             color: '#F0C419',
             fontStyle: 'bold',
@@ -1248,7 +1375,7 @@ export class LevelScene extends Phaser.Scene {
       c.add(
         this.add
           .text(x, cardY + 8, describeNext(this.upgrades, u.id), {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '9px',
             color: '#F2EDE4',
             align: 'center',
@@ -1260,7 +1387,7 @@ export class LevelScene extends Phaser.Scene {
       c.add(
         this.add
           .text(x, cardY + 36, `[${i + 1}] 选择`, {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '9px',
             color: '#C2BCD1',
           })
@@ -1275,7 +1402,7 @@ export class LevelScene extends Phaser.Scene {
     // 跳过：不想强化也要能继续打（不能强制玩家选）
     const skip = this.add
       .text(VIEW_W / 2, VIEW_H - 16, '放弃强化，继续战斗（空格）', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#8E88A0',
       })
@@ -1306,7 +1433,7 @@ export class LevelScene extends Phaser.Scene {
     overlay.add(
       this.add
         .text(VIEW_W / 2, 92, '清王朝', {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '14px',
           color: '#F2EDE4',
         })
@@ -1328,7 +1455,7 @@ export class LevelScene extends Phaser.Scene {
     const lost = Math.max(0, before - after);
     const deltaTxt = this.add
       .text(VIEW_W / 2, 146, lost > 0 ? `国运 −${lost}` : '国运已尽', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '11px',
         color: '#E85C4A',
       })
@@ -1338,7 +1465,7 @@ export class LevelScene extends Phaser.Scene {
     overlay.add(
       this.add
         .text(VIEW_W / 2, 170, `${after} / ${DYNASTY_MAX}`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9px',
           color: '#948DAB',
         })
@@ -1625,7 +1752,7 @@ export class LevelScene extends Phaser.Scene {
       // 出口：先隐藏，条件满足后显示
       const rect = this.add.rectangle(x, y, 14, 20, color).setStrokeStyle(1, PALETTE.star).setDepth(DEPTH.deco + 1);
       const label = this.add
-        .text(x, y - 16, obj.label, { fontFamily: 'sans-serif', fontSize: '8px', color: '#F0C419' })
+        .text(x, y - 16, obj.label, { fontFamily: FONT_UI, fontSize: '8px', color: '#F0C419' })
         .setOrigin(0.5)
         .setDepth(DEPTH.deco + 2);
       rect.setVisible(false);
@@ -1640,11 +1767,11 @@ export class LevelScene extends Phaser.Scene {
       const tex = `${NPC_ART[obj.id]}_down`;
       const shade = this.add.ellipse(x, y + 6, 18, 6, PALETTE.ink, 0.28).setDepth(DEPTH.deco);
       const rect = this.textures.exists(tex)
-        ? this.add.image(x, y + 8, tex).setOrigin(0.5, 1).setDepth(DEPTH.deco + 1)
+        ? markPixel(this.add.image(x, y + 8, tex).setOrigin(0.5, 1).setDepth(DEPTH.deco + 1))
         : this.add.rectangle(x, y, 14, 18, color).setStrokeStyle(1, PALETTE.star).setDepth(DEPTH.deco + 1);
       const label = this.add
         .text(x, y - 34, obj.label, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '8px',
           color: '#FFE08A',
           backgroundColor: '#241F35',
@@ -1666,7 +1793,7 @@ export class LevelScene extends Phaser.Scene {
       // 有正式贴图就用贴图（20×20 的鸦片箱），没有则退回「矩形 + 金边 + 箱盖」
       const hasArt = this.textures.exists(TEX_CRATE);
       const rect: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image = hasArt
-        ? this.add.image(x, y, TEX_CRATE).setOrigin(0.5).setDepth(DEPTH.deco + 1)
+        ? markPixel(this.add.image(x, y, TEX_CRATE).setOrigin(0.5).setDepth(DEPTH.deco + 1))
         : this.add.rectangle(x, y, 16, 14, color).setStrokeStyle(1, PALETTE.star).setDepth(DEPTH.deco + 1);
       const lid = hasArt ? null : this.add.rectangle(x, y - 4, 16, 4, PALETTE.brown).setDepth(DEPTH.deco + 2);
       this.tweens.add({
@@ -1680,7 +1807,7 @@ export class LevelScene extends Phaser.Scene {
         ease: 'Sine.easeInOut',
       });
       const label = this.add
-        .text(x, y - 18, obj.label, { fontFamily: 'sans-serif', fontSize: '7px', color: '#F0C419' })
+        .text(x, y - 18, obj.label, { fontFamily: FONT_UI, fontSize: '7px', color: '#F0C419' })
         .setOrigin(0.5)
         .setDepth(DEPTH.deco + 3)
         .setVisible(false);
@@ -1725,7 +1852,7 @@ export class LevelScene extends Phaser.Scene {
     }
     const label = this.add
       .text(x, y - 16, obj.label, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '8px',
         color: '#FFE08A',
         backgroundColor: '#241F35',
@@ -1900,7 +2027,7 @@ export class LevelScene extends Phaser.Scene {
     this.npcMark?.destroy();
     const mark = this.add
       .text(entry.rect.x, entry.rect.y - 50, '!', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '16px',
         color: '#F0C419',
         fontStyle: 'bold',
@@ -1959,7 +2086,7 @@ export class LevelScene extends Phaser.Scene {
       .setStrokeStyle(1, PALETTE.star);
     this.add
       .text(this.escortGoalX, 24, '突围方向 →', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#F0C419',
       })
@@ -2162,7 +2289,7 @@ export class LevelScene extends Phaser.Scene {
     c.add(
       this.add
         .text(34, 22, `天京经营　第 ${Math.min(st.month, MANAGE_MONTHS)} / ${MANAGE_MONTHS} 月`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '10px',
           color: '#C2BCD1',
         })
@@ -2174,14 +2301,14 @@ export class LevelScene extends Phaser.Scene {
           366,
           22,
           `可分配 ${MONTHLY_POINTS - allocTotal(this.manageAlloc)} 点　本月消耗 ${st.history.length + 1 <= MANAGE_MONTHS ? 2 + Math.floor((Math.min(st.month, MANAGE_MONTHS) - 1) / 3) : 0}`,
-          { fontFamily: 'sans-serif', fontSize: '10px', color: '#F0C419' },
+          { fontFamily: FONT_UI, fontSize: '10px', color: '#F0C419' },
         )
         .setOrigin(1, 0)
         .setScrollFactor(0),
     );
     c.add(
       this.add.text(34, 36, '粮草、兵员、民心三事，怎么分都不够——这就是要你亲手体会的事。', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '8.5px',
         color: '#6B6489',
       }).setScrollFactor(0),
@@ -2204,14 +2331,14 @@ export class LevelScene extends Phaser.Scene {
       );
       c.add(
         this.add
-          .text(48, y, `${row.name}`, { fontFamily: 'sans-serif', fontSize: '11px', color: '#F2EDE4' })
+          .text(48, y, `${row.name}`, { fontFamily: FONT_UI, fontSize: '11px', color: '#F2EDE4' })
           .setOrigin(0, 0.5)
           .setScrollFactor(0),
       );
       c.add(
         this.add
           .text(96, y, `库存 ${st.stock[row.key]}`, {
-            fontFamily: 'sans-serif',
+            fontFamily: FONT_UI,
             fontSize: '10px',
             color: st.stock[row.key] < 2 ? '#E85C4A' : '#C2BCD1',
           })
@@ -2237,7 +2364,7 @@ export class LevelScene extends Phaser.Scene {
           .setScrollFactor(0)
           .setInteractive({ useHandCursor: true });
         const t = this.add
-          .text(x, y, label, { fontFamily: 'sans-serif', fontSize: '12px', color: '#F2EDE4' })
+          .text(x, y, label, { fontFamily: FONT_UI, fontSize: '12px', color: '#F2EDE4' })
           .setOrigin(0.5)
           .setScrollFactor(0);
         const act = () => {
@@ -2258,7 +2385,7 @@ export class LevelScene extends Phaser.Scene {
       const text = last.events.length > 0 ? last.events.join('；') : '本月无事。';
       c.add(
         this.add.text(34, 172, `上月结算：${text}`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9px',
           color: last.golden ? '#7EC08A' : '#F2A08C',
           wordWrap: { width: 330 },
@@ -2270,7 +2397,7 @@ export class LevelScene extends Phaser.Scene {
       const v = finalVerdict(st);
       c.add(
         this.add.text(34, 196, `${v.title}。${v.body}`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '9.5px',
           color: '#F2EDE4',
           wordWrap: { width: 330 },
@@ -2303,7 +2430,7 @@ export class LevelScene extends Phaser.Scene {
       .setScrollFactor(0);
     const t = this.add
       .text(x, y, text, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '10px',
         color: enabled ? '#F2EDE4' : '#6B6489',
       })
@@ -2440,7 +2567,11 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
     this.bossSpawned = true;
+    this.spawnBossEntities(def, extraIds);
+  }
 
+  /** 真正把 Boss（以及同场的额外首领）放进场，并挂上半血必杀 */
+  private spawnBossEntities(def: EnemyDef, extraIds: string[]): void {
     // 设计书 3.3.2：湘军统领与洋枪队队长「两人同场，需分而治之」
     const names = [def.name, ...extraIds.map((id) => this.findEnemy(id)?.name).filter(Boolean) as string[]];
     emitObjective(`Boss：${names.join(' ＆ ')}`);
@@ -2453,7 +2584,10 @@ export class LevelScene extends Phaser.Scene {
       const base = pts.length > 0 ? pts[pts.length - 1] : { x: (this.map?.pixelWidth ?? VIEW_W) - 90, y: TILE * 8 };
       const x = (this.map?.pixelWidth ?? VIEW_W) - 100 - slot * 40;
       const y = Phaser.Math.Clamp(base.y + slot * 34 - 17, TILE * 2, (this.map?.pixelHeight ?? FIELD_H) - TILE * 2);
-      this.enemies.push(new Enemy(this, x, y, enemyDef, stats));
+      const e = new Enemy(this, x, y, enemyDef, stats);
+      // 半血必杀：由实体在跌破一半时回调一次（见 Enemy.checkFinalStrike）
+      e.onFinalStrike = (b) => this.startFinalStrike(b);
+      this.enemies.push(e);
     };
 
     place(def, 0);
@@ -2466,6 +2600,139 @@ export class LevelScene extends Phaser.Scene {
     const placed = this.enemies.filter((e) => e.alive && e.def.id === def.id);
     this.bossShip = placed.find((e) => e.def.body === 'ship') ?? null;
     this.applyAuras();
+  }
+
+  /**
+   * 半血剧情杀（甲方：「军舰在半血时进行全屏打击，伤害是角色血量的三倍，直接剧情杀」）。
+   *
+   * 三段，每一段都只为了让玩家**看清楚自己是怎么输的**：
+   *  1. 冻结世界、藏摇杆、压暗全场，舰炮炮口撞一下 → 对准屏幕（`warnMs`）；
+   *  2. 一击落下：全屏白光 + 长震屏，屏幕中央打出伤害数字（= 角色最大生命 × 3）；
+   *  3. 交给既有的战败链：城破演出 → 战败卡 → 《南京条约》→ 关天培牺牲 → 继续推进。
+   *
+   * 为什么不走 `player.takeDamage()`：3 倍血量意味着任何护盾、闪避、无敌帧都不该生效——
+   * 这是剧情，不是数值。而且战败链会把 `defeated` 置真、把模式切到过场；
+   * 只让血条归零的话世界会继续跑，玩家会看到一个血条空了的活人。
+   */
+  private startFinalStrike(e: Enemy): void {
+    if (this.defeated || this.finalStrikeRunning) return;
+    // 这里**不能**拦 `mode === 'cutscene'`：Boss 登场本身就在过场里播（mode 早就是 cutscene 了），
+    // 一拦就变成「血掉到一半，预警一声不吭」。防重入靠 finalStrikeRunning。
+    const fs = e.def.final_strike;
+    if (!fs) return;
+    this.finalStrikeRunning = true;
+    // 演出阶段对探针公开（'warn' → 'hit'）：截图要拍在正确的一拍上，墙钟 sleep 在无头浏览器里不可靠
+    this.finalStrikeStage = 'warn';
+    this.mode = 'cutscene';
+    setControlsVisible(false);
+    setCannonVisible(false);
+    this.dialogue?.hide();
+    const mult = fs.hp_mult ?? 3;
+    const dmg = Math.ceil(this.player.maxHp * mult);
+
+    // 舰炮停手：否则演出会和还在飞的炮弹叠在一起，看起来像两件事同时发生
+    for (const en of this.enemies) if (en.isBoss) en.haltActions();
+    e.rig.hitFlash(400);
+    this.cameras.main.shake(900, 0.006);
+
+    // 压暗层**不能**挂进带 scrollFactor 的容器里：Phaser 的 Container 只有 0.5 的原点语义，
+    // 容器里的子对象坐标一律按世界坐标算，镜头一滚，整块遮罩就歪出屏幕（第一次跑就歪到了左下角）。
+    // 所以遮罩、文字、白光全部单独 setScrollFactor(0) 并各自 destroy，不用容器兜。
+    const created: Phaser.GameObjects.GameObject[] = [];
+    const veil = this.add
+      .rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.55)
+      .setScrollFactor(0)
+      .setDepth(DEPTH.overlay + 2)
+      .setAlpha(0);
+    created.push(veil);
+    const warn = this.add
+      .text(VIEW_W / 2, VIEW_H / 2 - 44, fs.warn, {
+        fontFamily: FONT_UI,
+        fontSize: '13px',
+        color: '#E85C4A',
+        fontStyle: 'bold',
+        align: 'center',
+        wordWrap: { width: VIEW_W - 48 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(DEPTH.overlay + 3)
+      .setAlpha(0);
+    created.push(warn);
+    const sub = this.add
+      .text(VIEW_W / 2, VIEW_H / 2 - 26, '这一炮，炮台挡不住', {
+        fontFamily: FONT_UI,
+        fontSize: '10px',
+        color: '#C2BCD1',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(DEPTH.overlay + 3)
+      .setAlpha(0);
+    created.push(sub);
+
+    this.tweens.add({ targets: veil, alpha: 1, duration: 420 });
+    this.tweens.add({ targets: [warn, sub], alpha: 1, duration: 320, delay: 200 });
+    this.tweens.add({ targets: warn, alpha: { from: 0.45, to: 1 }, duration: 380, yoyo: true, repeat: -1, delay: 520 });
+
+    const fall = () => {
+      this.finalStrikeStage = 'hit';
+      // 白光：整屏一下子亮起来再压回黑——比慢慢淡出更像「一炮打中」
+      const flash = this.add
+        .rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, 0xffffff, 0.92)
+        .setScrollFactor(0)
+        .setDepth(DEPTH.overlay + 3);
+      this.tweens.add({
+        targets: flash,
+        alpha: 0,
+        duration: 620,
+        ease: 'Quad.easeOut',
+        onComplete: () => flash.destroy(),
+      });
+      this.cameras.main.shake(700, 0.02);
+      const dmgText = this.add
+        .text(VIEW_W / 2, VIEW_H / 2 + 10, `-${dmg}`, {
+          fontFamily: FONT_UI,
+          fontSize: '26px',
+          color: '#F0C419',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(DEPTH.overlay + 4)
+        .setAlpha(0);
+      created.push(dmgText);
+      // 不能靠 setScale 做弹出：相机 shake 会连文字一起放大（缩放途中撞上震屏，26px 会被拉成糊成一团的巨字）。
+      this.tweens.add({ targets: dmgText, alpha: 1, duration: 200 });
+      // 伤害数字下面再补一句「这是血量的三倍」——数字本身很大，但玩家需要知道它不是某条路子能抗住的
+      const note = this.add
+        .text(VIEW_W / 2, VIEW_H / 2 + 34, `超过你生命上限（${this.player.maxHp}）的 ${mult} 倍`, {
+          fontFamily: FONT_UI,
+          fontSize: '10px',
+          color: '#C2BCD1',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(DEPTH.overlay + 4)
+        .setAlpha(0);
+      created.push(note);
+      this.tweens.add({ targets: note, alpha: 1, duration: 300, delay: 260 });
+      this.tweens.add({ targets: sub, alpha: 0, duration: 300 });
+
+      // 预警留到这一刻才淡：落弹后玩家还会盯着伤害数字看一会儿，
+      // 提前撤掉的话「-300 生命上限的3倍」会孤零零挂着，看不出是谁打的
+      this.time.delayedCall(760, () => {
+        this.tweens.add({ targets: warn, alpha: 0, duration: 320 });
+      });
+      this.time.delayedCall(1100, () => {
+        for (const o of created) o.destroy();
+        // 血条归零只为了画面一致；真正的「死」由 playDefeatSequence 负责
+        this.player.hp = 0;
+        this.finalStrikeStage = 'defeat';
+        this.playDefeatSequence();
+      });
+    };
+    this.time.delayedCall(fs.warn_ms ?? 2600, fall);
   }
 
   /** Boss 阶段清空后的收束：副本去结算，剧情节点推进到下一节点 */
@@ -2515,7 +2782,7 @@ export class LevelScene extends Phaser.Scene {
     overlay.add(
       this.add
         .text(VIEW_W / 2, 54, params.prompt ?? '', {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '12px',
           color: '#F2EDE4',
           align: 'center',
@@ -2526,7 +2793,7 @@ export class LevelScene extends Phaser.Scene {
 
     const resultText = this.add
       .text(VIEW_W / 2, 168, '', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '10px',
         color: '#C2BCD1',
         align: 'center',
@@ -2562,7 +2829,7 @@ export class LevelScene extends Phaser.Scene {
         .setStrokeStyle(1, PALETTE.greyPlum)
         .setInteractive({ useHandCursor: true });
       const label = this.add
-        .text(VIEW_W / 2, y, opt.label, { fontFamily: 'sans-serif', fontSize: '11px', color: '#F2EDE4' })
+        .text(VIEW_W / 2, y, opt.label, { fontFamily: FONT_UI, fontSize: '11px', color: '#F2EDE4' })
         .setOrigin(0.5);
       overlay.add(rect);
       overlay.add(label);
@@ -2780,7 +3047,7 @@ export class LevelScene extends Phaser.Scene {
       const rows = bow ? volleyRows(up) : 1;
       const rowsP = bow ? 1 + (rows - 1) * 0.35 : 1;
       const pierce = w.pierce + (bow ? bonusPierce(up) : 0);
-      const dmg = this.player.atk * w.mult * power * rowsP;
+      const dmg = this.player.atk * w.mult * power * rowsP * PLAYER_DMG;
       // 垂直于飞行方向的横向单位向量：斜射时这样才能上下错开而不是左右重叠
       const perpX = -dirY;
       const perpY = dirX;
@@ -2898,7 +3165,7 @@ export class LevelScene extends Phaser.Scene {
     const res = computeDamage(
       {
         atk: this.player.atk,
-        weaponMult: mult,
+        weaponMult: mult * PLAYER_DMG,
         targetDef: e.def_,
         attackerLevel: this.save.player.level,
         targetLevel: this.enemyLevel,
@@ -3108,12 +3375,14 @@ export class LevelScene extends Phaser.Scene {
   private playCannonBlastFx(x: number, y: number, self: boolean): void {
     const first = `${FX_TEX.cannonBlast}_0`;
     if (!this.textures.exists(first)) return;
-    const fx = this.add
-      .image(x, y, first)
-      .setOrigin(0.5, 0.5)
-      .setDepth(DEPTH.fx)
-      // 炸膛是"自己脚下炸"，画小一圈，免得盖住整块战场
-      .setScale(self ? 0.62 : 1);
+    const fx = markPixel(
+      this.add
+        .image(x, y, first)
+        .setOrigin(0.5, 0.5)
+        .setDepth(DEPTH.fx)
+        // 炸膛是"自己脚下炸"，画小一圈，免得盖住整块战场
+        .setScale(self ? 0.62 : 1),
+    );
     let frame = 0;
     const timer = this.time.addEvent({
       delay: FX_FRAME_MS,
@@ -3504,9 +3773,9 @@ export class LevelScene extends Phaser.Scene {
     const sunk = SUNNY_GROUND_PROPS.has(name);
     // 沉进地面的小物件反而**要多下压**：它们的底边本来是「贴地的那条线」，
     // 原尺寸直接贴格子下沿会浮在格子里；压 4px 后底边正好落在地砖中缝上。
-    const img = this.add.image(x, y + (sunk ? 4 : 8), key).setOrigin(0.5, 1).setDepth(DEPTH.deco + 2);
-    // 像素图不缩放也不插值：16px 的路牌放大到 2 倍就会糊成一团棕点
-    if (img.texture) img.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    const img = markPixel(this.add.image(x, y + (sunk ? 4 : 8), key).setOrigin(0.5, 1).setDepth(DEPTH.deco + 2));
+    // 这里**不要**再 `texture.setFilter(NEAREST)`：贴图的 filter 是纹理级属性，
+    // 一张图被哪几处在用是共享的，对布景调一次等于对同 key 的所有 Image 生效。
     this.propSprites.push({ name, img });
   }
 
@@ -3625,7 +3894,7 @@ export class LevelScene extends Phaser.Scene {
             const res = computeDamage(
               {
                 atk: this.player.atk,
-                weaponMult: this.player.weapon.mult,
+                weaponMult: this.player.weapon.mult * PLAYER_DMG,
                 targetDef: e.def_,
                 attackerLevel: this.save.player.level,
                 targetLevel: this.enemyLevel,
@@ -3973,7 +4242,7 @@ export class LevelScene extends Phaser.Scene {
     if (gain <= 0) return;
     const txt = this.add
       .text(this.player.x, this.player.y - 26, `+${gain}`, {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '10px',
         color: '#8FD08A',
         fontStyle: 'bold',

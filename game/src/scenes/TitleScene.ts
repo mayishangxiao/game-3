@@ -9,6 +9,7 @@ import { dataLoader } from '../core/DataLoader';
 import { getSave, persist, reloadSave, saveManager } from './BootScene';
 import { emitToast } from '../core/EventBus';
 import type { SaveData } from '../core/types';
+import { FONT_UI } from '../gfx/TextStyle';
 
 /**
  * 存档里有没有「真实的进度」。
@@ -56,7 +57,7 @@ export class TitleScene extends Phaser.Scene {
 
     this.add
       .text(cx, 66, '党史像素 RPG', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '26px',
         color: '#F2EDE4',
         fontStyle: 'bold',
@@ -66,7 +67,7 @@ export class TitleScene extends Phaser.Scene {
 
     this.add
       .text(cx, 94, '序 章 · 觉 醒 年 代  1840 — 1921', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '11px',
         color: '#C2BCD1',
       })
@@ -75,7 +76,7 @@ export class TitleScene extends Phaser.Scene {
 
     this.add
       .text(cx, 116, '你扮演历史中的人，亲手把每一件大事「做」一遍', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#948DAB',
       })
@@ -94,7 +95,7 @@ export class TitleScene extends Phaser.Scene {
     const gate = (window as unknown as { __dshGate?: { rotated?: boolean } }).__dshGate;
     const baseHint = 'WASD / 方向键移动　J 攻击　K 技能　L 闪避　E 交互';
     const controlHint = this.add
-      .text(cx, VIEW_H - 12, baseHint, { fontFamily: 'sans-serif', fontSize: '8px', color: '#6B6489' })
+      .text(cx, VIEW_H - 12, baseHint, { fontFamily: FONT_UI, fontSize: '8px', color: '#6B6489' })
       .setOrigin(0.5)
       .setDepth(10);
     const syncHint = (): void => {
@@ -182,7 +183,7 @@ export class TitleScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       const label = this.add
         .text(cx, y, b.label, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '12px',
           color: '#F2EDE4',
         })

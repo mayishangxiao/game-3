@@ -8,13 +8,13 @@
 | 路径 | 内容 | 数量 | 主键 |
 | --- | --- | --- | --- |
 | `index.json` | 游戏索引：章节列表、每章已实现的 `acts` 与 `acts_planned` | 1 章 | `chapters[].id` |
-| `config.json` | **数值唯一真相**：经验曲线、HP/攻/防公式、伤害与闪避、等级系数、4 把武器、敌人档位（含 Boss HP）、10 条词条、品质倍率、知识加成、战斗反馈、UI、**`ui.portraits`（说话人 → 立绘路径）** | — | `weapons[].id` `affixes[].id` |
+| `config.json` | **数值唯一真相**：经验曲线、HP/攻/防公式、伤害与闪避、**`damage.player_damage_mult`（我方出手总体倍率）**、等级系数、4 把武器、敌人档位（含 Boss HP）、10 条词条、品质倍率、知识加成、战斗反馈、UI、**`ui.portraits`（说话人 → 立绘路径）** | — | `weapons[].id` `affixes[].id` |
 | `chapters/ch00.json` | 章节元数据：名称、年代、主角链、长廊地图、完成度权重 | 1 | `id` |
 | `acts/ch00_act1.json` `acts/ch00_act2.json` | 幕定义：`events[]` `nodes[]` `map_refs[]` 顺序、原型（主/次）、首通奖励、`exp_base` | 2 | `id` |
 | `nodes/nodes_ch00.json` | 节点（关卡内的一次挑战）：`type` = explore/combat/cutscene/choice/escort/management + `params` | 9 | `id` |
 | `events/events_ch00.json` | 历史事件卡（图鉴条目 + 关卡题材）：时间、地点、人物、文献、结果、五要素核对 | 11 | `id` |
 | `knowledge/knowledge_all.json` | 知识卡：摘要/详解/出处/标签/**`links`（因果边，图谱玩法就靠它）** | 12 | `id` |
-| `enemies/enemies_ch00.json` | 敌人：`tier` `hp_base` `atk_base` `def_base` `spd` `ai_params` `boss_phases` `color` `size` | 18 | `id` |
+| `enemies/enemies_ch00.json` | 敌人：`tier` `hp_base` `atk_base` `def_base` `spd` `ai_params`（`attack_cooldown_ms` = 出手间隔）、`boss_phases`、**`final_strike`（Boss 半血剧情杀）**、`color` `size` | 19 | `id` |
 | `equipment/items_base.json` | 装备模板：`slot` `quality` `stat` `base_value` `quality_multiplier` `source` | 16 | `id` |
 | `equipment/drops.json` | 掉落规则：按来源类型的掉率、部位权重、品质权重；`pity` 保底参数 | 5 条规则 | `rules[].source_type` |
 | `dungeons/dungeons.json` | 副本：波次（`waves[]`）、Boss、`quality_weights`、`unique_drop`、`unlock_act` | 3 | `id` |
@@ -134,3 +134,19 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 - **加一个敌人**：`enemies_ch00.json` 加条目，`ai_params` 决定行为（不为单个敌人写新 AI）；远程需要 `projectile` 且前摇 ≥550ms；Boss 用 `boss_phases`。
 - **加一个副本**：`dungeons.json` 加定义 → 新地图（右侧留出生格）→ `unlock_act` 指向已实现的幕。
 - **加数值平衡**：改 `config.json`（不用动代码），但设计书 6.4/6.6 的表格也要同步，否则 `tests/balance.test.ts` 会红。
+
+### 「打不过才是史实」那套数值（甲方 m01507）
+
+第一幕虎门之战被故意调成了**打不赢**，玩家要活的不是胜利，是亲眼看它怎么输。四处开关：
+
+| 位置 | 作用 | 现用值 |
+| --- | --- | --- |
+| `config.json → damage.player_damage_mult` | 我方出手的总倍率，乘在 `LevelScene` 的三条出手路径上（远程、近战、弹道） | `0.5` |
+| `enemies_ch00.json → 敌兵.atk_base` | 单次伤害基数 | 蒸汽炮舰 `56`（其余未动） |
+| `enemies_ch00.json → 敌兵.ai_params.attack_cooldown_ms` | 两次出手的间隔，**越小越快** | 全体减半（floor `140`） |
+| `enemies_ch00.json → Boss.final_strike` | Boss 跌破半血时的剧情杀：`{warn, hit_line, hp_mult, warn_ms}` | `hp_mult: 3`、`warn_ms: 2600` |
+
+`final_strike` 走的是 `LevelScene.startFinalStrike` → 白光 + 伤害数字 → `playDefeatSequence()`（城破演出 → 战败卡 → 条约 → 牺牲 → 继续），
+**不会卡关**（节点的 `defeat_continues` 为真）。它不是普通伤害：护盾、闪避、无敌帧一律不生效，因为这不是数值，是剧情。
+
+> 改这几项时**不要只改一面**：光把敌人调快一点、玩家调慢一点，玩家会觉得是 bug 而不是史实——所以开场卡上要有 `banner.power` 的战力对比把话说明白。

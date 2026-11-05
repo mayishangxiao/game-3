@@ -1,0 +1,180 @@
+{
+ "items": [
+  {
+   "id": "eq_wp_dao_white_01",
+   "slot": "weapon",
+   "quality": "white",
+   "name": "腰刀",
+   "stat": "atk",
+   "base_value": 12,
+   "quality_multiplier": 1.0,
+   "source": "quest",
+   "flavor": "虎门水勇标配，刀身短而沉。"
+  },
+  {
+   "id": "eq_wp_bow_white_01",
+   "slot": "weapon",
+   "quality": "white",
+   "name": "猎弓",
+   "stat": "atk",
+   "base_value": 13,
+   "quality_multiplier": 1.0,
+   "source": "first_clear",
+   "flavor": "沿海猎户所用，弓弦用牛筋。"
+  },
+  {
+   "id": "eq_wp_bow_blue_01",
+   "slot": "weapon",
+   "quality": "blue",
+   "name": "虎门猎弓",
+   "stat": "atk",
+   "base_value": 13,
+   "quality_multiplier": 1.15,
+   "source": "drop",
+   "flavor": "道光二十年造，曾守虎门三昼夜。"
+  },
+  {
+   "id": "eq_head_cloth_white_01",
+   "slot": "head",
+   "quality": "white",
+   "name": "布巾",
+   "stat": "def",
+   "base_value": 4,
+   "quality_multiplier": 1.0,
+   "source": "drop",
+   "flavor": "水勇裹头的粗布。"
+  },
+  {
+   "id": "eq_body_cloth_white_01",
+   "slot": "body",
+   "quality": "white",
+   "name": "短褂",
+   "stat": "hp",
+   "base_value": 18,
+   "quality_multiplier": 1.0,
+   "source": "drop",
+   "flavor": "海上风大，短褂比长衫方便。"
+  },
+  {
+   "id": "eq_body_cloth_blue_01",
+   "slot": "body",
+   "quality": "blue",
+   "name": "水师号衣",
+   "stat": "hp",
+   "base_value": 18,
+   "quality_multiplier": 1.15,
+   "source": "drop",
+   "flavor": "胸前一个「勇」字，已经洗得发白。"
+  },
+  {
+   "id": "eq_leg_cloth_white_01",
+   "slot": "legs",
+   "quality": "white",
+   "name": "绑腿",
+   "stat": "spd",
+   "base_value": 5,
+   "quality_multiplier": 1.0,
+   "source": "drop",
+   "flavor": "行军打绑腿，走十里不累。"
+  },
+  {
+   "id": "eq_acc_mirror_white_01",
+   "slot": "accessory",
+   "quality": "white",
+   "name": "铜镜",
+   "stat": "def",
+   "base_value": 3,
+   "quality_multiplier": 1.0,
+   "source": "drop",
+   "flavor": "水师随身的小铜镜，据说能挡灾。"
+  },
+  {
+   "id": "eq_acc_linzexu_purple_01",
+   "slot": "accessory",
+   "quality": "purple",
+   "name": "钦差的火漆印",
+   "stat": "def",
+   "base_value": 4,
+   "quality_multiplier": 1.32,
+   "source": "first_clear",
+   "flavor": "封过禁烟令的火漆，还留着一点余温。"
+  },
+  {
+   "id": "eq_leg_taiping_blue_01",
+   "slot": "legs",
+   "quality": "blue",
+   "name": "太平军绑腿",
+   "stat": "spd",
+   "base_value": 5,
+   "quality_multiplier": 1.15,
+   "source": "first_clear",
+   "flavor": "自金田起事，这双绑腿走过半个中国。"
+  },
+  {
+   "id": "eq_acc_concession_blue_01",
+   "slot": "accessory",
+   "quality": "blue",
+   "name": "租界通行证",
+   "stat": "spd",
+   "base_value": 5,
+   "quality_multiplier": 1.15,
+   "source": "quest",
+   "flavor": "一张纸片，能让你在夜里少挨两次盘问。"
+  },
+  {
+   "id": "eq_wp_dao_bandit_blue_01",
+   "slot": "weapon",
+   "quality": "blue",
+   "name": "匪寨大刀",
+   "stat": "atk",
+   "base_value": 15,
+   "quality_multiplier": 1.15,
+   "source": "quest",
+   "flavor": "刃口有豁，砍过东西。"
+  },
+  {
+   "id": "eq_leg_dock_blue_01",
+   "slot": "legs",
+   "quality": "blue",
+   "name": "码头工装",
+   "stat": "spd",
+   "base_value": 5,
+   "quality_multiplier": 1.15,
+   "source": "quest",
+   "flavor": "裤脚卷到膝盖，赤脚踩在跳板上。"
+  },
+  {
+   "id": "eq_head_patrol_blue_01",
+   "slot": "head",
+   "quality": "blue",
+   "name": "巡捕帽",
+   "stat": "def",
+   "base_value": 5,
+   "quality_multiplier": 1.15,
+   "source": "drop",
+   "flavor": "帽檐压得很低，看不清脸。"
+  },
+  {
+   "id": "eq_body_bandit_purple_01",
+   "slot": "body",
+   "quality": "purple",
+   "name": "匪寨皮甲",
+   "stat": "hp",
+   "base_value": 20,
+   "quality_multiplier": 1.32,
+   "source": "drop",
+   "flavor": "缝得粗糙，但挡过刀。"
+  },
+  {
+   "id": "eq_wp_dao_dock_blue_01",
+   "slot": "weapon",
+   "quality": "blue",
+   "name": "码头撬棍",
+   "stat": "atk",
+   "base_value": 14,
+   "quality_multiplier": 1.15,
+   "source": "drop",
+   "flavor": "一头扁一头圆，撬箱子也撬人。"
+  }
+ ]
+}

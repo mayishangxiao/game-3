@@ -1,0 +1,227 @@
+{
+  "exp_curve": {
+    "base": 300,
+    "slope": 60
+  },
+  "hp_formula": {
+    "base": 100,
+    "per_level": 18
+  },
+  "atk_formula": {
+    "base": 10,
+    "per_level": 2.2
+  },
+  "def_formula": {
+    "base": 4,
+    "per_level": 1.2
+  },
+  "damage": {
+    "random_min": 0.95,
+    "random_max": 1.05,
+    "def_factor": 0.5,
+    "boss_weakpoint_mult": 2.5,
+    "level_suppress_threshold": 5,
+    "level_suppress_def_factor": 0.7
+  },
+  "player_damage_mult": 0.5,
+  "dodge": {
+    "invincible_ms": 180,
+    "cooldown_ms": 1200,
+    "distance_px": 64
+  },
+  "level_coeff": {
+    "base": 1.0,
+    "per_level": 0.085
+  },
+  "weapons": {
+    "wp_dao": {
+      "id": "wp_dao",
+      "name": "腰刀",
+      "mult": 1.0,
+      "attacks_per_sec": 2.22,
+      "range": 40,
+      "pierce": 0,
+      "arc_deg": 60,
+      "magazine": 0,
+      "reload_ms": 0,
+      "projectile_speed": 0
+    },
+    "wp_bow": {
+      "id": "wp_bow",
+      "name": "猎弓",
+      "mult": 1.2,
+      "attacks_per_sec": 1.67,
+      "range": 200,
+      "pierce": 0,
+      "arc_deg": 0,
+      "magazine": 0,
+      "reload_ms": 0,
+      "projectile_speed": 260
+    },
+    "wp_matchlock": {
+      "id": "wp_matchlock",
+      "name": "火枪",
+      "mult": 2.6,
+      "attacks_per_sec": 0.5,
+      "range": 260,
+      "pierce": 1,
+      "arc_deg": 0,
+      "magazine": 0,
+      "reload_ms": 2000,
+      "projectile_speed": 420
+    },
+    "wp_mg": {
+      "id": "wp_mg",
+      "name": "机枪",
+      "mult": 0.4,
+      "attacks_per_sec": 8.33,
+      "range": 220,
+      "pierce": 0,
+      "arc_deg": 0,
+      "magazine": 100,
+      "reload_ms": 3000,
+      "projectile_speed": 380
+    }
+  },
+  "enemy_tiers": {
+    "mob": {
+      "hp": 45,
+      "atk": 6,
+      "def": 2
+    },
+    "standard": {
+      "hp": 60,
+      "atk": 8,
+      "def": 3
+    },
+    "ranged": {
+      "hp": 50,
+      "atk": 12,
+      "def": 2
+    },
+    "elite": {
+      "hp": 180,
+      "atk": 18,
+      "def": 6
+    },
+    "boss": {
+      "hp": 1206,
+      "atk": 28,
+      "def": 10
+    }
+  },
+  "affixes": [
+    {
+      "id": "af_lifesteal",
+      "name": "吸血",
+      "min": 3,
+      "max": 6,
+      "weight": 12
+    },
+    {
+      "id": "af_crit",
+      "name": "暴击率",
+      "min": 4,
+      "max": 8,
+      "weight": 14
+    },
+    {
+      "id": "af_critdmg",
+      "name": "暴击伤害",
+      "min": 15,
+      "max": 30,
+      "weight": 12
+    },
+    {
+      "id": "af_exp",
+      "name": "经验加成",
+      "min": 8,
+      "max": 15,
+      "weight": 10
+    },
+    {
+      "id": "af_speed",
+      "name": "移速",
+      "min": 5,
+      "max": 10,
+      "weight": 12
+    },
+    {
+      "id": "af_aspd",
+      "name": "攻速",
+      "min": 6,
+      "max": 12,
+      "weight": 12
+    },
+    {
+      "id": "af_knowledge",
+      "name": "知识加成",
+      "min": 10,
+      "max": 20,
+      "weight": 8
+    },
+    {
+      "id": "af_knockback",
+      "name": "击退增强",
+      "min": 20,
+      "max": 40,
+      "weight": 6
+    },
+    {
+      "id": "af_dmgreduce",
+      "name": "受击减伤",
+      "min": 4,
+      "max": 8,
+      "weight": 8
+    },
+    {
+      "id": "af_elitedmg",
+      "name": "对精英伤害",
+      "min": 10,
+      "max": 20,
+      "weight": 6
+    }
+  ],
+  "quality_multiplier": {
+    "white": 1.0,
+    "blue": 1.15,
+    "purple": 1.32
+  },
+  "knowledge": {
+    "bonus_per_10": 2,
+    "bonus_cap": 20
+  },
+  "combat_feedback": {
+    "flash_ms": 60,
+    "knockback_melee": 18,
+    "knockback_ranged": 8,
+    "screenshake_amp": 2
+  },
+  "ui": {
+    "dialog_speed": 40,
+    "text_chars_per_line": 18,
+    "max_lines": 3,
+    "portraits": {
+      "lin_zexu": "art/portrait_lin_zexu.png",
+      "guan_tianpei": "art/portrait_guan_tianpei.png"
+    }
+  },
+  "skills": {
+    "humen_cannon": {
+      "id": "humen_cannon",
+      "name": "虎门重炮",
+      "cooldown_ms": 12000,
+      "range_px": 300,
+      "splash_px": 52,
+      "kill_tiers": [
+        "mob",
+        "standard"
+      ],
+      "elite_hp_pct": 45,
+      "boss_hp_pct": 3,
+      "misfire_chance_pct": 10,
+      "misfire_self_pct": 12,
+      "desc": "关天培在虎门炮台亲自督放的岸炮：打小兵一发带走，打精英重伤，打军舰几乎不痛——装备差距就摆在这里。"
+    }
+  }
+}

@@ -7,6 +7,7 @@ import Phaser from 'phaser';
 import { DEPTH, PALETTE, VIEW_W } from '../core/constants';
 import { setInputEnabled } from '../core/EventBus';
 import type { DialogueAction, DialogueBlock, DialogueLine } from '../core/types';
+import { FONT_UI } from '../gfx/TextStyle';
 
 const BOX_H = 90;
 const BOX_TOP = 160;
@@ -53,13 +54,13 @@ export class DialogueBox {
       .setStrokeStyle(1, PALETTE.greyPlum);
 
     this.nameText = scene.add.text(96, BOX_TOP + 10, '', {
-      fontFamily: 'sans-serif',
+      fontFamily: FONT_UI,
       fontSize: '11px',
       color: '#F0C419',
     });
 
     this.bodyText = scene.add.text(96, BOX_TOP + 28, '', {
-      fontFamily: 'sans-serif',
+      fontFamily: FONT_UI,
       fontSize: '11px',
       color: '#F2EDE4',
       lineSpacing: 5,
@@ -67,7 +68,7 @@ export class DialogueBox {
 
     this.hintText = scene.add
       .text(VIEW_W - 14, BOX_TOP + BOX_H - 10, '▼ 继续', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#948DAB',
       })

@@ -9,6 +9,7 @@ import { PALETTE, VIEW_H, VIEW_W } from '../core/constants';
 import { dataLoader } from '../core/DataLoader';
 import { SaveManager } from '../core/SaveManager';
 import type { SaveData } from '../core/types';
+import { FONT_UI } from '../gfx/TextStyle';
 
 /**
  * 开局引导层（index.html 的 #tap-gate）的「浏览器里已经重新开始了」标记。
@@ -64,7 +65,7 @@ export class BootScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(PALETTE.ink);
     this.add
       .text(cx, VIEW_H / 2, '正在唤醒一八四〇年', {
-        fontFamily: 'sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '13px',
         color: '#6B6489',
       })
@@ -93,7 +94,7 @@ export class BootScene extends Phaser.Scene {
       console.error(err);
       this.add
         .text(VIEW_W / 2, VIEW_H / 2 + 24, `数据加载失败：${String(err)}\n请检查 public/data 是否完整`, {
-          fontFamily: 'sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '10px',
           color: '#E85C4A',
           align: 'center',

@@ -1,0 +1,582 @@
+{
+  "enemies": [
+    {
+      "id": "en_uk_infantry",
+      "name": "英军步兵",
+      "tier": "standard",
+      "hp_base": 60,
+      "atk_base": 8,
+      "def_base": 3,
+      "spd": 0.75,
+      "ai_params": {
+        "detect_radius": 120,
+        "attack_range": 26,
+        "attack_windup_ms": 300,
+        "attack_cooldown_ms": 175
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#1B3A6B",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_uk_grenadier",
+      "name": "英军掷弹兵",
+      "tier": "ranged",
+      "hp_base": 50,
+      "atk_base": 12,
+      "def_base": 2,
+      "spd": 0.6,
+      "ai_params": {
+        "detect_radius": 160,
+        "attack_range": 180,
+        "attack_windup_ms": 500,
+        "attack_cooldown_ms": 450
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#2F6BA8",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_uk_officer",
+      "name": "英军军官",
+      "tier": "elite",
+      "hp_base": 180,
+      "atk_base": 18,
+      "def_base": 6,
+      "spd": 0.85,
+      "ai_params": {
+        "detect_radius": 180,
+        "attack_range": 34,
+        "attack_windup_ms": 450,
+        "attack_cooldown_ms": 200
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#8C1C1C",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_gough",
+      "name": "郭富准将",
+      "tier": "elite",
+      "hp_base": 210,
+      "atk_base": 20,
+      "def_base": 7,
+      "spd": 0.8,
+      "ai_params": {
+        "detect_radius": 200,
+        "attack_range": 34,
+        "attack_windup_ms": 420,
+        "attack_cooldown_ms": 180,
+        "aura": {
+          "radius": 220,
+          "atk_pct": 20
+        }
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#8C1F28",
+      "size": {
+        "w": 26,
+        "h": 34
+      }
+    },
+    {
+      "id": "en_boss_steamfrigate",
+      "name": "英军蒸汽炮舰",
+      "tier": "boss",
+      "hp_base": 1206,
+      "atk_base": 56,
+      "def_base": 10,
+      "spd": 0.5,
+      "ai_params": {
+        "detect_radius": 300,
+        "attack_range": 190,
+        "attack_windup_ms": 700,
+        "attack_cooldown_ms": 600
+      },
+      "frames": 8,
+      "atlas": "placeholder",
+      "boss_phases": [
+        {
+          "hp_pct": [
+            100,
+            70
+          ],
+          "attacks": [
+            "broadside"
+          ],
+          "adds": null,
+          "weakpoint": false
+        },
+        {
+          "hp_pct": [
+            70,
+            35
+          ],
+          "attacks": [
+            "broadside",
+            "landing_boat"
+          ],
+          "adds": "en_uk_infantry",
+          "weakpoint": false
+        },
+        {
+          "hp_pct": [
+            35,
+            0
+          ],
+          "attacks": [
+            "broadside",
+            "ram"
+          ],
+          "adds": null,
+          "weakpoint": true
+        }
+      ],
+      "color": "#2F2B45",
+      "size": {
+        "w": 96,
+        "h": 48
+      },
+      "body": "ship",
+      "final_strike": {
+        "warn": "炮舰主炮转向炮台 —— 全线预警",
+        "hit_line": "蒸汽炮舰只用了主炮的一轮齐射。虎门的岸炮连它的铁壳都打不穿。",
+        "hp_mult": 3,
+        "warn_ms": 2600
+      }
+    },
+    {
+      "id": "en_qing_green",
+      "name": "清军绿营兵",
+      "tier": "mob",
+      "hp_base": 45,
+      "atk_base": 6,
+      "def_base": 2,
+      "spd": 0.6,
+      "ai_params": {
+        "detect_radius": 110,
+        "attack_range": 26,
+        "attack_windup_ms": 380,
+        "attack_cooldown_ms": 210
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#1F5C3A",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_qing_cavalry",
+      "name": "清军马队",
+      "tier": "standard",
+      "hp_base": 70,
+      "atk_base": 15,
+      "def_base": 3,
+      "spd": 1.4,
+      "ai_params": {
+        "detect_radius": 200,
+        "attack_range": 200,
+        "attack_windup_ms": 620,
+        "attack_cooldown_ms": 475
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#4E2F1A",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_qing_batou",
+      "name": "清军把总",
+      "tier": "elite",
+      "hp_base": 150,
+      "atk_base": 18,
+      "def_base": 5,
+      "spd": 0.85,
+      "ai_params": {
+        "detect_radius": 170,
+        "attack_range": 32,
+        "attack_windup_ms": 460,
+        "attack_cooldown_ms": 210
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#2F2B45",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_boss_xiangarmy_a",
+      "name": "湘军统领",
+      "tier": "boss",
+      "hp_base": 700,
+      "atk_base": 28,
+      "def_base": 8,
+      "spd": 0.7,
+      "ai_params": {
+        "detect_radius": 220,
+        "attack_range": 40,
+        "attack_windup_ms": 520,
+        "attack_cooldown_ms": 260
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": [
+        {
+          "hp_pct": [
+            100,
+            66
+          ],
+          "attacks": [
+            "broadside"
+          ],
+          "adds": null,
+          "weakpoint": false
+        },
+        {
+          "hp_pct": [
+            66,
+            33
+          ],
+          "attacks": [
+            "broadside",
+            "landing_boat"
+          ],
+          "adds": "en_qing_green",
+          "weakpoint": false
+        },
+        {
+          "hp_pct": [
+            33,
+            0
+          ],
+          "attacks": [
+            "ram"
+          ],
+          "adds": null,
+          "weakpoint": true
+        }
+      ],
+      "color": "#4A4468",
+      "size": {
+        "w": 28,
+        "h": 36
+      }
+    },
+    {
+      "id": "en_boss_xiangarmy_b",
+      "name": "洋枪队队长",
+      "tier": "boss",
+      "hp_base": 400,
+      "atk_base": 35,
+      "def_base": 5,
+      "spd": 0.6,
+      "ai_params": {
+        "detect_radius": 240,
+        "attack_range": 200,
+        "attack_windup_ms": 700,
+        "attack_cooldown_ms": 700
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": [
+        {
+          "hp_pct": [
+            100,
+            50
+          ],
+          "attacks": [
+            "broadside"
+          ],
+          "adds": null,
+          "weakpoint": false
+        },
+        {
+          "hp_pct": [
+            50,
+            0
+          ],
+          "attacks": [
+            "broadside",
+            "landing_boat"
+          ],
+          "adds": "en_qing_cavalry",
+          "weakpoint": true
+        }
+      ],
+      "color": "#1B3A6B",
+      "size": {
+        "w": 28,
+        "h": 36
+      }
+    },
+    {
+      "id": "en_concession_patrol",
+      "name": "租界巡捕",
+      "tier": "mob",
+      "hp_base": 50,
+      "atk_base": 7,
+      "def_base": 2,
+      "spd": 0.8,
+      "ai_params": {
+        "detect_radius": 130,
+        "attack_range": 26,
+        "attack_windup_ms": 320,
+        "attack_cooldown_ms": 190
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#1B3A6B",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_thug",
+      "name": "流氓打手",
+      "tier": "standard",
+      "hp_base": 65,
+      "atk_base": 9,
+      "def_base": 3,
+      "spd": 0.9,
+      "ai_params": {
+        "detect_radius": 140,
+        "attack_range": 28,
+        "attack_windup_ms": 340,
+        "attack_cooldown_ms": 200
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#4E2F1A",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_elite_informant",
+      "name": "包打听",
+      "tier": "elite",
+      "hp_base": 200,
+      "atk_base": 16,
+      "def_base": 5,
+      "spd": 1.0,
+      "ai_params": {
+        "detect_radius": 190,
+        "attack_range": 30,
+        "attack_windup_ms": 420,
+        "attack_cooldown_ms": 190
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#2F2B45",
+      "size": {
+        "w": 26,
+        "h": 34
+      }
+    },
+    {
+      "id": "en_bandit",
+      "name": "匪兵",
+      "tier": "mob",
+      "hp_base": 48,
+      "atk_base": 7,
+      "def_base": 2,
+      "spd": 0.75,
+      "ai_params": {
+        "detect_radius": 120,
+        "attack_range": 26,
+        "attack_windup_ms": 320,
+        "attack_cooldown_ms": 200
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#7A4F2A",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_bandit_crossbow",
+      "name": "匪弩手",
+      "tier": "ranged",
+      "hp_base": 52,
+      "atk_base": 13,
+      "def_base": 2,
+      "spd": 0.6,
+      "ai_params": {
+        "detect_radius": 170,
+        "attack_range": 190,
+        "attack_windup_ms": 520,
+        "attack_cooldown_ms": 500
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#A8763F",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_boss_bandit_chief",
+      "name": "匪寨头目",
+      "tier": "boss",
+      "hp_base": 620,
+      "atk_base": 24,
+      "def_base": 7,
+      "spd": 0.8,
+      "ai_params": {
+        "detect_radius": 220,
+        "attack_range": 36,
+        "attack_windup_ms": 500,
+        "attack_cooldown_ms": 240
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": [
+        {
+          "hp_pct": [
+            100,
+            60
+          ],
+          "attacks": [
+            "broadside"
+          ],
+          "adds": null,
+          "weakpoint": false
+        },
+        {
+          "hp_pct": [
+            60,
+            25
+          ],
+          "attacks": [
+            "broadside",
+            "landing_boat"
+          ],
+          "adds": "en_bandit",
+          "weakpoint": false
+        },
+        {
+          "hp_pct": [
+            25,
+            0
+          ],
+          "attacks": [
+            "ram"
+          ],
+          "adds": null,
+          "weakpoint": true
+        }
+      ],
+      "color": "#8C1C1C",
+      "size": {
+        "w": 30,
+        "h": 38
+      }
+    },
+    {
+      "id": "en_gang_thug",
+      "name": "帮会打手",
+      "tier": "standard",
+      "hp_base": 68,
+      "atk_base": 10,
+      "def_base": 3,
+      "spd": 0.85,
+      "ai_params": {
+        "detect_radius": 140,
+        "attack_range": 28,
+        "attack_windup_ms": 330,
+        "attack_cooldown_ms": 200
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#4E2F1A",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_factory_overseer",
+      "name": "烟厂监工",
+      "tier": "ranged",
+      "hp_base": 58,
+      "atk_base": 14,
+      "def_base": 2,
+      "spd": 0.55,
+      "ai_params": {
+        "detect_radius": 180,
+        "attack_range": 200,
+        "attack_windup_ms": 540,
+        "attack_cooldown_ms": 550
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#1F5C3A",
+      "size": {
+        "w": 24,
+        "h": 32
+      }
+    },
+    {
+      "id": "en_elite_dock",
+      "name": "码头把头",
+      "tier": "elite",
+      "hp_base": 230,
+      "atk_base": 19,
+      "def_base": 6,
+      "spd": 0.9,
+      "ai_params": {
+        "detect_radius": 200,
+        "attack_range": 32,
+        "attack_windup_ms": 440,
+        "attack_cooldown_ms": 200
+      },
+      "frames": 43,
+      "atlas": "placeholder",
+      "boss_phases": null,
+      "color": "#2F6BA8",
+      "size": {
+        "w": 26,
+        "h": 34
+      }
+    }
+  ]
+}
