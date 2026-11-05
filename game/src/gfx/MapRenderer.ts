@@ -71,6 +71,17 @@ export class MapRenderer {
   /** 每个实例一张纹理：见 drawGround 的注释（共用 key 会在场景切换那一帧炸渲染） */
   private static seq = 0;
 
+  /**
+   * 本实例烘出来的那张地面纹理 key（还没烘则是 null）。
+   *
+   * 暴露出去是给 `LevelScene.buildWorld` 做孤儿的兜底清理用的：
+   * 那张图是**不透明、铺满全屏、depth 0** 的，一旦有实例漏掉 `destroy()`，
+   * 上一张图的整片地面就会压在新地图上面，玩家会以为地图变回上一张了。
+   */
+  get groundTextureKey(): string | null {
+    return this.groundKey;
+  }
+
   constructor(private scene: Phaser.Scene, def: MapDef) {
     this.def = def;
     this.grid = {
@@ -83,7 +94,12 @@ export class MapRenderer {
 
     for (const layer of def.layers) {
       if (layer.name === 'foreground') this.drawForeground(layer);
-      else this.drawGround(layer);
+      // 只有**地面层**烘成那张大 canvas：`drawGround` 每调一次就 `createCanvas` 一张
+      // 新纹理并覆盖 `groundKey` / `groundImg`。碰撞层的数据是「挡住/不挡」（大量 0），
+      // 拿它画地面会让最后一张 canvas 只剩墙，整片场地变成透明——
+      // 玩家看到的就是「地图全黑，只有石头和血迹飘着」。
+      // 碰撞层只负责登记 `grid.solid`，不参与绘制。
+      else if (layer.name !== 'collision') this.drawGround(layer);
       if (layer.collidable) this.markCollision(layer);
     }
     this.paintWalls();

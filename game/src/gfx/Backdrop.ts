@@ -371,12 +371,44 @@ export function horizonTexture(scene: Phaser.Scene, key = 'bg_horizon'): string 
   return key;
 }
 
-/** 远景条 Image（调用方自己塞进场景/容器） */
-export function horizonImage(scene: Phaser.Scene, depth: number): Phaser.GameObjects.Image {
-  // 甲方给的远景条是 480×64（从全景 y=120..260 裁出来再压一半），
+/**
+ * 远景条 Image（调用方自己塞进场景/容器）。
+ *
+ * `prefer` 决定用甲方哪一张实拍/手绘全景裁出来的条带：
+ *  - `'dusk'`（默认，m12276 那张黄昏双舰全景）：舰影更密、海平线更低，战斗关卡都用它；
+ *  - `'night'`：早期那张夜色条，留给还在用旧素材的关卡。
+ * 两张都没有时才退回 `horizonTexture()` 的程序化绘制——所以美术没接也不会黑屏。
+ *
+ * `zoom` 是「把条带放大多少倍」：甲方全景里那几艘巨舰占 288×80，塞进 64px 的带子里
+ * 会变成指甲盖大的小船，而放大到脸上又跟场上 24×32 的小人抢视觉。这里只放大 1.6 倍
+ * 并**水平居中裁切**（只留中段海面），让小舰队读作「远处的敌船」而不是场上道具。
+ * 放大后条带比视口宽，调用方要用 `setScrollFactor(0)` 钉住，否则左右会露边。
+ */
+export function horizonImage(
+  scene: Phaser.Scene,
+  depth: number,
+  prefer: 'dusk' | 'night' = 'dusk',
+  zoom = 1,
+): Phaser.GameObjects.Image {
+  // 甲方给的远景条是 480×64（从全景 y=72..136 裁出来），
   // 画到 `sky_rows`（4 行 = 64px）那条带上刚好对齐。
-  if (scene.textures.exists(BG_TEX.horizon)) {
-    return scene.add.image(0, 0, BG_TEX.horizon).setOrigin(0, 0).setDepth(depth);
+  const order =
+    prefer === 'dusk' ? [BG_TEX.horizonDusk, BG_TEX.horizon] : [BG_TEX.horizon, BG_TEX.horizonDusk];
+  for (const key of order) {
+    if (scene.textures.exists(key)) {
+      const img = scene.add.image(0, 0, key).setOrigin(0, 0).setDepth(depth);
+      if (zoom !== 1) {
+        img.setScale(zoom);
+        // 水平居中：放大后左右各多出一截海面，让中间的舰队落在画面正中
+        img.setPosition(-(img.displayWidth - VIEW_W) / 2, -(img.displayHeight - HORIZON_H));
+      }
+      return img;
+    }
   }
-  return scene.add.image(0, 0, horizonTexture(scene)).setOrigin(0, 0).setDepth(depth);
+  const proc = scene.add.image(0, 0, horizonTexture(scene)).setOrigin(0, 0).setDepth(depth);
+  if (zoom !== 1) {
+    proc.setScale(zoom);
+    proc.setPosition(-(proc.displayWidth - VIEW_W) / 2, -(proc.displayHeight - HORIZON_H));
+  }
+  return proc;
 }

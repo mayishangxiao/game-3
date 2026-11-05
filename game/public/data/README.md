@@ -109,6 +109,24 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 | `maps/map_dg02_bandit.json` | 副本「广州城外匪寨」（寨门广场 + 高台） | `tools/gen_maps_dungeon.py` |
 | `maps/map_dg03_dock.json` | 副本「沪上码头」（空地 + 货箱堆 + 吊机） | `tools/gen_maps_dungeon.py` |
 
+**静态布景（`kind:'prop'` + `payload` = `SUNNY_PROPS` 里的道具名）**：act1b / act2a / act2b / dg01 四张图上有
+`rock / skulls / spikeSkull / spikes` 这几件，由 `art_ref/place_sunny_props.py` 落进 JSON（不在 `tools/`，因为它是
+美术导入脚本的配套，见 `art_ref/art_credits.json`）。摆位规则写在脚本里，三条都是踩着坑改出来的：
+
+- **只摆「墙顶」或「非海平地」，且要贴地**。地毯式扫全图会出两种怪图：① 图里有横贯全宽的边界行列，按列扫会**全落在同一行**；
+  ② 碰撞层里大片的空地其实是空气，立起来的石堆会飘在空中。
+- **`bush`（亮绿灌木）不进布景**：它是这批素材里饱和度最高的一件，压在紫灰砖地上是全屏最跳的色块，甲方看过直接要求全部去掉。
+  贴图仍留在 `SUNNY_PROPS` 表里（删表项要连带改测试与文件），只是摆位脚本的 `order` 循环不用它；想恢复就往 `order` 里加。
+- **第一幕（act1a / act1b）除了边界不留空气墙**（甲方原话：「除了边界全去掉」）。这两张图的碰撞层现在只有一圈边：
+  act1a 是顶部 4 行（海 3 行 + 湿沙带）+ 底行 + 左右两列，act1b 是整圈 1 格。`tests/art.test.ts` 有一条断言锁着这件事
+  （内部任何一格非 0 就红），改 `tools/gen_maps.py` 时别再把「看起来像礁石/柱子/远景」的格子写成实心——
+  `MapRenderer.paintWalls()` 会给它们画上石墙色，玩家撞上去就是撞隐形墙。
+- 布景**只画不登记**（不进 `worldObjects`、不进 `extraSolid`），所以 `tests/data.test.ts` 的「可交互物不能压虚拟按键」对它们不生效——
+  但 `tests/art.test.ts` 会检查每个布景 `payload` 都在 `SUNNY_PROPS` 表里（写错名字运行时只会留一条 `console.warn`，截图看不出来）。
+- **第一幕的围观百姓已去掉**（甲方 m01249）。`door_0..4` 那套 `kind:'prop'` + payload 判别式还在 `LevelScene.spawnCrowd` 里，
+  但 `spawnWorldObject` 已经不再调用它，地图数据里也没有 `door_N` 条目了。想放回来：往 JSON 里加 `{"kind":"prop","payload":"door_2"}`
+  再把 `spawnWorldObject` 里那两行分支恢复。**注意人群会挡路**（它往 `extraSolid` 登记格子），加回来要重跑可达性测试。
+
 ## 七、加内容的配方
 
 - **加一个事件 + 节点**：`events` 加事件卡 → `knowledge` 加对应知识卡（并让它的 `links` 指向已有事件，避免孤岛）→ `nodes` 加节点（`event_id` 指过去）→ `acts[].nodes` 插入顺序 → 若涉及新地图就加 `maps/map_*.json`。

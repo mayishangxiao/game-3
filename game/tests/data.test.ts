@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONTROL_HIT_PAD, CONTROL_LAYOUT, FIELD_H, TILE, VIEW_W } from '../src/core/constants';
+import { CONTROL_HIT_PAD, CONTROL_LAYOUT, FIELD_H, SUNNY_PROPS, TILE, VIEW_W } from '../src/core/constants';
 
 // vitest 的工作目录就是工程根目录；用 process.cwd() 而不是 __dirname，
 // 以免在 ESM 下没有 __dirname 而报错。
@@ -41,6 +41,7 @@ interface MapObj {
   kind: string;
   x: number;
   y: number;
+  payload?: string;
 }
 interface MapJson {
   id: string;
@@ -647,10 +648,16 @@ describe('地图可达性（防止关卡走不通）', () => {
     // 单屏地图才成立：地图不比视口大时相机不滚动，世界坐标 == 屏幕坐标。
     // 多屏地图要滚动，物件被按钮盖住只是某一瞬间的状态，不在本测试范围内。
     const zones = Object.entries(CONTROL_LAYOUT) as [string, { x: number; y: number; r: number }][];
+    // 静态布景（`kind:'prop'` 且 payload 是 Sunny Land 道具名，见 SUNNY_PROPS）不算可交互物：
+    // 它只画不登记（`LevelScene.spawnSunnyProp`），走近不会弹「搬起 / 投入」，压到摇杆底下
+    // 也只是被按钮盖住一角，不会让玩家找不到任何能点的东西。其余 kind 一个都不放过。
+    const isScenery = (o: { kind: string; payload?: string }) =>
+      o.kind === 'prop' && o.payload !== undefined && o.payload in SUNNY_PROPS;
     let checked = 0;
     for (const m of maps) {
       if (m.width * TILE > VIEW_W || m.height * TILE > FIELD_H) continue;
       for (const obj of m.objects) {
+        if (isScenery(obj)) continue;
         const px = (obj.x + 0.5) * TILE;
         const py = (obj.y + 0.5) * TILE;
         for (const [name, z] of zones) {

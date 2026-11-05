@@ -1,0 +1,42 @@
+{
+ "sunny-land": [
+  "_real_sunny-land_1.png",
+  "_real_sunny-land_4.png",
+  "_real_sunny-land_5.jpg",
+  "_real_sunny-land_6.jpg",
+  "_real_sunny-land_7.png"
+ ],
+ "platformer-pixel": [
+  "_real_platformer-pixel_2.png",
+  "_real_platformer-pixel_3.png",
+  "_real_platformer-pixel_4.png"
+ ],
+ "ars-notoria": [
+  "_real_ars-notoria_1.png",
+  "_real_ars-notoria_2.png",
+  "_real_ars-notoria_6.png",
+  "_real_ars-notoria_8.png",
+  "_real_ars-notoria_9.jpg",
+  "_real_ars-notoria_10.png"
+ ],
+ "items-elements": [
+  "_real_items-elements_2.png",
+  "_real_items-elements_3.png",
+  "_real_items-elements_4.png",
+  "_real_items-elements_5.png",
+  "_real_items-elements_6.png"
+ ],
+ "pixel-fx": [
+  "_real_pixel-fx_1.jpg",
+  "_real_pixel-fx_2.png"
+ ],
+ "castle-tileset": [
+  "_real_castle-tileset_1.png",
+  "_real_castle-tileset_2.png",
+  "_real_castle-tileset_4.png"
+ ],
+ "smoke": [
+  "_real_smoke_1.png",
+  "_real_smoke_2.jpg"
+ ]
+}

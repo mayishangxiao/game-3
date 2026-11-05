@@ -20,7 +20,10 @@ export const CHAR_H = 32;
 export const FIELD_COLS = VIEW_W / TILE; // 30
 export const FIELD_ROWS = FIELD_H / TILE; // 16
 
-/** 24 色锁定调色板（设计书 8.1） */
+/** 24 色锁定调色板 v2（户外明亮版，2026-11）
+ *  key名保持不变以兼容现有代码；色值已更新为星露谷风明亮户外色盘。
+ *  设计书 design/10_art_spec_opium.md 第5节为唯一色盘表。
+ */
 export const PALETTE = {
   ink: 0x0d0b14,
   night: 0x1c1a2b,
@@ -36,16 +39,16 @@ export const PALETTE = {
   brownDark: 0x7a4f2a,
   brownDeep: 0x4e2f1a,
   redDark: 0x8c1c1c,
-  red: 0xc62828,
+  red: 0xc0392b,
   redBright: 0xe85c4a,
   redSoft: 0xf2a08c,
-  greenDark: 0x1f5c3a,
-  green: 0x2f8f5b,
-  greenLight: 0x7ec08a,
-  indigo: 0x1b3a6b,
-  blue: 0x2f6ba8,
-  blueLight: 0x7fb2d9,
-  star: 0xf0c419,
+  greenDark: 0x4a7a2e,   // 深草绿（原墨绿）
+  green: 0x7ba84a,       // 草绿主色（原军绿）
+  greenLight: 0xa8d070,  // 亮草绿（原浅绿）
+  indigo: 0x2a5a8a,      // 深海蓝（原深靛）
+  blue: 0x4a90c8,        // 中海蓝（原中蓝）
+  blueLight: 0x7bc0e8,   // 浪花蓝（原浅蓝）
+  star: 0xd4a840,        // 金黄（原星黄，官服装饰用）
 } as const;
 
 /** 调色板色值数组，供「硬阴影也必须落在 24 色内」的取色使用 */
@@ -182,15 +185,124 @@ export const ART = {
   /** 从全景里裁出来的远景条：480×64（天空下沿 + 舰影 + 水线），战场顶部那条带 */
   bgStripNight: `${ART_ROOT}/bg/bg_strip_night.png`,
   bgStripRed: `${ART_ROOT}/bg/bg_strip_red.png`,
+  /**
+   * 甲方 m12276 再给的那张「黄昏海面 · 双舰冒烟」全景裁出来的远景条（480×64）。
+   *
+   * 和 `bgStripNight` 的区别：这张的舰影更密、海平线更低、上下沿做了羽化，
+   * 叠在瓦片顶上不会出现一条硬色带。竖屏手机上方留白处就用它。
+   */
+  bgStripDusk: `${ART_ROOT}/bg/bg_strip_dusk.png`,
+  /** 同一张全景的天空段（480×128），给开场情境卡当底图 */
+  bgSkyDusk: `${ART_ROOT}/bg/bg_sky_dusk.png`,
   /** 地面残破贴花目录前缀（scar_00.png…scar_11.png，逐个按 0.5 缩放进地面纹理） */
   scars: `${ART_ROOT}/scars/`,
+  /** 甲方给的炮火特效（金闪 → 爆开 → 火球 → 烟散）逐帧目录前缀，见 `FX_TEX` */
+  fxCannonBlast: `${ART_ROOT}/fx/cannon_blast/`,
+  /** 甲方给的围观百姓小图目录（door_0.png …），每种 6×13 像素、放大 3 倍显示，见 `CROWD_TEX` */
+  crowd: `${ART_ROOT}/crowd/`,
+  /** Sunny Land 场景道具目录（CC0 / Pixel Frog），文件名见 `SUNNY_PROPS` */
+  sunnyProps: `${ART_ROOT}/props/`,
 } as const;
+
+/**
+ * Sunny Land（CC0 1.0 / Pixel Frog）的场景道具：木箱、石墩、门、灌木、枯骨、路牌…
+ *
+ * 用来替掉「`kind:'prop'` 但 payload 不是 door_N 的物件一律画成 12×12 色块」的占位。
+ * 像素图**不做任何缩放**：文件里就是 16/22/32 px 的原尺寸，缩放只会糊；
+ * 尺寸由 `tests/art.test.ts` 逐个钉死（改了图没改表会直接红）。
+ * 来源与许可见 `art_ref/art_credits.json`，导入脚本 `art_ref/import_sunny_props.py`。
+ */
+export const SUNNY_PROPS = {
+  crate: { file: 'sunny_crate.png', w: 16, h: 16 },
+  bigCrate: { file: 'sunny_big_crate.png', w: 32, h: 32 },
+  block: { file: 'sunny_block.png', w: 16, h: 16 },
+  blockBig: { file: 'sunny_block_big.png', w: 32, h: 32 },
+  door: { file: 'sunny_door.png', w: 22, h: 33 },
+  doorOpened: { file: 'sunny_door_opened.png', w: 22, h: 33 },
+  rock: { file: 'sunny_rock.png', w: 28, h: 15 },
+  bush: { file: 'sunny_bush.png', w: 46, h: 28 },
+  skulls: { file: 'sunny_skulls.png', w: 16, h: 10 },
+  spikeSkull: { file: 'sunny_spike_skull.png', w: 17, h: 12 },
+  sign: { file: 'sunny_sign.png', w: 18, h: 20 },
+  shrooms: { file: 'sunny_shrooms.png', w: 16, h: 15 },
+  spikes: { file: 'sunny_spikes.png', w: 15, h: 10 },
+} as const;
+
+export type SunnyProp = keyof typeof SUNNY_PROPS;
+
+/** 纹理 key：`sunny_<道具名>`（预加载与摆放共用，防止拼错 key 后静默不显示） */
+export function sunnyPropKey(name: SunnyProp): string {
+  return `sunny_${name}`;
+}
+
+/**
+ * 沉进地面的道具：底色偏暗、会被地砖盖掉一半，摆放时下压几像素。
+ *
+ * `bush`/`blockBig` 不在里面——灌木和石台是立起来的，压进地面会像陷进坑里。
+ */
+export const SUNNY_GROUND_PROPS: ReadonlySet<SunnyProp> = new Set<SunnyProp>([
+  'rock',
+  'skulls',
+  'spikeSkull',
+  'shrooms',
+  'spikes',
+  'sign',
+]);
+
+/**
+ * 围观百姓：虎门销烟现场的看热闹人群（甲方 m11885 给的 5 个小人）。
+ *
+ * 原图是 480×96 的条带，5 个 6×12 的像素小人（放大 6 倍画上去的），
+ * 用 `tools/import_crowd.py` 按像素网格还原回 6×12 的原始大小再落盘。
+ * 为什么还原：6×12 放大 3 倍 = 18×36，和玩家小人（24×32）同一量级；
+ * 直接按原图 36×72 摆进 480×270 的战场会把路堵死。
+ *
+ * 数组顺序就是素材编号：`door_0.png` … `door_4.png`。
+ */
+export const CROWD_TEX = {
+  /** 蓝布短褂（前排看客） */
+  blue: 'crowd_blue',
+  /** 灰布长衫（后排） */
+  grey: 'crowd_grey',
+  /** 白布巾 + 棕褐长衫（脖子上搭着汗巾） */
+  scarf: 'crowd_scarf',
+  /** 矮一个头的小孩（站最前面，别被挡住） */
+  boy: 'crowd_boy',
+  /** 藕荷色衣裙的妇人 */
+  woman: 'crowd_woman',
+} as const;
+
+/** 围观百姓的显示放大倍数：6×12 → 18×36 */
+export const CROWD_SCALE = 3;
+
+/**
+ * 炮火特效帧：`public/art/fx/cannon_blast/fx_00.png … fx_47.png`（每帧 96×96）。
+ *
+ * 来源是甲方的一段 GIF（57 帧 / 40ms 一帧），用 `tools/import_fx.py` 拆出来：
+ * 统一缩放 0.478 倍 + 逐帧把不透明包围盒居中。别手工往这个目录塞帧，
+ * 帧数一变就要同步这里和 `FX_FRAME_MS`（`tests/art.test.ts` 会逐个查文件存在）。
+ */
+export const FX_TEX = {
+  cannonBlast: 'fx_cannon_blast',
+} as const;
+
+/** 炮火特效共几帧（与 `FX_DIR` 里的文件数一致） */
+export const FX_CANNON_FRAMES = 48;
+
+/** 每帧显示时长：源 GIF 是 40ms，游戏里放慢到 45ms —— 爆炸全流程约 2.2 秒，足够看清又不拖节奏 */
+export const FX_FRAME_MS = 45;
+
+/** 爆炸特效绘制时的深度（`gfx/Depth.ts` 的 fx 层：压在人身上、浮在地面上） */
+export const FX_TEX_SIZE = 96;
 
 /** 背景贴图的纹理 key（Backdrop 优先用它们，缺图自动退回程序化绘制） */
 export const BG_TEX = {
   intro: 'art_bg_sea_red',
   horizon: 'art_bg_strip_night',
   horizonAlt: 'art_bg_strip_red',
+  /** 甲方 m12276 的黄昏全景：远景条 + 天空段，战斗关卡优先用它 */
+  horizonDusk: 'art_bg_strip_dusk',
+  skyDusk: 'art_bg_sky_dusk',
 } as const;
 
 /**

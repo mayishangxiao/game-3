@@ -9,9 +9,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ART, CONTROL_LAYOUT, HORIZON_ROWS, SCAR_TEX, SHIP_FRAME, SHIP_TEX, TEX_CRATE } from '../src/core/constants';
+import { ART, CONTROL_LAYOUT, FX_CANNON_FRAMES, HORIZON_ROWS, SCAR_TEX, SHIP_FRAME, SHIP_TEX, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, type SunnyProp } from '../src/core/constants';
 
 const ROOT = process.cwd();
 const PUBLIC = join(ROOT, 'public');
@@ -54,6 +54,39 @@ describe('正式美术资源', () => {
 
   it('鸦片箱是 20×20（贴合 16px 瓦片，比旧占位方块大一圈才看得见）', () => {
     expect(pngSize(ART.crate)).toEqual({ width: 20, height: 20 });
+  });
+
+  it('Sunny Land 道具（CC0）都在，且像素尺寸与 SUNNY_PROPS 表一致', () => {
+    // 为什么钉尺寸：这批图是**零缩放原样**落盘的，表里的 w/h 同时是「游戏里的显示尺寸」。
+    // 换了一张图而没改表，道具会悄悄变形（被缩放后像素糊），浏览器里看不出，只有这里能抓。
+    const names = Object.keys(SUNNY_PROPS) as SunnyProp[];
+    expect(names.length).toBeGreaterThanOrEqual(10);
+    for (const name of names) {
+      const p = `${ART.sunnyProps}${SUNNY_PROPS[name].file}`;
+      expect(existsSync(join(PUBLIC, p)), p).toBe(true);
+      expect(pngSize(p), p).toEqual({ width: SUNNY_PROPS[name].w, height: SUNNY_PROPS[name].h });
+    }
+    // 纹理 key 不能撞：`sunny_<name>`
+    expect(new Set(names.map(sunnyPropKey)).size).toBe(names.length);
+  });
+
+  it('地图里的静态布景（prop + Sunny Land 道具名）都指向表里登记的道具', () => {
+    // `spawnSunnyProp` 是按 payload 查 `SUNNY_PROPS` 的；手滑写个 `bigcrate` 就整件不画，
+    // 运行时只有一条 console.warn，截图评审极难发现。
+    const dir = join(PUBLIC, 'data', 'maps');
+    let scenery = 0;
+    for (const file of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
+      const map = JSON.parse(readFileSync(join(dir, file), 'utf8')) as {
+        objects?: { kind: string; payload?: string }[];
+      };
+      for (const o of map.objects ?? []) {
+        if (o.kind !== 'prop') continue;
+        if (!o.payload || /^door_\d+$/.test(o.payload)) continue;
+        expect(o.payload in SUNNY_PROPS, `${file} 的布景 payload「${o.payload}」没登记`).toBe(true);
+        scenery += 1;
+      }
+    }
+    expect(scenery).toBeGreaterThan(0);
   });
 
   it('两位有立绘的说话人都是 96×112 胸像（对话框内缩到 68×80 显示）', () => {
@@ -108,21 +141,76 @@ describe('正式美术资源', () => {
     }
   });
 
-  it('地图开了 sky_rows 就必须把那几行做成实心（否则玩家会走进远景带）', () => {
-    for (const file of ['map_ch00_act1b.json']) {
-      const map = JSON.parse(
-        readFileSync(join(PUBLIC, 'data', 'maps', file), 'utf8'),
-      ) as {
+  it('炮火特效 48 帧都在，且都是 96×96 带透明的 PNG（GIF 重拆过就会红）', () => {
+    expect(FX_CANNON_FRAMES).toBe(48);
+    for (let i = 0; i < FX_CANNON_FRAMES; i++) {
+      const rel = `${ART.fxCannonBlast}fx_${String(i).padStart(2, '0')}.png`;
+      expect(existsSync(join(PUBLIC, rel)), rel).toBe(true);
+      expect(pngSize(rel), rel).toEqual({ width: 96, height: 96 });
+    }
+    // 帧数必须和目录里的文件数一致：`tools/import_fx.py` 换了参数（抽帧步长、--size）
+    // 而没人改常量时，多出来的帧会被静默忽略、少掉的帧会让特效在中间黑屏
+    const files = readdirSync(join(PUBLIC, ART.fxCannonBlast)).filter((f) => f.endsWith('.png'));
+    expect(files.length).toBe(FX_CANNON_FRAMES);
+  });
+
+  it('开了天空带的地图，远景那几行可以实心（免得玩家走进远景里）', () => {
+    // 原断言「act1b 必须开 sky_rows」已经作废：甲方要求第一幕除了边界不留空气墙，
+    // 而那时 act1b 的 6 行远景带**是实心的**，正是要清掉的空气墙之一，`sky_rows` 一并去了。
+    // 现在这条只约束「谁开了就得封好」——远景条由 LevelScene 自己叠在地图上方，与碰撞无关。
+    const dir = join(PUBLIC, 'data', 'maps');
+    for (const file of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
+      const map = JSON.parse(readFileSync(join(dir, file), 'utf8')) as {
         sky_rows?: number;
         layers: { name: string; data: number[][] }[];
       };
       const sky = map.sky_rows ?? 0;
-      expect(sky, `${file} 应该开远景`).toBeGreaterThan(0);
+      if (sky === 0) continue;
       const col = map.layers.find((l) => l.name === 'collision');
-      expect(col).toBeTruthy();
+      expect(col, file).toBeTruthy();
       for (let y = 0; y < sky; y++) {
         expect((col as { data: number[][] }).data[y].every((v) => v !== 0), `${file} 第 ${y} 行可走`).toBe(true);
       }
+    }
+  });
+
+  it('第一幕两张图除了边界之外没有一格空气墙（甲方要求：除了边界全去掉）', () => {
+    // 撞得住的格子必须看得见：边界用海/湿沙/礁石包边，场地内部一格不挡。
+    // 这条以前没人挡，结果 act1b 有 6 行实心远景带 + 右 6 列实心海面 + 4 根柱子，
+    // 玩家在空地上莫名其妙被挡住（`paintWalls` 还把它们画成了石墙色块）。
+    for (const file of ['map_ch00_act1a.json', 'map_ch00_act1b.json']) {
+      const map = JSON.parse(readFileSync(join(PUBLIC, 'data', 'maps', file), 'utf8')) as {
+        width: number;
+        height: number;
+        sky_rows?: number;
+        layers: { name: string; data: number[][] }[];
+      };
+      const col = map.layers.find((l) => l.name === 'collision')!.data;
+      // 可走场地的**行范围**：从第一条整行可走的格子算到倒数第二条。
+      // 边界是「看起来像海边」的几行（海、湿沙），行数可以大于 1 行，
+      // 但只要某一整行能走，它就是场地而不是边界。
+      const rowOpen = (y: number) =>
+        Array.from({ length: map.width - 2 }, (_, i) => col[y][i + 1]).every((v) => v === 0);
+      let top = 0;
+      while (top < map.height && !rowOpen(top)) top++;
+      expect(top, `${file} 整张图没有一行完整可走`).toBeLessThan(map.height);
+      const open: [number, number][] = [];
+      for (let y = top + 1; y < map.height - 1; y++) {
+        for (let x = 1; x < map.width - 1; x++) {
+          if (col[y][x] !== 0) open.push([x, y]);
+        }
+      }
+      expect(open, `${file} 场地内部仍有空气墙：${JSON.stringify(open)}`).toEqual([]);
+      // 边界必须整圈封死，否则玩家会从边角走出地图
+      for (let x = 0; x < map.width; x++) {
+        expect(col[0][x], `${file} 顶边 (${x},0) 漏了`).not.toBe(0);
+        expect(col[map.height - 1][x], `${file} 底边 (${x},${map.height - 1}) 漏了`).not.toBe(0);
+      }
+      for (let y = 0; y < map.height; y++) {
+        expect(col[y][0], `${file} 左边 (0,${y}) 漏了`).not.toBe(0);
+        expect(col[y][map.width - 1], `${file} 右边 (${map.width - 1},${y}) 漏了`).not.toBe(0);
+      }
+      expect(map.sky_rows ?? 0, `${file} 不该再开远景实心带`).toBe(0);
     }
   });
 

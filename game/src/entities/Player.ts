@@ -52,6 +52,24 @@ export class Player {
     this.blocker = fn;
   }
 
+  /**
+   * 攻速倍率钩子（波次强化的「火线」用）。
+   * 关卡在 `create()` 里注入，返回 1 表示不加成。
+   * 做成钩子而不是给 `WeaponDef` 加字段：武器定义来自 `config.json`，
+   * 往里塞运行时状态会让「数据驱动」这条线变脏。
+   */
+  private hasteHook: (() => number) | null = null;
+
+  setHasteHook(fn: (() => number) | null): void {
+    this.hasteHook = fn;
+  }
+
+  /** 实际冷却间隔：基础间隔 ÷ 攻速倍率 */
+  private attackIntervalMs(): number {
+    const h = this.hasteHook ? this.hasteHook() : 1;
+    return weaponIntervalMs(this.weapon.attacks_per_sec) / (h > 0 ? h : 1);
+  }
+
   constructor(scene: Phaser.Scene, x: number, y: number, cfg: PlayerConfig, weapon: WeaponDef) {
     this.scene = scene;
     this.weapon = weapon;
@@ -110,7 +128,7 @@ export class Player {
   /** 触发一次攻击（返回 true 表示本次生效，交由场景做命中判定） */
   tryAttack(): boolean {
     if (!this.canAttack()) return false;
-    this.attackCd = weaponIntervalMs(this.weapon.attacks_per_sec);
+    this.attackCd = this.attackIntervalMs();
     this.attackAnimMs = 160;
     this.rig.playAttack();
     return true;
@@ -120,7 +138,7 @@ export class Player {
   trySkill(): boolean {
     if (!this.alive || this.skillCd > 0) return false;
     this.skillCd = SKILL_COOLDOWN_MS;
-    this.attackCd = weaponIntervalMs(this.weapon.attacks_per_sec);
+    this.attackCd = this.attackIntervalMs();
     this.attackAnimMs = 260;
     this.rig.playAttack();
     return true;

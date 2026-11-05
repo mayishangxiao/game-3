@@ -1,0 +1,87 @@
+{
+ "pack": "Sunny Land 2D Pixel Art Pack",
+ "author": "Pixel Frog (Ansimuz)",
+ "license": "CC0 1.0",
+ "page": "https://opengameart.org/content/sunny-land-2d-pixel-art-pack",
+ "note": "仅取 PNG/environment/props/ 下的场景道具，原像素尺寸复制（最近邻/零缩放）。",
+ "files": [
+  {
+   "file": "art/props/sunny_crate.png",
+   "source": "crate.png",
+   "w": 16,
+   "h": 16
+  },
+  {
+   "file": "art/props/sunny_big_crate.png",
+   "source": "big-crate.png",
+   "w": 32,
+   "h": 32
+  },
+  {
+   "file": "art/props/sunny_block.png",
+   "source": "block.png",
+   "w": 16,
+   "h": 16
+  },
+  {
+   "file": "art/props/sunny_block_big.png",
+   "source": "block-big.png",
+   "w": 32,
+   "h": 32
+  },
+  {
+   "file": "art/props/sunny_door.png",
+   "source": "door.png",
+   "w": 22,
+   "h": 33
+  },
+  {
+   "file": "art/props/sunny_door_opened.png",
+   "source": "door-opened.png",
+   "w": 22,
+   "h": 33
+  },
+  {
+   "file": "art/props/sunny_rock.png",
+   "source": "rock.png",
+   "w": 28,
+   "h": 15
+  },
+  {
+   "file": "art/props/sunny_bush.png",
+   "source": "bush.png",
+   "w": 46,
+   "h": 28
+  },
+  {
+   "file": "art/props/sunny_skulls.png",
+   "source": "skulls.png",
+   "w": 16,
+   "h": 10
+  },
+  {
+   "file": "art/props/sunny_spike_skull.png",
+   "source": "spike-skull.png",
+   "w": 17,
+   "h": 12
+  },
+  {
+   "file": "art/props/sunny_sign.png",
+   "source": "sign.png",
+   "w": 18,
+   "h": 20
+  },
+  {
+   "file": "art/props/sunny_shrooms.png",
+   "source": "shrooms.png",
+   "w": 16,
+   "h": 15
+  },
+  {
+   "file": "art/props/sunny_spikes.png",
+   "source": "spikes.png",
+   "w": 15,
+   "h": 10
+  }
+ ]
+}

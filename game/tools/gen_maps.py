@@ -40,29 +40,35 @@ def blank(v=0):
 ground = blank(1)
 collision = blank(0)
 
-# 海水 rows 0-2（可行走边界之外，设为碰撞）
+# 碰撞网格（甲方 2026-11 要求：「第一幕怎么那么多空气墙，除了边界全去掉」）：
+# 只保留一圈不可走的边界，场地内部**不再有任何隐形障碍**。
+#   * 上边界 = 海（行 0-2）与湿沙带（行 3）——湿沙原本可走，现在并入边界，看上去仍是沙滩；
+#   * 下边界 = 行 15 改成湿沙、整行实心。以前行 15 是一整条空气（走到底就撞看不见的边），
+#     与其说是墙不如说是「漏出来的边角」，改成沙滩边更像海滩；
+#   * 左右边界 = 第 0 / 29 列，地面改成礁石，撞上去有东西可看。
+# 销烟池（16-19 列、9-10 行）原来也是两排实心，现在同样可走：池子在画面里照画，
+# 但玩家能走过去（`spawnWorldObject` 里的 deposit 物件仍可交互）。
 for y in range(0, 3):
     for x in range(W):
         ground[y][x] = 3
         collision[y][x] = 3
-# 湿沙过渡带
 for x in range(W):
     ground[3][x] = 2
-# 左侧礁石群
-for (x, y) in [(0, 4), (0, 5), (1, 4), (28, 12), (29, 12), (29, 13), (0, 14), (1, 14)]:
-    ground[y][x] = 5
-    collision[y][x] = 5
+    collision[3][x] = 2
+for x in range(W):
+    ground[15][x] = 2
+    collision[15][x] = 2
+for y in range(H):
+    for x in (0, W - 1):
+        ground[y][x] = 5
+        collision[y][x] = 5
 # 木栈道一条
 for x in range(6, 24):
     ground[6][x] = 4
-# 销烟池（3×2 的木框 + 石灰），位于中偏右
+# 销烟池（3×2 的木框 + 石灰），位于中偏右——纯装饰，不再挡人
 for x in range(16, 20):
     ground[9][x] = 6
     ground[10][x] = 7
-for x in range(17, 19):
-    collision[9][x] = 0  # 池子可走近但不能站进去
-for x in range(16, 20):
-    collision[10][x] = 6
 
 map_a = {
     "id": "map_ch00_act1a",
@@ -88,7 +94,8 @@ map_a = {
                 "payload": "crate",
             }
             for i, (x, y) in enumerate(
-                [(7, 11), (10, 12), (13, 11), (22, 11), (24, 12), (11, 14), (20, 13), (26, 10)]
+                [(7, 11), (10, 12), (13, 11), (22, 11), # 下面三个必须离右下角三键（炮/攻/闪）远
+                (10, 13), (9, 12), (17, 14), (27, 9)]
             )
         ],
         {
@@ -122,39 +129,34 @@ map_a = {
 }
 
 # ---------------- 地图 B：虎门威远炮台（夜战） ----------------
+# 同样是「只留边界」：以前右 6 列海面整片实心、外加 4 根 2 格高的柱子，都会变成空气墙。
+# 这版**四周一圈都实心**（上=垛口墙、下=内墙、左=外墙，右=海面），场地内部一格不挡。
+#   * 右边界做成海：原来那一列垛口已经放在边界上了，所以是「海」而不是「栏」——
+#     撞上去看到的是水，不会有隐形墙的感觉；把海再往右延出去也没用，相机只显示 30 列。
+#   * `sky_rows` 已去掉：那 6 行原来是实心的远景带，属于要清的空气墙。远景条由
+#     LevelScene 自己叠在地图上方，不依赖 sky_rows。
+# 碰撞值一律写 `1`（可走地面）。以前往碰撞层里写 2 / 3 / 6 会让 `MapRenderer.paintWalls`
+# 把它们画成石墙色块，这也是「明明能走却撞墙」的来源之一。
 fground = blank(1)
 fcollision = blank(0)
 
-# 海面（炮台外侧）在右侧 6 格
 for y in range(H):
     for x in range(24, W):
         fground[y][x] = 3
         if y < 5 or y > 11:
             fground[y][x] = 4
-        fcollision[y][x] = 3 if y < 5 or y > 11 else 3
-# 外墙
 for x in range(W):
     fground[0][x] = 2
-    fcollision[0][x] = 2
+    fcollision[0][x] = 1
     fground[H - 1][x] = 2
-    fcollision[H - 1][x] = 2
+    fcollision[H - 1][x] = 1
 for y in range(H):
     fground[y][0] = 2
-    fcollision[y][0] = 2
-# 垛口（在 x=23 一线留出射口，其余为掩体）
-for y in range(1, H - 1):
-    if y in (3, 4, 10, 11, 12):
-        continue
-    fground[y][23] = 6
-    fcollision[y][23] = 6
-# 炮位
+    fcollision[y][0] = 1
+    fcollision[y][W - 1] = 1
+# 炮位（地面装饰，不挡人）
 for (x, y) in [(20, 4), (20, 11), (16, 7)]:
     fground[y][x] = 5
-# 内部石柱
-for (x, y) in [(8, 4), (8, 11), (14, 4), (14, 11)]:
-    for dy in range(2):
-        fground[y + dy][x] = 2
-        fcollision[y + dy][x] = 2
 
 map_b = {
     "id": "map_ch00_act1b",

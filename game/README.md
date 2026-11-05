@@ -103,6 +103,8 @@ $pnpm = "$env:USERPROFILE\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pnp
 
 **第一幕 · 鸦片战争**：虎门海滩（与林则徐对话 → 搬 8 箱鸦片投入销烟池 → 出口出现）→ 销烟结局过场 → 威远炮台（3 波敌军 + Boss 蒸汽炮舰，含三段招式）→ 《南京条约》抉择 → 返回长廊结算首通。
 
+销烟池四周站了 **10 个围观百姓**（5 种外形，甲方原画条带 `tools/import_crowd.py` 还原成 6×12 像素、游戏内最近邻放大 3 倍 = 18×36）。他们是**布景不是目标**：不进 `worldObjects`、不可交互、不出现在任务列表里，但占据碰撞格（`crowdSolids`），玩家绕池子走要绕开人群。
+
 **第二幕 · 太平天国**：金田突围（护送 3 名战士穿过 3 段拦截到地图右端）→ 天京经营（8 个月分配粮草/兵员/民心，怎么分都不够）→ 天京事变过场 → 天京陷落（4 波敌军 + **湘军统领与洋枪队队长双 Boss 同场**）→ 「农民阶级的局限性」抉择 → 章末测验。
 
 ### 可重复内容（长廊底部四个入口）
@@ -134,6 +136,11 @@ game/
 │   ├── knowledge/            知识卡
 │   ├── dungeons/             副本定义（波次、Boss、品质权重、专属掉落）
 │   └── quiz/                 章末测验题库
+├── public/art/             正式美术（素材来源与许可见 ../art_ref/art_credits.json）
+│   ├── units/                6 兵种 × 四朝向 24×32
+│   ├── props/                鸦片箱 + Sunny Land 静态布景（sunny_*.png，CC0，原尺寸不缩放）
+│   ├── bg/ scars/ fx/ crowd/ parts/ portrait_*  背景条、贴花、炮击帧、围观百姓、部件、立绘
+│   └── tiles/                瓦片图（当前代码不从磁盘读，MapRenderer 按 tile_colors 程序化绘制）
 ├── src/
 │   ├── README.md           代码地图：分层依赖、每文件职责与影响面、改动配方
 │   ├── main.ts             Phaser 初始化与移动端适配
@@ -305,7 +312,40 @@ AI 美术交付包里的三样已经进游戏，其余（单位帧、瓦片）�
 - **第 6 个兵种** `qing_officer`：玩家的小人原来和绿营兵穿同一套号衣，换成亲兵配色（蓝号衣 + 金腰带 + 红缨帽）后一眼能认出自己。
 - 瓦片砖面高光从「每格一条亮边」改成「约 45% 的格子才点」——每格都点会连成一张亮网格，整块地像贴了瓷砖（截图评审发现）。
 
+### 炮火特效（甲方 GIF → 48 帧逐帧 PNG，2026-11）
+
+甲方给的 `金色闪爆烟散-V1-256x256.gif`（57 帧 / 40ms 一帧 / 256×256，整段是「金闪 → 爆开 → 白核 → 火球 → 烟散」）已经接进虎门重炮：
+
+- **拆帧**：`tools/import_fx.py` 输出 `public/art/fx/cannon_blast/fx_00..47.png`（96×96，48 帧）。做法是**所有帧按同一系数缩放再逐帧居中**——源动画的爆心在画布上从 x=70 漂到 x=132，按固定爆心开窗裁切会把前段刚喷出的火舌裁掉（试过，火舌少一半）。
+- **播放**：`LevelScene.playCannonBlastFx()` 用一张 Image 每 `FX_FRAME_MS = 45` 毫秒换一次纹理，全程约 2.2 秒；炸膛（自己脚下炸）缩放 0.62 倍。特效叠在原来的程序化冲击波 + 硝烟之上，两者同时出现。
+- **缺图兜底**：首帧纹理不存在时直接返回，`cannonBlast()` 的冲击波照常播，不会白屏。`tests/art.test.ts` 会核对「48 个文件都在、都是 96×96、目录文件数等于 `FX_CANNON_FRAMES`」。
+- 换特效：把新 GIF 丢给 `import_fx.py` 重跑（`--size` 调大小、`--every` 抽帧），再改 `FX_CANNON_FRAMES` / `FX_FRAME_MS`。
+
 - **目标文字与暂停**：这一场的任务目标从屏幕正中下方挪到左上角「事件条」下面（`objectiveText.y` 跟着战役条高度走）；右上角新增「暂停」，暂停会真冻结关卡（`scene.pause("Level")`），面板里可「继续」或「返回主菜单」。
+
+### 围观百姓（甲方条带图 → 5 种像素小人，2026-11）
+
+甲方发来一张 480×96 的条带图（深灰底、5 个小人、右下角带水印），要求「把这些观众做进虎门销烟里」。
+
+- **还原而不是重画**：图上每个小人占 36×72 真实像素 = 把 6×12 的像素画放大了 6 倍。`tools/import_crowd.py` 按 6 像素一格取格心颜色、丢掉底色、按脚底对齐，输出 `public/art/crowd/door_0..4.png`（各 6×12）。直接在游戏里缩放原图会糊边；还原后用 Phaser 最近邻放大最干净。
+- **尺寸**：`CROWD_SCALE = 3` → 18×36，介于玩家小人（24×32）与士兵贴图之间，站着不抢戏但看得出是活人。脚下压一层 alpha 0.26 的椭圆阴影，和箱子/池子同一套投影规则。
+- **是布景，不是目标**：`spawnCrowd()` **刻意不把百姓放进 `worldObjects`**，否则会被交互射线扫到、变成可点目标、还会进任务列表。但要把格子记进 `crowdSolids`，由 `this.map.extraSolid = (wx,wy) => this.isSeaAt(wx,wy) || this.isCrowdAt(wx,wy)` 让它们挡人——人群围着销烟池站，玩家搬箱子要绕开。
+- **数据**：`map_ch00_act1a.json` 的 `objects` 里 10 条 `kind:'prop'`、`payload:'door_0'..'door_4'`，散在销烟池（占 `(17..20, 10)` 四格）四周 2–4 格远处：上 3、下 2、左 3、右 2。
+- **间距**：第一版十个人紧贴池子站一整圈，甲方反馈「分开点，太拥挤了」——当时每个人宽 18px、格宽 16px，相邻两人其实**横向叠在一起**，远看是一坨色块。现在约束两条：①任意两人切比雪夫距离 ≥ 2（八方向都不相邻）；②不超过池子正对的那一行/列贴身。复核脚本同时检查：不落在碰撞格、不重复、不与 8 个箱子/林则徐/出口重叠、**不落在虚拟按键命中区内**（这个真踩到过——`(15,13)` 正好在摇杆圈的命中半径里）、BFS 把人群当障碍后 470 格仍可达、全部可交互物可达。
+- **呼吸动画**：每人的相位由 `(x*7 + y*13) % 20` 定，`y+8 ↔ y+7` 的 900–1400ms 正弦补间，十个人不会同步呼吸。
+- **验证**：`tools/_cdp/crowd.mjs`（端口 9411）8 项断言全为 true —— 10 个都放上了 / 5 种外形都用到 / scale=3 / 碰撞格 10 个 / 不在 worldObjects / 5 张贴图都存在 / 地图一屏不滚 / **按住右移 1.2s 位移 0px**（被百姓挡住）。三张截图逐张看过（全景 / 池子近景 / 被挡）。
+- 踩过的坑：`centerOn` 拿不到近景，因为相机 `startFollow` 玩家、下一帧就被拉回；而且这张图是 30×16 格 = 480×256，**正好一屏、根本不会滚动**，所以「镜头是否移动」这条断言本身就无从成立，改成断言前提（`mapFitsOneScreen`）。
+
+### 战场背景 + 舰炮预警 + 特效归属（2026-11，甲方全景图）
+
+甲方发来一张 480×270 的海战全景（黄昏、双舰、烟柱、远处船队），四条要求一起落地。
+
+- **裁成远景带**：`bg_strip_dusk.png`（crop `0,72,480,136`）用在 `sky_rows` 那条留白带上，`bg_sky_dusk.png`（crop `0,0,480,128`）给开场情境卡当底图。`horizonImage(scene, depth, 'dusk', zoom)` 第三参是「放大几倍」——原尺寸的船塞进 64px 带子里只有指甲盖大，`zoom=1.6` 并水平居中裁切后读作「远处的敌船」。纵向**顶边贴 0**：这条带上半截会被顶部战役条盖住，底边对齐的话敌舰正好长在被盖掉的位置，只剩几根桅杆露出来。交界处再铺 10 行渐隐暗影，免得海平线与第一行地砖是一条刀刃般的硬线。
+- **军舰不动了**：删掉 `paintSea()` / `onShipBreach()` / `waterGfx` / `shipBreached` 与每 6.5 秒左压 76px 的节拍。现在 `bossCharge` 遇到 `bossShip` 直接开火：`emitToast('炮舰原地舷炮齐射')` + `bossSalvo(e, 3, 44)`，成本是「一直停在岸边打你」，不再有剧情杀突破链。`isSeaAt` 保留但恒为 false（运行时禁区这个口子收敛成一处）。
+- **舰炮落点预警**（`SALVO = { radiusPx: 46, warnMs: 1000, fallMs: 260, fallFromPx: 120, recoverMs: 600, leadPx: 34, damageMult: 1.15 }`）：开炮那一刻把落点定死 → 地上画红圈（内圈按 `Quad.easeIn` 从 0.4 撑到 1 当倒计时）+ 一枚炮弹竖直砸下 → 落地才结算伤害。躲开有提示「躲开了舰炮」，挨了是「被舰炮命中！看到红圈就该躲开」。E2E 实测：站着不动掉 19 血，红圈一出现就挪走零伤害。
+- **特效归属反转**：`playCannonBlastFx`（48 帧金色爆）**只有舰炮能放**，调用点唯一（`salvoImpact`）；我方开炮的 `cannonBlast` 换成「两帧炮口火光 + 1px 细冲击环 + 2 缕烟 + 轻微震屏」，形成甲方的「装备对比」。
+- **验证**：`tools/_cdp/salvo.mjs`（端口 9421）8 项断言 —— `duskStripPlaced` / `warningRingShown` / `standingStillGetsHit` / `dodgedNoDamage` / `shipNeverMoves`（前后坐标一致）/ `noRuntimeSea` / `playerCannonHasNoFxFrames` / `shipSalvoPlaysFxFrames`，本地与线上各跑一次全过，五张截图逐张看过。
+- 踩过的坑：① **Arc 不能被 tween `radius`**，`TweenData` 会去 set 一个不存在的 setter → 运行时抛 `Cannot set properties of null (setting 'radius')`，必须用 `scale`（先按最终半径画，再 `setScale(小值)` tween 到 1）；② `this.bossShip` 以前**从来没被赋值**（军舰前压链时代漏的），在 `spawnBoss()` 里按 `body === 'ship'` 认领；③ 探针里「我方开炮无特效帧」连续三次假失败，最后归因到**前面躲炮那轮留下的 `delayedCall` 在测量窗口里落地**——改成用 `salvoActive` 计数归因（`salvoRestarted: 9` 说明 Boss 自动齐射频率很高，静音窗口几乎抢不到）。
 
 ### 甲方试玩反馈七条（2026-07）
 
@@ -341,7 +381,7 @@ AI 美术交付包里的三样已经进游戏，其余（单位帧、瓦片）�
 | # | 项目 | 现状 | 原因 |
 | --- | --- | --- | --- |
 | D-1 | 时间轴长廊 | 可横向滚动的节点门 + 年代石柱，**尚不可走动** | 可走动版本需与像素瓦片美术一并接入 |
-| D-2 | 占位美术 | 主角/敌人/兵种已是 24×32 贴图（`public/art/units/`，6 兵种 × 四朝向）；地面、远景、贴花用甲方美术；仍属占位的只剩**长廊与图鉴界面的装饰件**、无动画帧（贴图模式靠 1px 浮动代替走路摆动） | 设计书 9.1 策略「先跑通，后贴图」；`CharacterRig` 对外接口按 Sprite 设计，换真帧动画不用改调用方 |
+| D-2 | 占位美术 | 主角/敌人/兵种已是 24×32 贴图（`public/art/units/`，6 兵种 × 四朝向）；地面、远景、贴花用甲方美术；战场上的**静态布景**（路牌、木箱、枯骨、灌木、礁石…）已换成 Sunny Land（CC0）像素道具（`public/art/props/sunny_*.png`，13 种原尺寸直出，见 `constants.ts` 的 `SUNNY_PROPS`）；仍属占位的只剩**长廊与图鉴界面的装饰件**、无动画帧（贴图模式靠 1px 浮动代替走路摆动） | 设计书 9.1 策略「先跑通，后贴图」；`CharacterRig` 对外接口按 Sprite 设计，换真帧动画不用改调用方 |
 | D-3 | 音频 | 未接入，`bgm`/音效字段已在数据中预留 | 免费可商用素材尚未筛选 |
 | D-4 | 中文字体 | 暂用系统 sans-serif | 设计书待决事项 D-1，像素中文字体方案未定稿 |
 | D-5 | 像素调色板 | 硬阴影改为**在 24 色内取同色相上下档**；半透明 UI 叠加仍会混色 | 截图实测命中率 79%—96%，其余为 alpha 混合与文字抗锯齿 |
@@ -358,7 +398,11 @@ AI 美术交付包里的三样已经进游戏，其余（单位帧、瓦片）�
 
 | 问题 | 现象 | 修复 |
 | --- | --- | --- |
-| **闪现进入军舰压出的水坑后走不出来**（本轮，玩家 m05665 实测） | 军舰前压会把地面变成海面，但海面**不是碰撞格**（`isSolidAtWorld` 永远返回 false）；脱困函数只 `while (isSolidAtWorld) x -= 6`，一次都没生效过 → 角色站在水里动不了，看起来像卡死 | `core/space.ts` 的 `nearestOpenPoint()` 按圈向外找最近可站点，`ejectPlayerFromSea()` 的「不可站」判定同时查 `isSeaAt`（运行时禁区）与 `isSolidAtWorld`，并在 `updateWorld()` 每帧兜底，附 toast「水太深了，退回岸上」 |
+| **整片战场地面是黑的，只剩石头和血迹飘着**（本轮最严重） | `MapRenderer` 构造函数对 `def.layers` 每一层都调 `drawGround()`，而 `drawGround` 每调一次就 `createCanvas` 一张新纹理并覆盖 `groundKey` / `groundImg`。碰撞层的数据是「挡住/不挡」（大量 `0`），循环里 `if (!tile) continue` 把空格全跳过 → **最后留下的是只画了墙的那张 canvas，整片场地透明**。诊断过程：把地面纹理从页面里 `toDataURL` 导出来看，`rowNonZero` 是 `[0,0,0,0,214,384,166,142,128,352,...]` 这种零星覆盖，而数据 360 格**全部**能取到色号 | 只有地面层烘 canvas：`else if (layer.name !== 'collision') this.drawGround(layer)`，碰撞层只登记 `grid.solid`。修完 `rowNonZero` 变成 `[0,0,0,0,480,480,…]` |
+| **销烟池的 10 个围观百姓跑到虎门炮台战场上**（本轮） | 百姓是直接 `this.add.image` 进显示列表的，**不进 `worldObjects`**（进了就变成可交互目标），也不归 `MapRenderer` 管，所以换图时没有任何人替它们清场 → 它们原地留在下一张图上，不能打、不能互动、还挡路。断言全绿时它照样在，是截图评审抓出来的 | 新增 `crowdSprites: Image[]` 记句柄，`buildWorld()` 开头 `killTweensOf` + `destroy` + 清 `crowdSolids`；`create()` 重置段也要清空 |
+| **旧地图的地面层压在新地图上面**（本轮） | `buildWorld` 是 `async` 且原本没有重入保护，两次重叠的调用会让先建好的 `MapRenderer` 失去引用 → 那张**不透明、铺满全屏、depth 0** 的旧地面永远留在显示列表上。表现是「走几步地图突然变回上一张」 | ① `worldBuildSeq` 票号，`await loadMap` 之后票号不是最新的就直接作废；② `sweepOrphanGrounds()` 兜底：只放行 `map.groundTextureKey` 那张，其余 `map_ground_*` 全删。**两次踩反**：第一版在 `new MapRenderer` 之前清（`liveKey` 还是旧的，等于「保留旧的删掉新的」）；第二版放在构造之后但构造函数回来时 `groundKey` 还是 `null`（要进 `drawGround` 才有），把新地面也删了 → 黑成一片。最终放在 `drawGround` 确定跑完之后 |
+| **`kind:'prop'` 被全部当成围观百姓**（本轮） | `prop` 是「静态布景」这一个大类，炮位 `obj_cannon`（`payload` 为空）也用它。第一版只判 `kind === 'prop'`，于是炮位被当成百姓、`door_N` 解析出 `NaN` → 兜底画成一块青紫大方块 | 判别式收紧成 `/^door_\d+$/.test(obj.payload)`；同时**去掉兜底方块**——缺图时留空并 `console.warn`，色块比「什么都没有」更误导，缺图该由 `tests/art.test.ts` 抓 |
+| **闪现进入军舰压出的水坑后走不出来**（上一轮，玩家 m05665 实测） | 军舰前压会把地面变成海面，但海面**不是碰撞格**（`isSolidAtWorld` 永远返回 false）；脱困函数只 `while (isSolidAtWorld) x -= 6`，一次都没生效过 → 角色站在水里动不了，看起来像卡死 | `core/space.ts` 的 `nearestOpenPoint()` 按圈向外找最近可站点，`ejectPlayerFromSea()` 的「不可站」判定同时查 `isSeaAt`（运行时禁区）与 `isSolidAtWorld`，并在 `updateWorld()` 每帧兜底。**本轮军舰不再前压，这条链已经删掉**，`space.ts` 仍被其他越界兜底使用 |
 | **重进关卡后波次永远不推进**（本轮，美术接入时抓到） | `scene.start('Level')` 复用同一个实例，`create()` 不清 `transitioning`；若上一轮在切节点的 `await` 里被重开，这个标志一直是 `true`，`updateWorld()` 开头就 `return` → 清完第一波后**永远等不到 Boss**（表里看着一切正常：`mode: combat`、`wavePending: false`、敌人 0 个） | `create()` 的重置段补 `this.transitioning = false; this.pendingCardTap = null;`，并在注释里写明「updateWorld 开头就是这一句」 |
 | **副本结算面板被虚拟按键压住**（本轮） | UIScene 渲染在 LevelScene 之上，`setDepth` 跨场景无效；摇杆和三个键正好盖住结算面板的下半部分，手机上点不到「再刷一次」 | 新增 `EV.CONTROLS_VISIBLE` 事件 + `InputSystem.setShown()`（视觉件与命中区一起隐藏），结算期间隐藏操控层、再刷/返回时恢复 |
 | **知识图谱出现自指边与孤岛**（本轮） | 单测跑真实数据时炸出两个真 bug：`kc_1859_zizheng` 的 `links` 里包含自己；ch00 的 11 个事件断成两段互不相连 | 自指换成「《天朝田亩制度》→ 天京陷落」；补 `kc_1842_nanjing` → `ev_1851_jintian`（条约冲击催生起义）把两段接成一条线，并写成断言防止回退 |

@@ -174,7 +174,10 @@ export interface MapObject {
   dialogue_ref?: string;
   /** 交互后触发的节点 */
   node_ref?: string;
-  /** 任意附加标记，例如 "crate" */
+  /**
+   * 任意附加标记。
+   * `pickup` 用 `crate`；`prop` 的围观百姓用 `door_0` … `door_4`，指向 `public/art/crowd/`。
+   */
   payload?: string;
 }
 

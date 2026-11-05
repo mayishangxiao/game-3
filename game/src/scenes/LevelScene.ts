@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, DEPTH, FIELD_H, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, TEX_CRATE, TILE, UNIT_ART, VIEW_H, VIEW_W } from '../core/constants';
+import { ART, BG_TEX, CROWD_SCALE, CROWD_TEX, DEPTH, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -27,8 +27,22 @@ import { DefeatCinematic } from '../systems/DefeatCinematic';
 import { controls } from '../systems/InputSystem';
 import { DialogueBox } from '../systems/DialogueBox';
 import { MapRenderer } from '../gfx/MapRenderer';
-import { backdropImage, horizonImage } from '../gfx/Backdrop';
+import { backdropImage, horizonImage, HORIZON_H } from '../gfx/Backdrop';
 import { nearestOpenPoint } from '../core/space';
+import {
+  applyUpgrade,
+  bonusPierce,
+  describeNext,
+  emptyUpgradeState,
+  hasteMult,
+  pickUpgradeChoices,
+  upgradeSummary,
+  upgradesExhausted,
+  volleyOffsets,
+  volleyRows,
+  type UpgradeId,
+  type UpgradeState,
+} from '../core/waveUpgrade';
 import { CharacterRig } from '../gfx/CharacterRig';
 import { Player } from '../entities/Player';
 import { Enemy } from '../entities/Enemy';
@@ -105,6 +119,30 @@ function incoming(damage: number): number {
   return Math.max(1, Math.round(damage * DEMO_INCOMING_DAMAGE_MULT));
 }
 
+/**
+ * 舰炮落点预警的参数（甲方 m12276：「系统提示落点让角色可以躲开」）。
+ *
+ * 为什么 `warnMs` 要 1000 而不是 400：玩家看到圈 → 判断方向 → 迈步，手机上还要按摇杆，
+ * 800ms 以下实测「看懂了但走不出去」。1000ms 配合 46px 半径，横着走 2 格半就出圈。
+ * `damageMult` 压在 1.15：一发躲不掉也不至于半血，连吃两发才会真的危险。
+ */
+const SALVO = {
+  /** 预警圈半径（像素）：圈的边缘就是伤害边界，不看动画只看这一圈 */
+  radiusPx: 46,
+  /** 红圈收缩时长：这段时间里玩家都来得及走出去 */
+  warnMs: 1000,
+  /** 炮弹从上方落下的时长（视觉上必须有「掉下来」这一下，否则像凭空爆炸） */
+  fallMs: 260,
+  /** 炮弹起点在落点上方多少像素 */
+  fallFromPx: 120,
+  /** 一次齐射结束后多久才允许下一轮，避免两条预警叠在一起看不清 */
+  recoverMs: 600,
+  /** 预判弹打在玩家前方多少像素（冲着玩家移动方向偏，逼玩家改方向躲） */
+  leadPx: 34,
+  /** 落点伤害 = 敌攻 × 这个倍率 */
+  damageMult: 1.15,
+} as const;
+
 interface Projectile {
   rect: Phaser.GameObjects.Rectangle;
   vx: number;
@@ -177,6 +215,20 @@ export class LevelScene extends Phaser.Scene {
   private waveIndex = -1;
   private wavePending = false;
   private bossSpawned = false;
+  /**
+   * 本关的波次强化累积（`core/waveUpgrade.ts`）。
+   * **只在本关内有效**：在 `create()` 里重置，不写存档——甲方确认过「只在本关内」，
+   * 一旦落盘就要处理 SAVE_VERSION 迁移，收益不值得这个风险。
+   */
+  private upgrades: UpgradeState = emptyUpgradeState();
+  /** 强化选卡正在显示（期间世界冻结，复用 `pendingCardTap` 作为「有卡可点」信号） */
+  private upgradeOpen = false;
+  /**
+   * 清完这一波之后该不该弹强化卡。
+   * 由 `showUpgradeCard` 在关闭时置回 true —— 用一个标志位而不是每帧重算，
+   * 是因为「池子被抽干」和「玩家点了跳过」都只应该发生一次判定。
+   */
+  private pendingUpgrade = true;
   private nodeBusy = false;
   /**
    * 节点切换期间为 true。
@@ -215,17 +267,39 @@ export class LevelScene extends Phaser.Scene {
   private defeated = false;
   /** 全屏卡片（战败/条约/牺牲）的「点击继续」回调；E2E 可直接调 tapCard() */
   private pendingCardTap: (() => void) | null = null;
-  /** Boss 军舰：它每前压一次，脚下就变成海；开到最左侧算防线被突破 */
+  /** Boss 军舰：停在岸边原地开炮（m12276 之后它不再前压，见 `bossCharge`） */
   private bossShip: Enemy | null = null;
-  private waterGfx?: Phaser.GameObjects.Graphics;
-  private shipBreached = false;
   /** 战斗开场情境卡开着时冻结世界（敌人在卡片后面动起来会看不到、白挨打） */
   private introOpen = false;
-  /** 已经铺成海面的格子（"col,row"），避免重复重绘同一块 */
+  /** 运行时可碰撞的「禁区」格子（"col,row"）。军舰不前压后恒为空，入口收敛在 `isSeaAt` */
   private seaTiles = new Set<string>();
+  /** 站着围观百姓的格子（"col,row"）：挡人用的是这一集合，不是海面 */
+  private crowdSolids = new Set<string>();
+  /**
+   * 围观百姓的 Image 句柄。
+   *
+   * 必须自己收：它们不进 `worldObjects`（进了就会变成可交互目标，能被「搬起」），
+   * 也不归 `MapRenderer` 管（那是地形图层），所以换图时没有任何人替它们清场。
+   * 第一版没记句柄，销烟池那 10 个百姓就跟着进了虎门炮台那张图，见 `buildWorld`。
+   */
+  private crowdSprites: Phaser.GameObjects.Image[] = [];
+  /**
+   * Sunny Land 静态布景的句柄（只画不登记，换图时同样要自己收）。
+   *
+   * 和 `crowdSprites` 是同一个坑：不走 `worldObjects` 的东西没人替它清场。
+   * 销烟池的木箱 / 枯骨如果留在虎门炮台那张图的沙滩上，就是「上一关的道具跑过来」。
+   */
+  private propSprites: Array<{ name: SunnyProp; img: Phaser.GameObjects.Image }> = [];
+  /**
+   * `buildWorld` 的重入票号：只有票号最新的一次才有权往下建。
+   * 见 `buildWorld` 里的注释——两次重叠的构建会让旧地图的纹理与贴图变成孤儿。
+   */
+  private worldBuildSeq = 0;
   /** 军舰前压的节拍（毫秒）与是否正在移动 */
   private shipTimer = 0;
   private shipMoving = false;
+  /** 舰炮预警齐射正在播（一轮播完前不再起新的一轮，否则圈会叠成一片红） */
+  private salvoActive = false;
 
   constructor() {
     super('Level');
@@ -254,6 +328,10 @@ export class LevelScene extends Phaser.Scene {
     for (const [key, path] of portraits) {
       if (!this.textures.exists(key)) this.load.image(key, path);
     }
+    // 围观百姓（6×12 像素小人，游戏里放大 3 倍）。缺图时 `spawnCrowd` 会退回暗色方块。
+    Object.values(CROWD_TEX).forEach((key, i) => {
+      if (!this.textures.exists(key)) this.load.image(key, `${ART.crowd}door_${i}.png`);
+    });
     // 兵种小人贴图（24×32，四朝向）。名字约定 `${unit}_${facing}`，与 CharacterRig 的贴图模式一致；
     // 缺哪张就退回矩形小人，不会白屏。
     for (const [unit, base] of Object.entries(UNIT_ART)) {
@@ -279,12 +357,33 @@ export class LevelScene extends Phaser.Scene {
     if (!this.textures.exists(BG_TEX.intro)) this.load.image(BG_TEX.intro, ART.bgSeaRed);
     if (!this.textures.exists(BG_TEX.horizon)) this.load.image(BG_TEX.horizon, ART.bgStripNight);
     if (!this.textures.exists(BG_TEX.horizonAlt)) this.load.image(BG_TEX.horizonAlt, ART.bgStripRed);
+    // 甲方 m12276 的黄昏全景：远景条（战场顶带）+ 天空段（开场情境卡底图）
+    if (!this.textures.exists(BG_TEX.horizonDusk)) {
+      this.load.image(BG_TEX.horizonDusk, ART.bgStripDusk);
+    }
+    if (!this.textures.exists(BG_TEX.skyDusk)) this.load.image(BG_TEX.skyDusk, ART.bgSkyDusk);
     // 地面残破贴花（弹坑 / 血泊 / 尸骸 / 碎砖），MapRenderer 把它们印进地面纹理
     SCAR_TEX.forEach((key, i) => {
       if (!this.textures.exists(key)) {
         this.load.image(key, `${ART.scars}scar_${String(i).padStart(2, '0')}.png`);
       }
     });
+    // Sunny Land 场景道具（CC0）：给 `kind:'prop'` 的静态布景用。
+    // 缺图时 `spawnSunnyProp` 不画任何东西（不画兜底方块——那个更误导），
+    // 文件在不在由 `tests/art.test.ts` 兜。
+    for (const name of Object.keys(SUNNY_PROPS) as SunnyProp[]) {
+      const key = sunnyPropKey(name);
+      if (!this.textures.exists(key)) this.load.image(key, `${ART.sunnyProps}${SUNNY_PROPS[name].file}`);
+    }
+    // 甲方给的炮火特效：48 帧 × 96×96（tools/import_fx.py 从 GIF 拆出）。
+    // 只在「带炮的关卡」才有用，但那类关卡一进入就要开火，所以还是放 preload。
+    // 缺图时 `playCannonBlast` 会退回原来的程序化冲击波，不会白屏。
+    for (let i = 0; i < FX_CANNON_FRAMES; i++) {
+      const key = `${FX_TEX.cannonBlast}_${i}`;
+      if (!this.textures.exists(key)) {
+        this.load.image(key, `${ART.fxCannonBlast}fx_${String(i).padStart(2, '0')}.png`);
+      }
+    }
   }
 
   init(data: LevelInit): void {
@@ -312,18 +411,24 @@ export class LevelScene extends Phaser.Scene {
     this.cannonCd = 0;
     this.defeated = false;
     this.bossShip = null;
-    this.waterGfx = undefined;
-    this.shipBreached = false;
     this.seaTiles.clear();
     this.shipTimer = 0;
     this.shipMoving = false;
-    this.seaTiles.clear();
+    this.salvoActive = false;
+    // 百姓句柄也要在重进关卡时清空：旧场景的 Image 已经随场景销毁，
+    // 留着引用只会让 `buildWorld` 去 destroy 一堆已死的对象。
+    this.crowdSprites = [];
+    this.crowdSolids.clear();
     this.nearObject = null;
     this.carrying = false;
     this.cratesDelivered = 0;
     this.waveIndex = -1;
     this.wavePending = false;
     this.bossSpawned = false;
+    // 波次强化只在本关内有效：重进关卡必须清零，否则上一关刷满的三行齐射会带过来
+    this.upgrades = emptyUpgradeState();
+    this.upgradeOpen = false;
+    this.pendingUpgrade = true;
     this.nodeBusy = false;
     // 同理：上一轮若在切节点的 await 里被打断，transitioning 会一直是 true，
     // 而 updateWorld() 开头正是 `if (this.transitioning) return;` —— 后果是波次不再推进、
@@ -340,6 +445,25 @@ export class LevelScene extends Phaser.Scene {
     (window as unknown as { __dshLevel?: unknown }).__dshLevel = {
       /** 存活敌人的世界坐标（脚底） */
       enemies: () => this.enemies.filter((e) => e.alive).map((e, i) => ({ i, x: e.x, y: e.y, hp: e.hp })),
+      /**
+       * 场景布景的落位（E2E / 探针用）。
+       *
+       * 为什么要这个入口：`prop` 布景**只画不登记**，从 `worldObjects` 里查不到，
+       * 截图之外没有任何办法断言「这格真的铺了块路牌而不是又回到 12×12 色块」。
+       * `drawn:false` 就是贴图缺了（只在 `console.warn` 之外留痕）。
+       *
+       * 坐标是**世界坐标（脚底中心）**；纹理按 (0.5, 1) 锚点贴上去，所以屏幕位置不能直接当 x/y 用。
+       */
+      props: () =>
+        this.propSprites
+          .filter((p) => p.img.active)
+          .map((p) => ({
+            name: p.name,
+            x: p.img.x,
+            y: p.img.y,
+            texture: p.img.texture.key,
+            drawn: p.img.visible && p.img.alpha > 0,
+          })),
       /** 全部敌人（含已死的），排查用 */
       allEnemies: () => this.enemies.map((e, i) => ({ i, x: e.x, y: e.y, alive: e.alive, hp: e.hp })),
       /** 地图尺寸与「这个坐标能不能站」 */
@@ -404,6 +528,42 @@ export class LevelScene extends Phaser.Scene {
       rescue: () => {
         this.rescueStrayEnemies();
         return this.enemies.filter((e) => e.alive).length;
+      },
+      // —— 波次强化（甲方「每波次强化系统」）的探查入口 ——
+      /** 当前强化状态 + 派生数值，探针据此断言「选完真的变了」 */
+      upgrades: () => ({
+        ...this.upgrades,
+        rows: volleyRows(this.upgrades),
+        haste: hasteMult(this.upgrades),
+        pierceBonus: bonusPierce(this.upgrades),
+        summary: upgradeSummary(this.upgrades),
+        cardOpen: this.upgradeOpen,
+      }),
+      /** 直接塞一个强化状态（探针用；避免为了测「三行齐射」真去打三波） */
+      setUpgrades: (patch: Partial<UpgradeState>) => {
+        this.upgrades = { ...this.upgrades, ...patch };
+        return this.upgrades;
+      },
+      /** 跳过卡片：选第一项（等价于点第一张卡） */
+      pickUpgrade: (i = 0) => {
+        void i;
+        this.pendingCardTap?.();
+        return this.upgradeOpen;
+      },
+      /** 玩家当前武器与实时射击间隔（毫秒），用来验证「火线」真的快了 */
+      bowInfo: () => {
+        const w = this.player.weapon;
+        const base = 1000 / (w.attacks_per_sec || 1);
+        const h = w.id === 'wp_bow' ? hasteMult(this.upgrades) : 1;
+        return { id: w.id, baseMs: base, actualMs: base / h, arrows: w.id === 'wp_bow' ? volleyRows(this.upgrades) : 1 };
+      },
+      /** 清空当前存活敌人，直接推进到下一次波次判定（省得探针真打） */
+      clearWave: () => {
+        // 只翻 alive，**不要**自己 destroy rig：`clearDeadEnemies()` 会调 `e.destroy()`
+        // 把 rig 一并销毁，先手动 destroy 再走一遍会抛「已销毁对象」的错
+        for (const e of this.enemies) if (e.alive) e.alive = false;
+        this.clearDeadEnemies();
+        return this.waveIndex;
       },
     };
   }
@@ -870,7 +1030,19 @@ export class LevelScene extends Phaser.Scene {
     setHudVisible(false);
     this.dialogue?.hide();
     const c = this.add.container(0, 0).setDepth(DEPTH.overlay).setScrollFactor(0);
-    c.add(backdropImage(this, 0).setScrollFactor(0));
+    // 底图按「哪张图最切题」挑：海战场景用甲方 m12276 那张黄昏双舰全景的天空段
+    // （舰影冒烟、天色压暗，和开打后的战场远景是同一张图的上下两截，读起来是同一个地方）；
+    // 其他场景继续用那张红色破晓全景。两张都没有时 backdropImage 会程序化画。
+    const introKey = b.scene === 'sea' && this.textures.exists(BG_TEX.skyDusk) ? BG_TEX.skyDusk : null;
+    const backdrop = introKey
+      ? this.add
+          .image(VIEW_W / 2, VIEW_H / 2, introKey)
+          .setOrigin(0.5, 0.5)
+          // 天空段是 480×128，铺满 480×270 要拉高，等比放大到宽度即可
+          .setScale(Math.max(VIEW_W / 480, VIEW_H / 128))
+          .setScrollFactor(0)
+      : backdropImage(this, 0).setScrollFactor(0);
+    c.add(backdrop);
     // 顶部与底部的压暗条，让文字在浪花上也读得清
     c.add(this.add.rectangle(VIEW_W / 2, 46, VIEW_W, 92, PALETTE.ink, 0.55).setScrollFactor(0));
     c.add(this.add.rectangle(VIEW_W / 2, VIEW_H - 44, VIEW_W, 88, PALETTE.ink, 0.6).setScrollFactor(0));
@@ -957,6 +1129,169 @@ export class LevelScene extends Phaser.Scene {
     this.input.keyboard?.once('keydown-SPACE', close);
     // 卡片本身也注册成「点击继续」，E2E 的 tapCard() 才能推进
     this.pendingCardTap = close;
+  }
+
+  /**
+   * 波次强化三选一：清完一波后屏幕中间的选卡。
+   *
+   * 甲方原话「每波次强化系统，只对弓强化，比如弹幕变两行之类的，以确保玩家能看到英军军舰，
+   * 不然死太快了」。所以这里给的是**看得见的质变**（箭矢从 1 行变 2 行、3 行），
+   * 而不是 +5% 伤害那种玩家感觉不到的数字。
+   *
+   * 实现要点（都踩过）：
+   *   1. 世界必须冻结 —— 复用 `introOpen`，`updateWorld` 开头 `if (this.introOpen) return;`；
+   *   2. 卡开着时要让 `tapCard()` 能点，所以写 `pendingCardTap`，关的时候**必须清回 null**，
+   *      否则 `setControlsVisible` 会一直以为有卡、把摇杆收着；
+   *   3. 三个按钮各自 `setInteractive` 并 `on('pointerdown')`，**不要**在卡片底板上也挂点击，
+   *      底板吃掉点击会让选中的那一下变成「跳过」（早期情境卡就是这么坏的）；
+   *   4. 键盘 1/2/3 也能选，手柄/无触摸的环境下不至于卡死。
+   */
+  private showUpgradeCard(onDone: () => void): void {
+    const choices = upgradesExhausted(this.upgrades) ? [] : pickUpgradeChoices(this.upgrades, rng);
+    if (choices.length === 0) {
+      this.pendingUpgrade = false;
+      onDone();
+      return;
+    }
+    this.introOpen = true;
+    this.upgradeOpen = true;
+    setHudVisible(false);
+    this.dialogue?.hide();
+
+    const c = this.add.container(0, 0).setDepth(DEPTH.overlay).setScrollFactor(0);
+    c.add(
+      this.add
+        .rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.82)
+        .setScrollFactor(0),
+    );
+    c.add(
+      this.add
+        .text(VIEW_W / 2, 34, '弓 术 精 进', {
+          fontFamily: 'sans-serif',
+          fontSize: '18px',
+          color: '#F0C419',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0),
+    );
+    c.add(
+      this.add
+        .text(VIEW_W / 2, 54, `第 ${this.waveIndex} 波已清 · 选一项强化（只作用于弓）`, {
+          fontFamily: 'sans-serif',
+          fontSize: '10px',
+          color: '#C2BCD1',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0),
+    );
+    // 当前已生效的强化，让玩家知道自己叠到哪一步了
+    const cur = upgradeSummary(this.upgrades);
+    c.add(
+      this.add
+        .text(VIEW_W / 2, 70, cur ? `当前：${cur}` : '当前：单发弓箭', {
+          fontFamily: 'sans-serif',
+          fontSize: '9px',
+          color: '#8E88A0',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0),
+    );
+
+    const cardW = 132;
+    const cardH = 96;
+    const gap = 12;
+    const totalW = cardW * choices.length + gap * (choices.length - 1);
+    const startX = VIEW_W / 2 - totalW / 2 + cardW / 2;
+    const cardY = VIEW_H / 2 + 6;
+
+    let closed = false;
+    const finish = (id: UpgradeId | null) => {
+      if (closed) return;
+      closed = true;
+      if (id) {
+        this.upgrades = applyUpgrade(this.upgrades, id);
+        // 选完立刻把新数值亮出来，玩家才知道自己刚选的东西生效了
+        const sum = upgradeSummary(this.upgrades);
+        emitToast(sum ? `强化：${sum}` : '强化已生效', 1600);
+      }
+      this.introOpen = false;
+      this.upgradeOpen = false;
+      this.pendingCardTap = null;
+      c.destroy();
+      setHudVisible(true);
+      setControlsVisible(this.mode === 'explore' || this.mode === 'combat' || this.mode === 'escort');
+      this.pushHud();
+      onDone();
+    };
+
+    choices.forEach((u, i) => {
+      const x = startX + i * (cardW + gap);
+      const box = this.add
+        .rectangle(x, cardY, cardW, cardH, PALETTE.ink, 0.92)
+        .setStrokeStyle(1, 0x6b2330)
+        .setScrollFactor(0)
+        .setInteractive({ useHandCursor: true });
+      c.add(box);
+      c.add(
+        this.add
+          .text(x, cardY - 30, u.name, {
+            fontFamily: 'sans-serif',
+            fontSize: '14px',
+            color: '#F0C419',
+            fontStyle: 'bold',
+          })
+          .setOrigin(0.5)
+          .setScrollFactor(0),
+      );
+      c.add(this.add.rectangle(x, cardY - 14, 60, 1, PALETTE.star, 0.7).setScrollFactor(0));
+      c.add(
+        this.add
+          .text(x, cardY + 8, describeNext(this.upgrades, u.id), {
+            fontFamily: 'sans-serif',
+            fontSize: '9px',
+            color: '#F2EDE4',
+            align: 'center',
+            wordWrap: { width: cardW - 16 },
+          })
+          .setOrigin(0.5)
+          .setScrollFactor(0),
+      );
+      c.add(
+        this.add
+          .text(x, cardY + 36, `[${i + 1}] 选择`, {
+            fontFamily: 'sans-serif',
+            fontSize: '9px',
+            color: '#C2BCD1',
+          })
+          .setOrigin(0.5)
+          .setScrollFactor(0),
+      );
+      box.on('pointerover', () => box.setStrokeStyle(2, 0xf0c419));
+      box.on('pointerout', () => box.setStrokeStyle(1, 0x6b2330));
+      box.on('pointerdown', () => finish(u.id));
+    });
+
+    // 跳过：不想强化也要能继续打（不能强制玩家选）
+    const skip = this.add
+      .text(VIEW_W / 2, VIEW_H - 16, '放弃强化，继续战斗（空格）', {
+        fontFamily: 'sans-serif',
+        fontSize: '9px',
+        color: '#8E88A0',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
+    skip.on('pointerdown', () => finish(null));
+    c.add(skip);
+
+    choices.forEach((u, i) => {
+      const key = `keydown-${['ONE', 'TWO', 'THREE'][i]}`;
+      if (key) this.input.keyboard?.once(key, () => finish(u.id));
+    });
+    this.input.keyboard?.once('keydown-SPACE', () => finish(null));
+    // E2E 靠 tapCard() 推进：它只认 `pendingCardTap`，所以这里指向「选第一项」
+    this.pendingCardTap = () => finish(choices[0].id);
   }
 
   /** 清王朝血条下跌：一根横条从 before 掉到 after，停 1.2 秒后自动继续 */
@@ -1163,31 +1498,75 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private async buildWorld(mapId: string): Promise<void> {
+    // 重入保护：`buildWorld` 是 async，第一行就在等 `loadMap`。
+    // 如果这期间又有人调了一次（切节点 / 重进关卡撞在一起），两个执行流会各自往下跑，
+    // 后者的 `this.map?.destroy()` 看到的是**前者刚建好的实例**，把前者的地图销毁掉；
+    // 而前者自己那张 map / ground 纹理、人群贴图、远景条就此失去引用，永远留在显示列表上。
+    // 表现就是：虎门炮台那张图里凭空多出销烟池的 10 个围观百姓 + 3 张地面纹理。
+    // 用一个序号做「最后一次调用说了算」：后来的直接让前面那个作废。
+    const ticket = ++this.worldBuildSeq;
     const def = await dataLoader.loadMap(mapId);
+    if (ticket !== this.worldBuildSeq) return;
     // 载入地图是异步的：这期间玩家可能已经切场景/退出关卡（场景 shutdown 会把
     // camera 管理器一起销毁），此时再往下走会抛
     // "Cannot read properties of undefined (reading 'setBounds')"。
     if (!this.scene.isActive() || !this.cameras?.main) return;
     this.map?.destroy();
     this.clearWorldObjects();
+    // 围观百姓是直接 add 到显示列表的（不进 worldObjects，否则会变成可交互目标），
+    // 所以换图时必须自己收：`MapRenderer.destroy()` 只清它自己的图层。
+    // 漏了这一步的后果不是「多画几个人」那么轻——上一张图（销烟池）的 10 个百姓
+    // 会原地留在下一张图（虎门炮台）的战场上，玩家看到一排水灵灵的大脑袋，
+    // 既不能打也不能互动，还挡路。这个 bug 是截图评审抓出来的，断言全绿时它照样在。
+    this.crowdSprites.forEach((s) => {
+      this.tweens.killTweensOf(s);
+      s.destroy();
+    });
+    this.crowdSprites = [];
+    this.crowdSolids.clear();
+    this.propSprites.forEach((p) => p.img.destroy());
+    this.propSprites = [];
     this.floorItems.forEach((f) => f.obj.destroy());
     this.floorItems = [];
 
     this.map = new MapRenderer(this, def);
     // 海水当碰撞格：船把海面推过来之后，玩家与敌人都不能站进去
     // （否则敌人被打退到海里就再也打不到，闪现进水坑也出不来）。
-    this.map.extraSolid = (wx, wy) => this.isSeaAt(wx, wy);
+    // 围观百姓也走这里：人物站在场上是「体积」，不是地形，所以不进 JSON 的碰撞层。
+    this.map.extraSolid = (wx, wy) => this.isSeaAt(wx, wy) || this.isCrowdAt(wx, wy);
     // 地图顶上留了 `sky_rows` 行不画地砖：在那条带上叠远景（天空 + 海 + 敌舰剪影），
     // 战斗时才有「炮台外就是海面」的情境（玩家要求「战斗的时候也要有背景」）。
     // 远景放在地面层之下，靠地砖的透明区露出来；实体仍在它上面，走过那条带不会被挡。
     if ((def.sky_rows ?? 0) > 0) {
-      // 远景条比留白带高（多出来的是海面），所以按「底边对齐留白带下沿」放，
-      // 否则最下面几像素的海会被第一行地砖盖住，船看起来像沉进地里。
-      const bandH = (def.sky_rows ?? 0) * TILE;
-      horizonImage(this, DEPTH.ground - 1).setOrigin(0, 1).setPosition(0, bandH).setScrollFactor(0);
+      // 1.6 倍：见 `horizonImage` 的注释——原尺寸的船太小，放太大又跟场上的小人抢视觉。
+      // 放大后宽度 768 > 480，所以左右居中裁掉两头。
+      //
+      // 纵向**必须是「顶边贴 0、往下溢出」**，不能底边对齐：
+      // 这条带的上半截会被顶部战役条（标题 + 时间地点 + 敌方兵力，约 70px）盖住，
+      // 底边对齐的话敌舰正好长在那块被盖掉的位置上——截图里只剩几根桅杆露出来，
+      // 看着像背景没画好。顶边贴 0 让船身落在可见的下半段，桅杆被 UI 压住也不碍事，
+      // 读起来反而像「远处的船被台沿挡住」，比整艘船悬在空地中间更合理。
+      const ZOOM = 1.6;
+      horizonImage(this, DEPTH.ground - 1, 'dusk', ZOOM).setScrollFactor(0).setPosition(-(VIEW_W * (ZOOM - 1)) / 2, 0);
+      // 海面与石台的交界：铺一层很淡的暗影，让「海在远处、台子在前」有纵深。
+      // 没有这层的话，海平线与第一行地砖是一条刀刃般的硬线，看着像两张图上下拼接。
+      // 注意**只压在海这一侧**（bandBottom 之上），不能越过 bandBottom：
+      // 越过去就会把战场第一行地砖也压暗，读成「地砖上有一道黑边」——第一版就是这么错的。
+      const bandBottom = Math.min(VIEW_H, HORIZON_H * ZOOM);
+      const fade = this.add.graphics().setDepth(DEPTH.ground).setScrollFactor(0);
+      for (let i = 0; i < 8; i++) {
+        fade.fillStyle(PALETTE.ink, 0.06 + i * 0.03);
+        fade.fillRect(0, bandBottom - 8 + i, VIEW_W, 1);
+      }
     }
     // 渲染顺序：地图 graphics 在 depth 0/10，实体在 20+
     for (const layer of def.layers) void layer;
+
+    // 孤儿地面层兜底清理。放在这里而不是 `new MapRenderer` 之后紧接着：
+    // 构造函数回来时 `groundKey` 还是 null（要点进 `drawGround` 才有），
+    // 那时候比较 key 会把「刚建好的这一张」也当成孤儿删掉——地面直接黑成一片。
+    // 所以等地图确实烘完（这里之后不会再画地面）再清。
+    this.sweepOrphanGrounds();
 
     const spawn = { x: (def.spawn.x + 0.5) * TILE, y: (def.spawn.y + 0.5) * TILE };
 
@@ -1200,6 +1579,8 @@ export class LevelScene extends Phaser.Scene {
     }
     // 军舰碾出来的海面只有玩家进不去（敌人是小艇，可以从水上逼近）
     this.player.setBlocker((x, y) => this.isSeaAt(x, y));
+    // 波次强化的「火线」只加快弓；其他武器保持 config.json 里的原始射速
+    this.player.setHasteHook(() => (this.player.weapon.id === 'wp_bow' ? hasteMult(this.upgrades) : 1));
 
     this.cameras.main.setBounds(0, 0, this.map.pixelWidth, this.map.pixelHeight);
     this.cameras.main.startFollow(this.player.rig, true, 0.14, 0.14);
@@ -1221,6 +1602,24 @@ export class LevelScene extends Phaser.Scene {
     const x = (obj.x + 0.5) * TILE;
     const y = (obj.y + 0.5) * TILE;
     const color = obj.color ? Phaser.Display.Color.HexStringToColor(obj.color).color : PALETTE.plumMid;
+
+    // 围观百姓：纯背景，不参与交互。
+    // 必须排在最前——`prop` 不能往下走到销烟池那套渲染里，否则会被画成一块方块。
+    //
+    // 判定必须同时看 `payload`：`kind:'prop'` 是「静态布景」这一个**大类**，
+    // 炮位（`obj_cannon`，payload 为空）之类的装饰也用它。第一版只判 kind，
+    // 于是炮位被当成百姓、`door_N` 解析出 NaN → 兜底画成一块青紫大方块，
+    // 镇守炮台那张图上凭空多出一排大脑袋。人群的判别式只有一个：编号在 `door_0..4` 之内。
+    // 围观百姓分支已按甲方 m01249「把第一幕的观众也全去掉」删掉：`door_N` 不再有人画。
+    // `spawnCrowd` 函数本身留着（机制还在，见它的 JSDoc），但这里不再调用。
+
+    // 静态布景：`kind:'prop'` 且 payload 是 `SUNNY_PROPS` 里的道具名（路牌、木箱、枯骨…）。
+    // 以前这一类和「销烟池」共用最后的兜底分支，被画成 12×12 的青紫色方块——
+    // README D-2 说的「长廊与图鉴界面的装饰件仍是占位」就是它。
+    if (obj.kind === 'prop' && obj.payload && obj.payload in SUNNY_PROPS) {
+      this.spawnSunnyProp(obj.payload as SunnyProp, x, y);
+      return;
+    }
 
     if (obj.kind === 'exit') {
       // 出口：先隐藏，条件满足后显示
@@ -1338,6 +1737,67 @@ export class LevelScene extends Phaser.Scene {
     this.worldObjects.push({ def: obj, rect, label, extra: extras });
   }
 
+  /**
+   * 围观百姓：一个站着看热闹的人（甲方 m11885 给的 5 个小人）。
+   *
+   * **现在不画了**：甲方 m01249 要求「把第一幕的观众也全去掉」，所以 `spawnWorldObject`
+   * 里那条 `door_N` 分支已经删掉，地图数据里的 `door_0..4` 布景也一并清了。
+   *
+   * 这个函数先留着不删：它连同 `crowdSprites` / `crowdSolids` / `MapRenderer.extraSolid`
+   * 是一整套能用的机制（只画不登记 + 能挡人 + 头部轻晃），老百姓要是哪天回来，
+   * 把 `spawnWorldObject` 里那两行分支加回去、再往 JSON 里补 `door_N` 即可。
+   * 贴图 `public/art/crowd/door_0..4.png` 也保留（`tests/art.test.ts` 仍在校验它们）。
+   *
+   * 三个约束（原本的设计意图，回来时要保住）：
+   *  1. **不能被交互**——挂在 `worldObjects` 里的物件，玩家走近会自动弹「搬起 / 投入」
+   *     提示。百姓是背景，挂了就会变成「搬起鸦片箱」一样的可点目标，所以只画不登记。
+   *  2. **要能挡住玩家**——销烟是当众的事，人群该有体积。这里用 `MapRenderer.extraSolid`
+   *     （和海水同一套），不是往 JSON 碰撞层里写，因为人群是「站在场上的人」，不是地形。
+   *  3. **要是个活人**——头顶按种子相位轻轻晃，每个人晃的节奏不一样，整排才不会像贴图。
+   *
+   * `@internal` 只是为了让 `tsc --noUnusedLocals` 放行：当前没有任何调用点。
+   */
+  // @ts-expect-error 甲方 m01249 要求去掉观众，暂时没有调用点；机制保留，回来时把调用加回来这行就报错、提示删掉它
+  private spawnCrowd(obj: MapObject, x: number, y: number): void {
+    const idx = Number.parseInt((obj.payload ?? '').replace('door_', ''), 10) || 0;
+    const key = Object.values(CROWD_TEX)[idx % Object.values(CROWD_TEX).length];
+
+    // 脚下阴影（和 NPC 同一套，让人「踩在地上」而不是浮着）
+    this.add.ellipse(x, y + 7, 14, 5, PALETTE.ink, 0.26).setDepth(DEPTH.shadow);
+
+    if (!this.textures.exists(key)) {
+      // 贴图没加载出来（构建漏了 / 改了名字）：留空。**不要画兜底方块**——
+      // 兜底方块在战场上跟小兵一样高、一样不透明，玩家会以为那是个人或障碍物，
+      // 反而比「什么都没有」更误导；缺图属于构建问题，应该由 `tests/art.test.ts` 抓，
+      // 而不是在运行时用一块色块糊过去。
+      console.warn(`[crowd] 缺少贴图 ${key}，该处百姓不绘制`);
+      return;
+    }
+
+    const sprite = this.add
+      .image(x, y + 8, key)
+      .setOrigin(0.5, 1)
+      .setScale(CROWD_SCALE)
+      .setDepth(DEPTH.deco + 33);
+    // 像素画放大必须用最近邻，否则 3 倍放大会糊成一团
+    if (sprite.texture) sprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    this.crowdSprites.push(sprite);
+
+    // 相位移：用格子坐标当种子，同一张图每次进来晃的节奏都一样（不会读档后变样）
+    const phase = ((obj.x * 7 + obj.y * 13) % 20) / 20;
+    this.tweens.add({
+      targets: sprite,
+      y: y + 7,
+      duration: 900 + phase * 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+      delay: phase * 900,
+    });
+
+    this.crowdSolids.add(`${obj.x},${obj.y}`);
+  }
+
   /** 只有走过去的那个物体显示名字，避免整屏都是小字 */
   private refreshObjectLabels(): void {
     const nearId = this.nearObject?.id ?? null;
@@ -1355,6 +1815,28 @@ export class LevelScene extends Phaser.Scene {
     entry.rect.setVisible(false);
     entry.label.setVisible(false);
     entry.extra.forEach((e) => e.setVisible(false));
+  }
+
+  /**
+   * 清掉场上的孤儿地面层（不是当前 `MapRenderer` 正持有的那些）。
+   *
+   * 地面层是**不透明、铺满全屏、depth 0** 的一整张图。只要历史上有过一次
+   * 重叠构建（`buildWorld` 是 async，早先没有重入保护）或多建了一个实例，
+   * 那张旧地面就会压在新地图上面，玩家看到的是「地图变回上一张了」。
+   * 判据按 key 放行而不是按地图 id：同一张图重建两次也是两个实例
+   * （`MapRenderer.seq` 让 key 唯一），旧的那个同样是孤儿。
+   */
+  private sweepOrphanGrounds(): void {
+    const liveKey = this.map?.groundTextureKey ?? null;
+    if (!liveKey) return; // 没烘成（缺 canvas 支持之类）就别乱删
+    this.children.list.slice().forEach((child) => {
+      const img = child as Phaser.GameObjects.Image;
+      if (!img || !img.texture || typeof img.texture.key !== 'string') return;
+      const key = img.texture.key;
+      if (!key.startsWith('map_ground_') || key === liveKey) return;
+      img.destroy();
+      if (this.textures.exists(key)) this.textures.remove(key);
+    });
   }
 
   private setExitVisible(visible: boolean): void {
@@ -1979,6 +2461,10 @@ export class LevelScene extends Phaser.Scene {
       const extra = this.findEnemy(id);
       if (extra) place(extra, i + 1);
     });
+    // 认一下「哪个是军舰」：舰炮的落点预警、停船不前进、40×24 的舰体绘制都靠这个引用。
+    // 按 `body === 'ship'` 判而不是按 id 写死，换一艘 Boss 船不用改代码。
+    const placed = this.enemies.filter((e) => e.alive && e.def.id === def.id);
+    this.bossShip = placed.find((e) => e.def.body === 'ship') ?? null;
     this.applyAuras();
   }
 
@@ -2286,19 +2772,39 @@ export class LevelScene extends Phaser.Scene {
     if (ranged) {
       // 远程：投射物朝敌人飞，而不是朝玩家原来的朝向
       const speed = w.projectile_speed || 260;
-      const rect = this.add
-        .rectangle(this.player.x + dirX * 10, this.player.y - 2 + dirY * 6, 6, 3, PALETTE.star)
-        .setDepth(DEPTH.projectile);
-      this.projectiles.push({
-        rect,
-        vx: dirX * speed,
-        vy: dirY * speed,
-        damage: this.player.atk * w.mult * power,
-        fromPlayer: true,
-        pierce: w.pierce,
-        life: 1.4,
-        crit: rng() * 100 < this.player.crit,
-      });
+      // 波次强化只作用于弓（甲方原话「只对弓强化」）。判定用射程区分类别：
+      // 刀 40 / 弓 200 / 火枪 260 / 机枪 220 —— 只有弓吃这套加成，
+      // 否则玩家中途捡到火枪时，齐射会变成「火枪一次放三发」，那不是设计意图。
+      const bow = w.id === 'wp_bow';
+      const up = this.upgrades;
+      const rows = bow ? volleyRows(up) : 1;
+      const rowsP = bow ? 1 + (rows - 1) * 0.35 : 1;
+      const pierce = w.pierce + (bow ? bonusPierce(up) : 0);
+      const dmg = this.player.atk * w.mult * power * rowsP;
+      // 垂直于飞行方向的横向单位向量：斜射时这样才能上下错开而不是左右重叠
+      const perpX = -dirY;
+      const perpY = dirX;
+      for (const off of rows === 1 ? [0] : volleyOffsets(rows)) {
+        const rect = this.add
+          .rectangle(
+            this.player.x + dirX * 10 + perpX * off,
+            this.player.y - 2 + dirY * 6 + perpY * off,
+            6,
+            3,
+            PALETTE.star,
+          )
+          .setDepth(DEPTH.projectile);
+        this.projectiles.push({
+          rect,
+          vx: dirX * speed,
+          vy: dirY * speed,
+          damage: dmg,
+          fromPlayer: true,
+          pierce,
+          life: 1.4,
+          crit: rng() * 100 < this.player.crit,
+        });
+      }
       return;
     }
 
@@ -2538,35 +3044,90 @@ export class LevelScene extends Phaser.Scene {
     this.pushHud();
   }
 
-  /** 炮弹落点：一圈扩散的冲击波 + 硝烟，炸膛时是红色 */
+  /**
+   * 炮弹落点：己方（玩家）的虎门重炮。
+   *
+   * 甲方 m12276 明确要求「把开炮特效给军舰，我方开炮没有特效，这样可以形成装备对比」——
+   * 所以这里**不播**那套 48 帧大火球（`playCannonBlastFx` 现在只归军舰的舰炮用），
+   * 换成一个很短的炮口火光 + 一圈细冲击波：我方打出去的是「一声闷响」，军舰砸下来的是「一片火海」，
+   * 两种火力放在同一屏里，装备差距不用台词解释。
+   */
   private cannonBlast(x: number, y: number, radius: number, self: boolean): void {
+    const tint = self ? PALETTE.redBright : PALETTE.star;
+    // 炮口火光：两帧，12→22 像素就灭，绝不能盖住战场
+    const flash = this.add.circle(x, y, self ? 18 : 15, tint, 0.5).setDepth(DEPTH.fx).setScale(0.5);
+    this.tweens.add({
+      targets: flash,
+      scale: 1,
+      alpha: 0,
+      duration: 150,
+      ease: 'Quad.easeOut',
+      onComplete: () => flash.destroy(),
+    });
+    // 一道细冲击环：宽度 1px，表示这是「打中了」，不是「炸开了」
     const ring = this.add
-      .circle(x, y, 6, self ? PALETTE.redBright : PALETTE.star, 0.5)
-      .setStrokeStyle(2, self ? PALETTE.redBright : PALETTE.star)
-      .setDepth(DEPTH.fx);
+      .circle(x, y, radius, tint, 0)
+      .setStrokeStyle(1, tint, 0.8)
+      .setDepth(DEPTH.fx)
+      .setScale(5 / Math.max(1, radius));
     this.tweens.add({
       targets: ring,
-      radius,
+      scale: 1,
       alpha: 0,
-      duration: 320,
+      duration: 240,
       ease: 'Quad.easeOut',
       onComplete: () => ring.destroy(),
     });
-    for (let i = 0; i < 5; i++) {
-      const a = (Math.PI * 2 * i) / 5 + Math.random();
-      const puff = this.add
-        .rectangle(x, y, 4, 4, PALETTE.greyPlum, 0.7)
-        .setDepth(DEPTH.fx - 1);
+    // 力气小，烟也只有两缕
+    for (let i = 0; i < 2; i++) {
+      const a = Math.PI * i + Math.random();
+      const puff = this.add.rectangle(x, y, 3, 3, PALETTE.greyPlum, 0.5).setDepth(DEPTH.fx - 1);
       this.tweens.add({
         targets: puff,
-        x: x + Math.cos(a) * radius * 0.7,
-        y: y + Math.sin(a) * radius * 0.5,
+        x: x + Math.cos(a) * radius * 0.5,
+        y: y + Math.sin(a) * radius * 0.4,
         alpha: 0,
-        duration: 380,
+        duration: 300,
         onComplete: () => puff.destroy(),
       });
     }
-    this.cameras.main.shake(140, self ? 0.006 : 0.004);
+    this.cameras.main.shake(90, self ? 0.005 : 0.002);
+  }
+
+  /**
+   * 播放甲方给的炮火特效（48 帧 × 96×96，见 `FX_TEX`）。
+   *
+   * **只有军舰的舰炮用它**（甲方 m12276：我方开炮不给特效，好和军舰做装备对比）。
+   * 调用点只有 `salvoImpact()`；玩家的虎门重炮走 `cannonBlast()` 那套两帧小火光。
+   *
+   * 用一张 Image 每帧 `setTexture` 推进，而不是建 48 个对象或做 sprite sheet：
+   * 一个精灵就够，帧图已经是拆好的 PNG，省掉打包步骤（改图只要重跑 `tools/import_fx.py`）。
+   * 计时用 `scene.time.addEvent`，帧率与 `FX_FRAME_MS` 对齐；场景关闭时事件随场景一起销毁。
+   * 缺图（首帧不存在）时直接返回，让 `salvoImpact` 的程序化冲击波兜底。
+   */
+  private playCannonBlastFx(x: number, y: number, self: boolean): void {
+    const first = `${FX_TEX.cannonBlast}_0`;
+    if (!this.textures.exists(first)) return;
+    const fx = this.add
+      .image(x, y, first)
+      .setOrigin(0.5, 0.5)
+      .setDepth(DEPTH.fx)
+      // 炸膛是"自己脚下炸"，画小一圈，免得盖住整块战场
+      .setScale(self ? 0.62 : 1);
+    let frame = 0;
+    const timer = this.time.addEvent({
+      delay: FX_FRAME_MS,
+      repeat: FX_CANNON_FRAMES - 1,
+      callback: () => {
+        frame += 1;
+        if (frame >= FX_CANNON_FRAMES) {
+          timer.remove();
+          fx.destroy();
+          return;
+        }
+        fx.setTexture(`${FX_TEX.cannonBlast}_${frame}`);
+      },
+    });
   }
 
   private grantKillExp(e: Enemy): void {
@@ -2680,13 +3241,16 @@ export class LevelScene extends Phaser.Scene {
 
   /** 一招前的预警：以 Boss 为中心扩散的红环 */
   private telegraphRing(e: Enemy, radius: number): void {
+    const r = Math.max(30, radius);
     const ring = this.add
-      .circle(e.x, e.y, 8, PALETTE.redBright, 0)
+      .circle(e.x, e.y, r, PALETTE.redBright, 0)
       .setStrokeStyle(2, PALETTE.redBright, 0.9)
-      .setDepth(DEPTH.fx);
+      .setDepth(DEPTH.fx)
+      // Arc 没有可 tween 的 `radius`（见 `spawnSalvoShell` 注释），所以先按最终半径画好再从小放大
+      .setScale(8 / r);
     this.tweens.add({
       targets: ring,
-      radius: Math.max(30, radius),
+      scale: 1,
       alpha: 0,
       duration: 600,
       onComplete: () => ring.destroy(),
@@ -2716,7 +3280,135 @@ export class LevelScene extends Phaser.Scene {
     this.cameras.main.shake(120, 0.004);
   }
 
-  /** 投放登陆艇：召唤援兵 */
+  /**
+   * 舰炮落点预警齐射（甲方 m12276：「新增军舰可以发射炮弹，系统提示落点让角色可以躲开」）。
+   *
+   * 一条炮弹走三段，**落点在开炮那一刻就定死**，玩家看得到圈、走两步就能躲：
+   *   1. `SALVO_WARN_MS` 秒里，落点上画一个由大缩到小的红圈（收拢到圈边以内 = 快落弹了）；
+   *   2. 圈闪白一下 → 炮弹从天而降（`SALVO_FALL_MS` 的竖直落体），落点不跟随玩家；
+   *   3. 落地炸开：范围伤害 + 火光 + 震屏，然后连圈带弹一起销毁。
+   * 伤害判定用「落点半径 vs 玩家碰撞体」，不用矩形重叠——玩家只要走出圈就完全不吃伤害。
+   *
+   * `count` 发炮弹会留 1~2 发「预判」打在玩家前方（朝它跑的方向偏一点），
+   * 一路直着跑会被预判弹咬到，得侧向绕——这是这招唯一的技术含量。
+   */
+  private bossSalvo(e: Enemy, count: number, spreadDeg: number): void {
+    if (!this.player.alive || this.salvoActive) return;
+    this.salvoActive = true;
+    const p = SALVO;
+    const base = p.radiusPx;
+    const maxR = (this.map?.pixelWidth ?? VIEW_W) - 16;
+    const maxB = (this.map?.pixelHeight ?? VIEW_H) - 16;
+    const px = this.player.x;
+    const py = this.player.y;
+    // 玩家正在往哪边跑：预判弹就打在它前面，逼玩家改方向
+    const lead = p.leadPx;
+    for (let i = 0; i < count; i++) {
+      const t = count === 1 ? 0.5 : i / (count - 1);
+      // 以玩家为圆心，沿一条垂直于瞄准线的弧散开（不会都砸在同一点）
+      const off = (t - 0.5) * Phaser.Math.DegToRad(spreadDeg) * 2;
+      const dist = i === 0 ? 0 : base + lead;
+      const ang = Math.atan2(py - e.y, px - e.x) + off;
+      const tx = Phaser.Math.Clamp(px + Math.cos(ang) * dist, 16, maxR);
+      const ty = Phaser.Math.Clamp(py + Math.sin(ang) * dist, 16, maxB);
+      this.spawnSalvoShell(e, tx, ty);
+    }
+    e.rig.hitFlash(90);
+    this.cameras.main.shake(120, 0.003);
+    this.time.delayedCall(SALVO.warnMs + SALVO.fallMs + SALVO.recoverMs, () => {
+      this.salvoActive = false;
+    });
+  }
+
+  /** 单发预警炮：落地一个圈 → 闪白 → 炮弹落下 → 炸开 */
+  private spawnSalvoShell(e: Enemy, tx: number, ty: number): void {
+    const p = SALVO;
+    const ring = this.add
+      .circle(tx, ty, p.radiusPx, PALETTE.redDark, 0.18)
+      .setStrokeStyle(2, PALETTE.redBright, 0.95)
+      .setDepth(DEPTH.fx - 2);
+    // 内圈从半径的一半开始收：收到贴住外圈时分秒就到。
+    // **注意**：Phaser 的 Arc 没有可 tween 的 `radius` 属性（`TweenData` 会去 set
+    // `radius`，Arc 上没有这个 setter，直接抛 `Cannot set properties of null`），
+    // 所以这里用 `scale` 缩小——Arc 的 scale 会把整个圆连同半径一起缩。
+    const inner = this.add
+      .circle(tx, ty, p.radiusPx, PALETTE.star, 0.22)
+      .setDepth(DEPTH.fx - 3)
+      .setScale(0.4);
+    this.tweens.add({
+      targets: inner,
+      scale: 1,
+      duration: p.warnMs,
+      ease: 'Quad.easeIn',
+    });
+    this.tweens.add({ targets: ring, alpha: { from: 0.95, to: 0.55 }, duration: 260, yoyo: true, repeat: -1 });
+
+    this.time.delayedCall(p.warnMs, () => {
+      if (!ring.active) return;
+      ring.setStrokeStyle(3, PALETTE.paper, 1);
+      inner.destroy();
+      // 炮弹：从上方竖直落下，落点就是圈心（不追人）
+      const shell = this.add
+        .rectangle(tx, ty - p.fallFromPx, 5, 8, PALETTE.ink, 1)
+        .setStrokeStyle(1, PALETTE.star, 1)
+        .setDepth(DEPTH.fx);
+      this.tweens.add({
+        targets: shell,
+        y: ty,
+        duration: p.fallMs,
+        ease: 'Quad.easeIn',
+        onComplete: () => {
+          shell.destroy();
+          ring.destroy();
+          this.salvoImpact(e, tx, ty);
+        },
+      });
+    });
+  }
+
+  /** 炮弹落地：范围伤害 + 火光（这才是「只给军舰」的那套大特效） */
+  private salvoImpact(e: Enemy, tx: number, ty: number): void {
+    const p = SALVO;
+    this.playCannonBlastFx(tx, ty, false);
+    // 冲击环用 scale 放大（Arc 不能 tween radius，见 `spawnSalvoShell` 的注释）
+    const ring = this.add
+      .circle(tx, ty, p.radiusPx, PALETTE.star, 0.55)
+      .setStrokeStyle(2, PALETTE.star)
+      .setDepth(DEPTH.fx)
+      .setScale(0.15);
+    this.tweens.add({
+      targets: ring,
+      scale: 1,
+      alpha: 0,
+      duration: 340,
+      ease: 'Quad.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI * 2 * i) / 6 + Math.random();
+      const puff = this.add.rectangle(tx, ty, 4, 4, PALETTE.greyPlum, 0.75).setDepth(DEPTH.fx - 1);
+      this.tweens.add({
+        targets: puff,
+        x: tx + Math.cos(a) * p.radiusPx * 0.8,
+        y: ty + Math.sin(a) * p.radiusPx * 0.5,
+        alpha: 0,
+        duration: 420,
+        onComplete: () => puff.destroy(),
+      });
+    }
+    this.cameras.main.shake(220, 0.008);
+    if (!this.player.alive) return;
+    const d = Phaser.Math.Distance.Between(tx, ty, this.player.x, this.player.y);
+    if (d <= p.radiusPx) {
+      const dmg = this.player.takeDamage(incoming(e.atk * p.damageMult));
+      if (dmg > 0) {
+        this.cameras.main.shake(240, 0.012);
+        emitToast('被舰炮命中！看到红圈就该躲开', 1500);
+      }
+    } else {
+      emitToast('躲开了舰炮', 800);
+    }
+  }
   private bossSummon(e: Enemy, enemyId: string, count: number): void {
     const def = this.findEnemy(enemyId);
     if (!def) return;
@@ -2729,36 +3421,40 @@ export class LevelScene extends Phaser.Scene {
 
   /** 撞角冲刺：冲完搁浅，露出弱点（设计书：此时武器倍率 ×2.5） */
   private bossCharge(e: Enemy, dx: number, dy: number): void {
-    // 军舰不往玩家身上撞，而是沿着水道一路往左压（老师评审要的「史实差距」观感）：
-    // 它碾过的地方变成海面，压到最左侧就代表虎门水道被突破 → 剧情杀 → 继续下一幕。
-    const isShip = e === this.bossShip;
-    if (isShip) {
-      // 一个「前压」动作没播完就不再叠一个（ram 招式与自走节拍都会走到这里）
+    // 军舰原地不动（甲方 m12276）：它连撞角都不冲，只原地放舰炮。
+    // 数据里 `ram` 这一招还留着（技能表是内容层），到这里直接转成一次齐射，
+    // 这样「玩家看得到它每招都在打」但「它一步也没逼近」。
+    if (e === this.bossShip) {
       if (this.shipMoving) return;
       this.shipMoving = true;
       this.shipTimer = 6500;
+      emitToast('炮舰原地舷炮齐射', 1200);
+      this.bossSalvo(e, 3, 44);
+      this.time.delayedCall(900, () => {
+        this.shipMoving = false;
+      });
+      return;
     }
-    const step = isShip ? 76 : 120;
+    const step = 120;
     const maxX = (this.map?.pixelWidth ?? VIEW_W) - 24;
     const maxY = (this.map?.pixelHeight ?? VIEW_H) - 24;
-    const wantX = isShip ? e.x - step : e.x + dx * step;
-    const wantY = isShip ? e.y : e.y + dy * step;
-    const tx = Phaser.Math.Clamp(wantX, isShip ? 6 : 24, maxX);
+    const wantX = e.x + dx * step;
+    const wantY = e.y + dy * step;
+    const tx = Phaser.Math.Clamp(wantX, 24, maxX);
     const ty = Phaser.Math.Clamp(wantY, 24, maxY);
     let hit = false;
     this.cameras.main.shake(180, 0.005);
-    if (isShip) this.paintSea(tx - 46, e.x + 46, e.y);
     this.tweens.add({
       targets: e.rig,
       x: tx,
       y: ty,
-      duration: isShip ? 900 : 620,
+      duration: 620,
       ease: 'Quad.easeIn',
       onUpdate: () => {
         if (
           !hit &&
           this.player.alive &&
-          Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y) < (isShip ? 48 : 30)
+          Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y) < 30
         ) {
           hit = true;
           const d = this.player.takeDamage(incoming(e.atk));
@@ -2767,61 +3463,62 @@ export class LevelScene extends Phaser.Scene {
       },
       onComplete: () => {
         e.finishCharge();
-        if (!isShip) {
-          emitToast('炮舰搁浅，露出弱点！', 1800);
-          return;
-        }
-        this.shipMoving = false;
-        this.paintSea(e.x - 46, e.x + 46, e.y);
-        this.ejectPlayerFromSea();
-        // 不弹 toast：它正好盖在舰体上，而且每前压一次都弹一次会很吵
-        if (e.x - 46 <= 10) this.onShipBreach(e);
+        emitToast('炮舰搁浅，露出弱点！', 1800);
       },
     });
   }
 
   /**
-   * 把一段地貌画成海面。军舰每前压一次，碾过的地就永久变成海——
-   * 「向前撞开的地方做成海」是老师评审时要的视觉效果，同时也是本关的时间压力。
+   * 该世界坐标是否落在军舰碾出来的海面上（只有玩家会被挡住）。
+   *
+   * 军舰已经不前压了（m12276），`paintSea` 随之删掉，`seaTiles` 恒为空。
+   * 这个方法保留：它是海关判定的唯一入口，`isSeaAt` 恒 false 也就等于「没有运行时海面」，
+   * 而地图数据里画的原始海面仍由 `MapRenderer.isSeaAtWorld` 管——两套不能混。
    */
-  private paintSea(leftX: number, rightX: number, centerY: number): void {
-    const map = this.map;
-    if (!map) return;
-    // 懒创建：原来只有 Boss 舰出生时才建这张图层，于是「脱困/铺海」这些入口
-    // 在没打 Boss 的时候静默失效（探针里 paintSea 什么都不做就是这么来的）。
-    if (!this.waterGfx) this.waterGfx = this.add.graphics().setDepth(DEPTH.ground + 1);
-    const g = this.waterGfx;
-    const cols = map.grid.cols;
-    const rows = map.grid.rows;
-    const c0 = Phaser.Math.Clamp(Math.floor(leftX / TILE), 0, cols - 1);
-    const c1 = Phaser.Math.Clamp(Math.floor(rightX / TILE), 0, cols - 1);
-    const midRow = Math.floor(centerY / TILE);
-    // 海面从舰体吃水线往下铺：船看起来是「浮」在水里，而不是被水盖住
-    const r0 = Phaser.Math.Clamp(midRow, 0, rows - 1);
-    const r1 = Phaser.Math.Clamp(midRow + 2, 0, rows - 1);
-    for (let c = c0; c <= c1; c++) {
-      for (let r = r0; r <= r1; r++) {
-        const key = `${c},${r}`;
-        if (this.seaTiles.has(key)) continue;
-        this.seaTiles.add(key);
-        const px = c * TILE;
-        const py = r * TILE;
-        // 海面同样只用 24 色：深水底 + 一道浪脊 + 两点碎浪
-        g.fillStyle(PALETTE.indigo, 1);
-        g.fillRect(px, py, TILE, TILE);
-        g.fillStyle(PALETTE.blue, 1);
-        g.fillRect(px, py + TILE - 6, TILE, 3);
-        g.fillStyle(PALETTE.blueLight, 1);
-        g.fillRect(px + 3, py + 5, 6, 1);
-        g.fillRect(px + 10, py + 9, 4, 1);
-      }
-    }
-  }
-
-  /** 该世界坐标是否落在军舰碾出来的海面上（只有玩家会被挡住） */
   private isSeaAt(wx: number, wy: number): boolean {
     if (this.seaTiles.size === 0) return false;
     return this.seaTiles.has(`${Math.floor(wx / TILE)},${Math.floor(wy / TILE)}`);
+  }
+
+  /**
+   * 摆一件 Sunny Land 静态布景（`kind:'prop'`）。
+   *
+   * 三条规矩，都是从人群那边抄过来的教训：
+   *  1. **只画不登记**——不推进 `worldObjects`，玩家走近不会弹「搬起 / 投入」，
+   *     它就是个 scenery，不是可交互物。
+   *  2. **不挡路**——也**不**走 `extraSolid`。人群挡路是因为「站在场上的人」有体积；
+   *     而布景是按格子摆的，一旦挡路就得回头核对每张图的可达性、甚至补碰撞层，
+   *     而这批物件里常常有贴着拾取物摆的（木箱挨着鸦片箱）。宁可穿过去也不改通关性。
+   *  3. **不画兜底方块**——贴图缺失时留空并 warn（构建问题交给 `tests/art.test.ts`），
+   *     一块和人物等高的深色方块比什么都不画更误导。
+   *
+   * 深度取 `DEPTH.deco + 2`：压在地面与贴花之上、人物（≥ entityBase）之下——
+   * 玩家走过的路牌会被人物盖住一圈，看起来像「站在牌子后面」。
+   */
+  private spawnSunnyProp(name: SunnyProp, x: number, y: number): void {
+    const key = sunnyPropKey(name);
+    if (!this.textures.exists(key)) {
+      console.warn(`[prop] 缺少贴图 ${key}，该处布景不绘制`);
+      return;
+    }
+    const sunk = SUNNY_GROUND_PROPS.has(name);
+    // 沉进地面的小物件反而**要多下压**：它们的底边本来是「贴地的那条线」，
+    // 原尺寸直接贴格子下沿会浮在格子里；压 4px 后底边正好落在地砖中缝上。
+    const img = this.add.image(x, y + (sunk ? 4 : 8), key).setOrigin(0.5, 1).setDepth(DEPTH.deco + 2);
+    // 像素图不缩放也不插值：16px 的路牌放大到 2 倍就会糊成一团棕点
+    if (img.texture) img.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    this.propSprites.push({ name, img });
+  }
+
+  /**
+   * 这个格子是不是站着围观百姓（挡路用）。
+   *
+   * 只在 `spawnCrowd` 里登记，值是格坐标；玩家和敌人的路径都用
+   * `MapRenderer.isSolidAtWorld` → `extraSolid` 判定，所以人群天然挡人。
+   */
+  private isCrowdAt(wx: number, wy: number): boolean {
+    if (this.crowdSolids.size === 0) return false;
+    return this.crowdSolids.has(`${Math.floor(wx / TILE)},${Math.floor(wy / TILE)}`);
   }
 
   /**
@@ -2874,36 +3571,17 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /**
-   * 敌人站在 (wx, wy) 会不会掉出去：地图外 / 墙里 / 军舰压出的海面 / 原始海面。
+   * 敌人站在 (wx, wy) 会不会掉出去：地图外 / 墙里 / 原始海面。
    * 击退落点与每帧兜底共用这一条判据，避免两处判定漂移。
+   *
+   * （`isSeaAt` 现在恒为 false —— 军舰不再前压就不会有运行时海面，见 `bossCharge`。
+   * 判定里仍然留着它，是因为「运行时禁区」这个口子以后要是有别的机制来填，收敛成一处更安全。）
    */
   private enemySpotUnsafe(wx: number, wy: number): boolean {
     const map = this.map;
     if (!map) return false;
     if (this.isSeaAt(wx, wy) || map.isSeaAtWorld(wx, wy)) return true;
     return map.isSolidAtWorld(wx, wy);
-  }
-
-  /** 军舰压到最左侧：虎门水道被突破，走剧情杀（战败链），不通关 */
-  private onShipBreach(e: Enemy): void {
-    if (this.shipBreached || this.defeated) return;
-    this.shipBreached = true;
-    this.nodeBusy = true;
-    setControlsVisible(false);
-    e.haltActions();
-    for (const p of this.projectiles) p.rect.destroy();
-    this.projectiles = [];
-    this.cameras.main.shake(600, 0.012);
-    // 注意：这里不要 emitToast——toast 会画在卡片正中间，和第一行史料叠字
-    this.showCard(
-      '虎门失守',
-      [
-        '铁壳炮舰碾过滩涂，直逼关天培的炮台。',
-        '岸炮的弹丸打在铁壳上，只留下一道凹痕。',
-        '1841 年 2 月 26 日，虎门各炮台相继陷落。',
-      ],
-      () => this.playDefeatSequence(),
-    );
   }
 
   /* ==================== 弹道 ==================== */
@@ -3087,8 +3765,10 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
 
-    // 开场情境卡开着时冻结世界：敌人不许在卡片后面动手
-    if (this.introOpen) return;
+    // 开场情境卡 / 波次强化选卡开着时冻结世界：敌人不许在卡片后面动手。
+    // `upgradeOpen` 已经包含在 `introOpen` 里，这里显式并上是为了让「强化卡也冻结」
+    // 在代码里一眼可见——两个标志分别表示「卡片开着」和「卡片是强化卡」。
+    if (this.introOpen || this.upgradeOpen) return;
 
     // 经营模式是纯界面，不需要世界逻辑
     if (this.mode === 'management') {
@@ -3181,7 +3861,11 @@ export class LevelScene extends Phaser.Scene {
             this.slashAt(from.x, from.y - 10, ang, reach, PALETTE.redDark, 76),
           onDeath: (en) => this.onEnemyDeath(en),
           onTelegraph: (en, r) => this.telegraphRing(en, r),
-          onVolley: (en, count, spread) => this.bossVolley(en, count, spread),
+          // 军舰的「舷炮齐射」改成有落点预警的重炮（甲方 m12276）：
+          // 直接飞过来的弹幕躲不掉，红圈预警才叫「提示落点让角色可以躲开」。
+          // 其他 Boss 没有船体，仍用原来的扇形弹幕。
+          onVolley: (en, count, spread) =>
+            en === this.bossShip ? this.bossSalvo(en, Math.min(3, count), spread) : this.bossVolley(en, count, spread),
           onSummon: (en, id, count) => this.bossSummon(en, id, count),
           onCharge: (en, dx, dy) => this.bossCharge(en, dx, dy),
         },
@@ -3208,7 +3892,15 @@ export class LevelScene extends Phaser.Scene {
           emitObjective(`第 ${next + 1} / ${waves.length} 波`);
           // 设计书 3.3.1：击退第一批登陆英兵后掉落一把白色的弓（仅剧情关卡，副本不给）
           if (next === 1 && !this.dungeon) this.dropBow();
-          this.time.delayedCall(1200, () => this.spawnWave(next));
+          // 甲方要求「每波次强化系统，只对弓强化，比如弹幕变两行之类的」：
+          // 清完一波先弹三选一（世界冻结），选完/跳过再放下一波。
+          // 不弹卡时直接进原节奏，避免多一层延迟。
+          const openUpgrade = !this.dungeon && next > 0 && this.pendingUpgrade;
+          if (openUpgrade) {
+            this.showUpgradeCard(() => this.time.delayedCall(1200, () => this.spawnWave(next)));
+          } else {
+            this.time.delayedCall(1200, () => this.spawnWave(next));
+          }
         } else {
           this.spawnBoss();
         }
@@ -3238,15 +3930,10 @@ export class LevelScene extends Phaser.Scene {
       }
     }
 
-    // 军舰按自己的节奏往前压：不等它进入第三阶段，整场都在逼近，
-    // 压到最左就是虎门水道被突破（老师要的「史实差距」观感 + 时间压力）。
-    if (this.bossShip && this.bossShip.alive && !this.shipBreached && !this.nodeBusy) {
-      this.shipTimer -= delta;
-      if (this.shipTimer <= 0) {
-        this.shipTimer = 6500;
-        this.bossCharge(this.bossShip, -1, 0);
-      }
-    }
+    // 军舰不再往前压（甲方 m12276：「军舰前进不了就不搞前进了，一直停在岸边攻击」）。
+    // 原来这里每 6.5 秒让它往左挪 76px 并把碾过的地变成海，压到最左就剧情杀；
+    // 现在它原地不动，攻击全交给舰炮（`bossSalvo` 的落点预警）。
+    void this.shipTimer;
 
     // 玩家死亡
     if (!this.player.alive && !this.nodeBusy) {
