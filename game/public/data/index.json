@@ -1,27 +1,20 @@
 {
- "version": 2,
- "chapters": [
-  {
-   "id": "ch00",
-   "name": "觉醒年代",
-   "period": "1840—1921",
-   "acts": [
-    "ch00_act1",
-    "ch00_act2"
-   ],
-   "acts_planned": [
-    "ch00_act3",
-    "ch00_act4",
-    "ch00_act5",
-    "ch00_act6",
-    "ch00_act7"
-   ],
-   "quiz_id": "qz_ch00",
-   "level_range": [
-    1,
-    8
-   ],
-   "unlock": "start"
-  }
- ]
+  "version": 2,
+  "chapters": [
+    {
+      "id": "ch00",
+      "name": "觉醒年代",
+      "period": "1840—1864",
+      "acts": [
+        "ch00_act1",
+        "ch00_act2"
+      ],
+      "quiz_id": "qz_ch00",
+      "level_range": [
+        1,
+        8
+      ],
+      "unlock": "start"
+    }
+  ]
 }

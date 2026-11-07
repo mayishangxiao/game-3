@@ -9,6 +9,7 @@ import { dataLoader } from '../core/DataLoader';
 import { knowledgeBonus } from '../core/balance';
 import { getSave } from './BootScene';
 import { FONT_UI } from '../gfx/TextStyle';
+import { hideOverlay } from '../systems/DomUi';
 
 export class CodexScene extends Phaser.Scene {
   private index = 0;
@@ -23,6 +24,7 @@ export class CodexScene extends Phaser.Scene {
   }
 
   create(): void {
+    hideOverlay();
     const s = getSave();
     this.owned = [...s.knowledge];
 

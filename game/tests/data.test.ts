@@ -26,7 +26,6 @@ interface IndexJson {
     id: string;
     name: string;
     acts: string[];
-    acts_planned?: string[];
     quiz_id: string;
     level_range: [number, number];
   }[];
@@ -169,11 +168,11 @@ const itemById = new Map(items.map((i) => [i.id, i]));
 
 describe('章与幕', () => {
   it('索引里的每一幕都有对应的幕定义文件', () => {
-    const all = [...index.chapters[0].acts, ...(index.chapters[0].acts_planned ?? [])];
     for (const a of index.chapters[0].acts) {
       expect(existsSync(join(DATA, `acts/${a}.json`)), `${a} 缺少幕定义`).toBe(true);
     }
-    expect(all.length).toBe(7);
+    // 本期只做一章两幕：章节里声明的幕就是全部内容，不再有"未开放"占位
+    expect(index.chapters[0].acts.length).toBe(2);
   });
 
   it('已实现的幕都声明了节点、事件与地图，且经验为正', () => {

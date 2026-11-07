@@ -10,6 +10,7 @@
 
 import Phaser from 'phaser';
 import { VIEW_H, VIEW_W } from '../core/constants';
+import { syncDomUiToCanvas } from './DomUi';
 import { isPortrait, toGameSpace, unrotateToLocal } from '../core/orientation';
 import { GATE_SKIP_KEY, hasGateBeenStarted, rememberGateStarted } from '../scenes/BootScene';
 
@@ -186,22 +187,10 @@ function centerCanvas(game: Phaser.Game): void {
 
 /**
  * 后缓冲分辨率实验已回退：直接改 canvas.width + renderer.resize + 相机视口在 Phaser 3.90 FIT
- * 模式下会黑屏（相机坐标系与后缓冲对不上）。本函数保留为调试角标，只读不改。
+ * 模式下会黑屏（相机坐标系与后缓冲对不上）。暂时不做事，留着钩子以后再试。
  */
-function fitBackingResolution(game: Phaser.Game): void {
-  const cssW = game.canvas.clientWidth;
-  const cssH = game.canvas.clientHeight;
-  if (cssW < 10 || cssH < 10) return;
-  let dbg = document.getElementById('dbg-res');
-  if (!dbg) {
-    dbg = document.createElement('div');
-    dbg.id = 'dbg-res';
-    dbg.style.cssText =
-      'position:fixed;left:4px;bottom:4px;z-index:9999;background:#000;color:#0f0;' +
-      'font:10px monospace;padding:2px 4px;line-height:1.3;pointer-events:none;';
-    document.body.appendChild(dbg);
-  }
-  dbg.textContent = `buf=${game.canvas.width}x${game.canvas.height} css=${cssW}x${cssH} dpr=${window.devicePixelRatio || 1}`;
+function fitBackingResolution(_game: Phaser.Game): void {
+  // no-op
 }
 
 export function installStartGate(game: Phaser.Game): GateState {
@@ -311,6 +300,7 @@ export function installStartGate(game: Phaser.Game): GateState {
       game.scale.refresh();
       fitBackingResolution(game);
       if (rotated) centerCanvas(game);
+      syncDomUiToCanvas(game.canvas);
     }, 60);
     // 布局稳定后再量一次：换算对不上就宁可不转，也不能留一个点不动的画面。
     // 自检只在「画面已经真的转起来了」时跑——未旋转状态下画布没变形，
@@ -483,6 +473,8 @@ export function installStartGate(game: Phaser.Game): GateState {
   window.visualViewport?.addEventListener('resize', reflow);
   window.visualViewport?.addEventListener('scroll', reflow);
   reflow();
+  // DOM 文字层轻量轮询对齐（画布尺寸/位置变化不总触发 reflow）
+  window.setInterval(() => syncDomUiToCanvas(game.canvas), 400);
 
   (window as unknown as { __dshGate?: GateState }).__dshGate = state;
   return state;

@@ -23,6 +23,7 @@ import { getSave, persist } from './BootScene';
 import type { ChapterBundle } from '../core/DataLoader';
 import type { QuizQuestion } from '../core/types';
 import { FONT_UI } from '../gfx/TextStyle';
+import { hideOverlay } from '../systems/DomUi';
 
 export class QuizScene extends Phaser.Scene {
   private chapterId = 'ch00';
@@ -49,6 +50,7 @@ export class QuizScene extends Phaser.Scene {
   }
 
   create(): void {
+    hideOverlay();
     this.root = this.add.container(0, 0).setDepth(DEPTH.hud);
     void this.boot();
   }

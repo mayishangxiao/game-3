@@ -1,13 +1,13 @@
 # public/data/ —— 内容数据地图
 
 > 整个游戏的内容都在这里，**改内容不用改代码**。但数据之间有引用关系，写错一个 id 会让某个节点不可通关——所以这份文件按「谁引用谁」写，并列出 `tests/data.test.ts` 已经替你挡住的检查项。
-> 字段级 schema 见 `src/core/types.ts`（与设计书 7.2 节一一对应）；骨架清单用 `node tools/map_repo.mjs .` 生成。
+> 字段级 schema 见 `src/core/types.ts`（与设计书 5.2 节一一对应）；骨架清单用 `node tools/map_repo.mjs .` 生成。
 
 ## 一、文件总览
 
 | 路径 | 内容 | 数量 | 主键 |
 | --- | --- | --- | --- |
-| `index.json` | 游戏索引：章节列表、每章已实现的 `acts` 与 `acts_planned` | 1 章 | `chapters[].id` |
+| `index.json` | 游戏索引：章列表与每章已实现的 `acts`（本期只有 ch00，两幕都已完成；旧字段 `acts_planned` 已删除） | 1 章 | `chapters[].id` |
 | `config.json` | **数值唯一真相**：经验曲线、HP/攻/防公式、伤害与闪避、**`damage.player_damage_mult`（我方出手总体倍率）**、等级系数、4 把武器、敌人档位（含 Boss HP）、10 条词条、品质倍率、知识加成、战斗反馈、UI、**`ui.portraits`（说话人 → 立绘路径）** | — | `weapons[].id` `affixes[].id` |
 | `chapters/ch00.json` | 章节元数据：名称、年代、主角链、长廊地图、完成度权重 | 1 | `id` |
 | `acts/ch00_act1.json` `acts/ch00_act2.json` | 幕定义：`events[]` `nodes[]` `map_refs[]` 顺序、原型（主/次）、首通奖励、`exp_base` | 2 | `id` |
@@ -133,7 +133,8 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 - **加一件装备**：`items_base.json` 加模板（`quality` 决定能否带词条：只有 `purple` 会 roll 词条）→ `drops.json` 加进对应 `quality_weights`/`slot_weights`，或直接挂某个副本的 `unique_drop`。
 - **加一个敌人**：`enemies_ch00.json` 加条目，`ai_params` 决定行为（不为单个敌人写新 AI）；远程需要 `projectile` 且前摇 ≥550ms；Boss 用 `boss_phases`。
 - **加一个副本**：`dungeons.json` 加定义 → 新地图（右侧留出生格）→ `unlock_act` 指向已实现的幕。
-- **加数值平衡**：改 `config.json`（不用动代码），但设计书 6.4/6.6 的表格也要同步，否则 `tests/balance.test.ts` 会红。
+- **加数值平衡**：改 `config.json`（不用动代码），但设计书 4.4 / 4.3 的表格也要同步，否则 `tests/balance.test.ts` 会红。
+- **加一章（本期不做）**：`index.json` 加 chapter、`chapters/` 加章定义、`acts/` 加幕、各文件按 `chXX` 命名——工程侧没有为下一章预留字段，`acts_planned` 已经删了。
 
 ### 「打不过才是史实」那套数值（甲方 m01507）
 

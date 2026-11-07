@@ -26,6 +26,7 @@ import { DEFEAT_TEXT } from '../core/defeat';
 import { DefeatCinematic } from '../systems/DefeatCinematic';
 import { controls } from '../systems/InputSystem';
 import { DialogueBox } from '../systems/DialogueBox';
+import { hideFloat, hideOverlay, moveFloat, showFloat, showOverlay } from '../systems/DomUi';
 import { MapRenderer } from '../gfx/MapRenderer';
 import { backdropImage, horizonImage, HORIZON_H } from '../gfx/Backdrop';
 import { nearestOpenPoint } from '../core/space';
@@ -653,6 +654,7 @@ export class LevelScene extends Phaser.Scene {
       this.manageUI?.destroy();
       this.manageUI = null;
       this.manage = null;
+      hideOverlay();
 
       await this.buildWorld(d.map_ref);
 
@@ -1066,180 +1068,56 @@ export class LevelScene extends Phaser.Scene {
     c.add(this.add.rectangle(VIEW_W / 2, 46, VIEW_W, 92, PALETTE.ink, 0.55).setScrollFactor(0));
     c.add(this.add.rectangle(VIEW_W / 2, VIEW_H - 44, VIEW_W, 88, PALETTE.ink, 0.6).setScrollFactor(0));
 
-    c.add(
-      this.add
-        .text(VIEW_W / 2, 30, b.time, {
-          fontFamily: FONT_UI,
-          fontSize: '20px',
-          color: '#F0C419',
-          fontStyle: 'bold',
-        })
-        .setOrigin(0.5)
-        .setScrollFactor(0),
+    // ── 文字全部走 DOM overlay（canvas 上中文在高 dpr 屏发糊）
+    const powerRows = b.power
+      ? [
+          { tag: '我', val: b.power.ours, color: '#7FD1AE' },
+          { tag: '敌', val: b.power.enemy, color: '#E85C4A' },
+        ]
+      : [];
+    const troopRows: Array<[string, string]> = [];
+    if (b.ours) troopRows.push(['我方', b.ours]);
+    if (b.enemy) troopRows.push(['敌军', b.enemy]);
+
+    const powerHtml = b.power
+      ? `<div style="position:absolute;left:118px;right:46px;top:150px;">
+          <div style="color:#F0C419;font-weight:bold;font-size:13px;margin-bottom:4px;">${b.power.title ?? '战力对比'}</div>
+          ${powerRows
+            .map(
+              (r) => `<div style="margin:2px 0;"><span style="color:${r.color};font-weight:bold;font-size:14px;margin-right:8px;">${r.tag}</span><span style="font-size:14px;">${r.val}</span></div>`,
+            )
+            .join('')}
+          ${b.power.gap ? `<div style="color:#F0C419;font-size:14px;margin-top:6px;">${b.power.gap}</div>` : ''}
+        </div>`
+      : '';
+
+    const troopHtml =
+      troopRows.length > 0
+        ? `<div style="position:absolute;left:118px;right:46px;top:210px;background:rgba(13,11,20,.42);padding:4px 8px;">
+          ${troopRows
+            .map(
+              ([label, value]) =>
+                `<div style="margin:2px 0;"><span style="color:${label === '敌军' ? '#E85C4A' : '#C2BCD1'};font-size:12px;margin-right:12px;">${label}</span><span style="font-size:14px;">${value}</span></div>`,
+            )
+            .join('')}
+        </div>`
+        : '';
+
+    showOverlay(
+      `<div style="position:absolute;left:0;top:24px;width:100%;text-align:center;color:#F0C419;font-weight:bold;font-size:26px;">${b.time}</div>
+       <div style="position:absolute;left:0;top:52px;width:100%;text-align:center;font-size:16px;">${b.place}</div>
+       ${powerHtml}
+       ${troopHtml}
+       <div id="dom-hint" style="position:absolute;left:0;top:252px;width:100%;text-align:center;color:#F0C419;font-size:13px;animation:blink 1.4s ease-in-out infinite;">点击开始战斗</div>
+       <style>@keyframes blink{0%,100%{opacity:.4}50%{opacity:1}}</style>`,
     );
-    c.add(
-      this.add
-        .text(VIEW_W / 2, 52, b.place, {
-          fontFamily: FONT_UI,
-          fontSize: '13px',
-          color: '#F2EDE4',
-        })
-        .setOrigin(0.5)
-        .setScrollFactor(0),
-    );
-    c.add(this.add.rectangle(VIEW_W / 2, 64, 84, 1, PALETTE.star, 0.85).setScrollFactor(0));
-
-    // ── 底部信息区：自下而上量着摆
-    // 块高不是常数（两段战力描述都可能被 wordWrap 折行，480 宽的中文一行只放得下十来个字），
-    // 所以先按顶边算每一块的高度，再从「点击开始战斗」那条线上往上累加。
-    // 早先按固定行距硬摆，截图里正文第二行直接压在「差距」那行上。
-    const HINT_Y = VIEW_H - 18;
-    const BOTTOM_PAD = 10;
-    const LEFT = 118;
-    const TEXT_X = 134;
-    const WRAP_W = VIEW_W - TEXT_X - 46;
-    const probeText = (value: string, size: string) => {
-      const t = this.add.text(0, 0, value, { fontFamily: FONT_UI, fontSize: size, wordWrap: { width: WRAP_W } });
-      const h = t.height;
-      t.destroy();
-      return h;
-    };
-    type Block = { height: number; build: (y: number) => void };
-    const blocks: Block[] = [];
-    // 兵力那组的配重（顺序是「先对比块、后兵力」），用来给暗带定中心
-    let troopHeight = 0;
-
-    if (b.power) {
-      const p = b.power;
-      const descLines: Array<[string, string]> = [
-        ['我', p.ours],
-        ['敌', p.enemy],
-      ];
-      // 标签是一行小字，正文可能折成两行；整块高度按正文的实际行高算，标签垂直居中到第一行
-      const lineH = descLines.map(([, v]) => probeText(v, '11px'));
-      const gapH = p.gap ? probeText(p.gap, '11px') : 0;
-      blocks.push({
-        height: 14 + lineH.reduce((a, h) => a + h + 4, 0) + (p.gap ? gapH + 8 : 0),
-        build: (y) => {
-          c.add(this.add.rectangle(VIEW_W / 2, y - 6, VIEW_W - 96, 1, PALETTE.star, 0.5).setScrollFactor(0));
-          c.add(
-            this.add
-              .text(LEFT, y, p.title ?? '战力对比', {
-                fontFamily: FONT_UI,
-                fontSize: '10px',
-                color: '#F0C419',
-                fontStyle: 'bold',
-              })
-              .setOrigin(0, 0)
-              .setScrollFactor(0),
-          );
-          let cursor = y + 14;
-          descLines.forEach(([tag, value], i) => {
-            c.add(
-              this.add
-                .text(LEFT, cursor + 1, tag, {
-                  fontFamily: FONT_UI,
-                  fontSize: '11px',
-                  color: tag === '敌' ? '#E85C4A' : '#7FD1AE',
-                  fontStyle: 'bold',
-                })
-                .setOrigin(0, 0)
-                .setScrollFactor(0),
-            );
-            c.add(
-              this.add
-                .text(TEXT_X, cursor, value, {
-                  fontFamily: FONT_UI,
-                  fontSize: '11px',
-                  color: '#F2EDE4',
-                  wordWrap: { width: WRAP_W },
-                })
-                .setOrigin(0, 0)
-                .setScrollFactor(0),
-            );
-            cursor += lineH[i] + 4;
-          });
-          if (p.gap) {
-            c.add(
-              this.add
-                .text(LEFT, cursor + 4, p.gap, {
-                  fontFamily: FONT_UI,
-                  fontSize: '11px',
-                  color: '#F0C419',
-                  wordWrap: { width: VIEW_W - LEFT - 46 },
-                })
-                .setOrigin(0, 0)
-                .setScrollFactor(0),
-            );
-          }
-        },
-      });
-    }
-
-    const rows: Array<[string, string]> = [];
-    if (b.ours) rows.push(['我方', b.ours]);
-    if (b.enemy) rows.push(['敌军', b.enemy]);
-    if (rows.length > 0) {
-      troopHeight = rows.length * 20;
-      blocks.push({
-        height: troopHeight,
-        build: (y) => {
-          // 兵力两行落在底图上最亮的一段（地平线高光），单靠卡片整体压暗读不清，
-          // 所以给这一组单独垫一条暗带——比把整块底图再压暗更不伤画面
-          c.add(
-            this.add.rectangle(VIEW_W / 2, y + troopHeight / 2, VIEW_W, troopHeight + 6, PALETTE.ink, 0.42).setScrollFactor(0),
-          );
-          rows.forEach(([label, value], i) => {
-            const ly = y + i * 20;
-            c.add(
-              this.add
-                .text(LEFT, ly, label, {
-                  fontFamily: FONT_UI,
-                  fontSize: '10px',
-                  color: label === '敌军' ? '#E85C4A' : '#C2BCD1',
-                })
-                .setOrigin(0, 0.5)
-                .setScrollFactor(0),
-            );
-            c.add(
-              this.add
-                .text(146, ly, value, {
-                  fontFamily: FONT_UI,
-                  fontSize: '11px',
-                  color: '#F2EDE4',
-                })
-                .setOrigin(0, 0.5)
-                .setScrollFactor(0),
-            );
-          });
-        },
-      });
-    }
-
-    // 从下往上排：最后一块贴住「点击开始战斗」上方，前面一块叠在它上面
-    let cursorY = HINT_Y - BOTTOM_PAD;
-    for (let i = blocks.length - 1; i >= 0; i--) {
-      cursorY -= blocks[i].height;
-      blocks[i].build(cursorY);
-      cursorY -= 8;
-    }
-
-    const hint = this.add
-      .text(VIEW_W / 2, VIEW_H - 18, '点击开始战斗', {
-        fontFamily: FONT_UI,
-        fontSize: '10px',
-        color: '#F0C419',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0);
-    c.add(hint);
-    this.tweens.add({ targets: hint, alpha: { from: 0.4, to: 1 }, duration: 700, yoyo: true, repeat: -1 });
 
     const close = () => {
       if (!this.introOpen) return;
       this.introOpen = false;
       this.pendingCardTap = null;
       c.destroy();
+      hideOverlay();
       setHudVisible(true);
       // 卡片期间摇杆也收着，关掉要按当前模式重新放出来
       setControlsVisible(this.mode === 'explore' || this.mode === 'combat' || this.mode === 'escort');
@@ -1524,6 +1402,7 @@ export class LevelScene extends Phaser.Scene {
     this.manageUI?.destroy();
     this.manageUI = null;
     this.manage = null;
+    hideOverlay();
 
     const mapRef = (node.map_ref as string | null) ?? null;
     if (mapRef && (!this.map || this.map.def.id !== mapRef)) {
@@ -1930,8 +1809,29 @@ export class LevelScene extends Phaser.Scene {
     const nearId = this.nearObject?.id ?? null;
     for (const o of this.worldObjects) {
       const show = o.rect.visible && o.def.id === nearId;
-      o.label.setVisible(show);
+      o.label.setVisible(false); // canvas 版隐藏，走 DOM
+      if (show) {
+        this.floatObj = o;
+        this.updateFloatPos(true);
+      } else {
+        this.floatObj = null;
+        hideFloat();
+      }
     }
+  }
+
+  private floatObj: { label: Phaser.GameObjects.Text } | null = null;
+
+  /** 每帧把浮动标签世界坐标投影到 #dom-ui 像素位置 */
+  private updateFloatPos(initial = false): void {
+    if (!this.floatObj) return;
+    const cam = this.cameras.main;
+    // #dom-ui 尺寸 = canvas CSS 尺寸（~711px 宽），不是逻辑 480；要按画布实际缩放比换算
+    const scale = this.game.canvas.clientWidth / VIEW_W;
+    const sx = (this.floatObj.label.x - cam.worldView.x) * scale;
+    const sy = (this.floatObj.label.y - cam.worldView.y) * scale;
+    if (initial) showFloat(this.floatObj.label.text, sx, sy);
+    else moveFloat(sx, sy);
   }
 
   private hideWorldObject(entry: {
@@ -2045,7 +1945,9 @@ export class LevelScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
     this.npcMark = mark;
-    entry.label.setVisible(true);
+    entry.label.setVisible(false); // canvas 版隐藏，走 DOM float
+    this.floatObj = entry;
+    this.updateFloatPos(true);
   }
 
   /** NPC 说完话：撤掉感叹号，放开箱子 */
@@ -2056,6 +1958,8 @@ export class LevelScene extends Phaser.Scene {
       this.npcMark.destroy();
       this.npcMark = null;
     }
+    this.floatObj = null;
+    hideFloat();
     emitToast('可以搬鸦片箱了', 1200);
   }
 
@@ -2286,38 +2190,11 @@ export class LevelScene extends Phaser.Scene {
         .setStrokeStyle(1, PALETTE.greyPlum)
         .setScrollFactor(0),
     );
-    c.add(
-      this.add
-        .text(34, 22, `天京经营　第 ${Math.min(st.month, MANAGE_MONTHS)} / ${MANAGE_MONTHS} 月`, {
-          fontFamily: FONT_UI,
-          fontSize: '10px',
-          color: '#C2BCD1',
-        })
-        .setScrollFactor(0),
-    );
-    c.add(
-      this.add
-        .text(
-          366,
-          22,
-          `可分配 ${MONTHLY_POINTS - allocTotal(this.manageAlloc)} 点　本月消耗 ${st.history.length + 1 <= MANAGE_MONTHS ? 2 + Math.floor((Math.min(st.month, MANAGE_MONTHS) - 1) / 3) : 0}`,
-          { fontFamily: FONT_UI, fontSize: '10px', color: '#F0C419' },
-        )
-        .setOrigin(1, 0)
-        .setScrollFactor(0),
-    );
-    c.add(
-      this.add.text(34, 36, '粮草、兵员、民心三事，怎么分都不够——这就是要你亲手体会的事。', {
-        fontFamily: FONT_UI,
-        fontSize: '8.5px',
-        color: '#6B6489',
-      }).setScrollFactor(0),
-    );
 
-    const rows: { key: keyof ManageTrack; name: string; color: number }[] = [
-      { key: 'food', name: '粮草', color: PALETTE.star },
-      { key: 'troops', name: '兵员', color: PALETTE.blueLight },
-      { key: 'morale', name: '民心', color: PALETTE.greenLight },
+    const rows: { key: keyof ManageTrack; name: string; colorCss: string }[] = [
+      { key: 'food', name: '粮草', colorCss: '#F0C419' },
+      { key: 'troops', name: '兵员', colorCss: '#7FD1AE' },
+      { key: 'morale', name: '民心', colorCss: '#9CCC65' },
     ];
 
     rows.forEach((row, i) => {
@@ -2329,88 +2206,81 @@ export class LevelScene extends Phaser.Scene {
           .setStrokeStyle(1, focused ? PALETTE.star : PALETTE.ink)
           .setScrollFactor(0),
       );
-      c.add(
-        this.add
-          .text(48, y, `${row.name}`, { fontFamily: FONT_UI, fontSize: '11px', color: '#F2EDE4' })
-          .setOrigin(0, 0.5)
-          .setScrollFactor(0),
-      );
-      c.add(
-        this.add
-          .text(96, y, `库存 ${st.stock[row.key]}`, {
-            fontFamily: FONT_UI,
-            fontSize: '10px',
-            color: st.stock[row.key] < 2 ? '#E85C4A' : '#C2BCD1',
-          })
-          .setOrigin(0, 0.5)
-          .setScrollFactor(0),
-      );
 
-      // 分配点数的格子
+      // 分配点数的格子（canvas 矩形保留）
       for (let k = 0; k < TRACK_MAX; k++) {
         const filled = k < this.manageAlloc[row.key];
         c.add(
           this.add
-            .rectangle(206 + k * 16, y, 12, 12, filled ? row.color : PALETTE.plumDark)
+            .rectangle(206 + k * 16, y, 12, 12, filled ? PALETTE.star : PALETTE.plumDark)
             .setStrokeStyle(1, PALETTE.ink)
             .setScrollFactor(0),
         );
       }
 
-      const mkBtn = (x: number, label: string, delta: number) => {
+      const mkBtn = (x: number, delta: number) => {
         const r = this.add
           .rectangle(x, y, 20, 20, PALETTE.redDark, 0.95)
           .setStrokeStyle(1, PALETTE.ink)
           .setScrollFactor(0)
           .setInteractive({ useHandCursor: true });
-        const t = this.add
-          .text(x, y, label, { fontFamily: FONT_UI, fontSize: '12px', color: '#F2EDE4' })
-          .setOrigin(0.5)
-          .setScrollFactor(0);
         const act = () => {
           this.manageFocus = row.key;
           this.adjust(delta);
         };
         r.on('pointerdown', act);
-        t.setInteractive({ useHandCursor: true }).on('pointerdown', act);
         c.add(r);
-        c.add(t);
       };
-      mkBtn(300, '−', -1);
-      mkBtn(326, '＋', 1);
+      mkBtn(300, -1);
+      mkBtn(326, 1);
     });
 
-    // 上月报告（最后一月换成结论，两条同时画会叠在一起）
+    // ── 文字走 DOM overlay
+    const remaining = MONTHLY_POINTS - allocTotal(this.manageAlloc);
+    const monthCost =
+      st.history.length + 1 <= MANAGE_MONTHS ? 2 + Math.floor((Math.min(st.month, MANAGE_MONTHS) - 1) / 3) : 0;
+    const rowHtml = rows
+      .map((row, i) => {
+        const y = 66 + i * 34;
+        const low = st.stock[row.key] < 2;
+        return `<div style="position:absolute;left:48px;top:${y - 9}px;font-size:14px;">${row.name}</div>
+          <div style="position:absolute;left:96px;top:${y - 9}px;font-size:13px;color:${low ? '#E85C4A' : '#C2BCD1'};">库存 ${st.stock[row.key]}</div>
+          <div style="position:absolute;left:300px;top:${y - 10}px;font-size:16px;text-align:center;color:#F2EDE4;">−</div>
+          <div style="position:absolute;left:326px;top:${y - 10}px;font-size:16px;text-align:center;color:#F2EDE4;">＋</div>`;
+      })
+      .join('');
+
+    let bottomHtml = '';
     if (last && !st.done) {
       const text = last.events.length > 0 ? last.events.join('；') : '本月无事。';
-      c.add(
-        this.add.text(34, 172, `上月结算：${text}`, {
-          fontFamily: FONT_UI,
-          fontSize: '9px',
-          color: last.golden ? '#7EC08A' : '#F2A08C',
-          wordWrap: { width: 330 },
-        }).setScrollFactor(0),
-      );
+      bottomHtml = `<div style="position:absolute;left:34px;top:172px;width:330px;font-size:12px;color:${last.golden ? '#7EC08A' : '#F2A08C'};">上月结算：${text}</div>`;
     }
-
     if (st.done) {
       const v = finalVerdict(st);
-      c.add(
-        this.add.text(34, 196, `${v.title}。${v.body}`, {
-          fontFamily: FONT_UI,
-          fontSize: '9.5px',
-          color: '#F2EDE4',
-          wordWrap: { width: 330 },
-        }).setScrollFactor(0),
-      );
-      this.makeManageButton(c, 200, 232, 120, 22, '记下这段历史', () => {
+      bottomHtml = `<div style="position:absolute;left:34px;top:196px;width:330px;font-size:12px;color:#F2EDE4;">${v.title}。${v.body}</div>`;
+    }
+
+    const ok = validateAlloc(this.manageAlloc).ok;
+    const btnLabel = st.done ? '记下这段历史' : ok ? '确认本月分配' : '点数没分完';
+
+    showOverlay(
+      `<div style="position:absolute;left:34px;top:18px;font-size:13px;color:#C2BCD1;">天京经营　第 ${Math.min(st.month, MANAGE_MONTHS)} / ${MANAGE_MONTHS} 月</div>
+       <div style="position:absolute;right:46px;top:18px;font-size:13px;color:#F0C419;text-align:right;">可分配 ${remaining} 点　本月消耗 ${monthCost}</div>
+       <div style="position:absolute;left:34px;top:36px;font-size:11px;color:#6B6489;">粮草、兵员、民心三事，怎么分都不够——这就是要你亲手体会的事。</div>
+       ${rowHtml}
+       ${bottomHtml}
+       <div style="position:absolute;left:200px;top:236px;width:120px;text-align:center;font-size:13px;color:${st.done || ok ? '#F2EDE4' : '#6B6489'};">${btnLabel}</div>`,
+    );
+
+    if (st.done) {
+      this.makeManageButton(c, 200, 232, 120, 22, '', () => {
         this.manageUI?.destroy();
         this.manageUI = null;
+        hideOverlay();
         this.completeNode();
       });
     } else {
-      const ok = validateAlloc(this.manageAlloc).ok;
-      this.makeManageButton(c, 200, 232, 120, 22, ok ? '确认本月分配' : '点数没分完', () => this.commitAllocation(), ok);
+      this.makeManageButton(c, 200, 232, 120, 22, '', () => this.commitAllocation(), ok);
     }
   }
 
@@ -4021,6 +3891,7 @@ export class LevelScene extends Phaser.Scene {
     if (this.transitioning) return;
 
     this.dialogue?.update(delta);
+    this.updateFloatPos(false);
 
     // 对话与全屏卡片进行时藏起摇杆与按键：它们会压在对话框/史料卡的文字上
     setControlsVisible(

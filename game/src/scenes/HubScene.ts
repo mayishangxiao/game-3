@@ -13,7 +13,7 @@ import { effectiveStats } from '../core/balance';
 import { dungeonUnlocked, getDungeonState } from '../core/dungeon';
 import { emitToast } from '../core/EventBus';
 import type { ActDef, ChapterMeta } from '../core/types';
-import { FONT_UI } from '../gfx/TextStyle';
+import { hideOverlay, showOverlay } from '../systems/DomUi';
 
 interface DoorEntry {
   actId: string;
@@ -31,6 +31,7 @@ export class HubScene extends Phaser.Scene {
   private camX = 0;
   private targetCamX = 0;
   private corridor!: Phaser.GameObjects.Container;
+  private doorLabelEls: HTMLDivElement[] = [];
 
   constructor() {
     super('Hub');
@@ -65,7 +66,7 @@ export class HubScene extends Phaser.Scene {
   }
 
   private buildSky(): void {
-    // 远景随进度变化：序章前六幕灰暗，这里先用统一灰调
+    // 远景随进度变化；本期两幕统一用灰调
     this.add.rectangle(VIEW_W / 2, 150, VIEW_W, 120, PALETTE.plumDark, 1).setDepth(0);
     this.add.rectangle(VIEW_W / 2, 66, VIEW_W, 46, PALETTE.indigo, 0.55).setDepth(0);
     // 星
@@ -77,15 +78,10 @@ export class HubScene extends Phaser.Scene {
   }
 
   private async buildDoors(): Promise<void> {
-    const planned = this.meta.acts_planned ?? [];
-    const all = [
-      ...this.meta.acts.map((a) => ({ id: a, implemented: true })),
-      ...planned.map((a) => ({ id: a, implemented: false })),
-    ];
+    const all = this.meta.acts.map((a) => ({ id: a, implemented: true }));
 
     const acts: (ActDef | null)[] = await Promise.all(
       all.map(async (a) => {
-        if (!a.implemented) return null;
         try {
           return await dataLoader.loadAct(a.id);
         } catch {
@@ -101,11 +97,6 @@ export class HubScene extends Phaser.Scene {
     const ACT_YEARS: Record<string, string> = {
       ch00_act1: '1840',
       ch00_act2: '1851',
-      ch00_act3: '1861',
-      ch00_act4: '1895',
-      ch00_act5: '1911',
-      ch00_act6: '1915',
-      ch00_act7: '1919',
     };
 
     all.forEach((a, i) => {
@@ -114,23 +105,11 @@ export class HubScene extends Phaser.Scene {
       const y = 146;
 
       // 年代石柱
-      const year = ACT_YEARS[a.id] ?? '—';
       this.corridor.add(
         this.add
           .rectangle(x, y + 26, 16, 48, PALETTE.plumMid)
           .setStrokeStyle(1, PALETTE.ink)
           .setOrigin(0.5),
-      );
-      this.corridor.add(
-        this.add
-          .text(x, y + 26, year, {
-            fontFamily: FONT_UI,
-            fontSize: '8px',
-            color: '#C2BCD1',
-            align: 'center',
-          })
-          .setOrigin(0.5)
-          .setAngle(0),
       );
 
       // 节点门
@@ -139,15 +118,8 @@ export class HubScene extends Phaser.Scene {
         .rectangle(0, 0, 22, 34, doorColor)
         .setStrokeStyle(1, a.implemented ? PALETTE.star : PALETTE.ink)
         .setOrigin(0.5);
-      const label = this.add
-        .text(0, -26, act ? `${i + 1}. ${act.name}` : `${i + 1}. 未开放`, {
-          fontFamily: FONT_UI,
-          fontSize: '9px',
-          color: a.implemented ? '#F2EDE4' : '#6B6489',
-        })
-        .setOrigin(0.5);
 
-      const container = this.add.container(x, y, [door, label]);
+      const container = this.add.container(x, y, [door]);
       if (a.implemented) {
         container.setSize(40, 56).setInteractive(
           new Phaser.Geom.Rectangle(-20, -28, 40, 56),
@@ -172,6 +144,20 @@ export class HubScene extends Phaser.Scene {
     );
 
     if (this.doors.length > 0) this.setCursor(0);
+
+    // DOM 门标签（年份 + 章节名），随 corridor 横向滚动每帧更新
+    this.doorLabelEls = [];
+    all.forEach((a, i) => {
+      const act = acts[i];
+      const year = ACT_YEARS[a.id] ?? '—';
+      const el = document.createElement('div');
+      el.style.cssText = `position:absolute;left:0;top:0;transform:translate(-50%,0);text-align:center;font:12px sans-serif;pointer-events:none;`;
+      el.innerHTML = `<div style="color:${a.implemented ? '#F2EDE4' : '#6B6489'};font-size:13px;">${act ? `${i + 1}. ${act.name}` : `${i + 1}. 未开放`}</div><div style="color:#C2BCD1;font-size:11px;margin-top:30px;">${year}</div>`;
+      const ui = document.querySelector('#dom-ui') as HTMLElement;
+      ui.appendChild(el);
+      this.doorLabelEls.push(el);
+    });
+    this.updateDoorLabels();
   }
 
   private buildTopBar(): void {
@@ -179,32 +165,6 @@ export class HubScene extends Phaser.Scene {
     const stats = effectiveStats(s.player.level, s.knowledge.length, s.equipment, dataLoader.getBalance());
 
     this.add.rectangle(VIEW_W / 2, 12, VIEW_W, 24, PALETTE.ink, 0.86).setDepth(DEPTH.hud);
-    this.add
-      .text(8, 12, `${this.meta.name} · ${this.meta.period}`, {
-        fontFamily: FONT_UI,
-        fontSize: '10px',
-        color: '#F2EDE4',
-      })
-      .setOrigin(0, 0.5)
-      .setDepth(DEPTH.hud + 1);
-    this.add
-      .text(
-        VIEW_W - 8,
-        12,
-        `Lv${s.player.level}　HP ${stats.hp}　知识卡 ${s.knowledge.length}`,
-        { fontFamily: FONT_UI, fontSize: '10px', color: '#C2BCD1' },
-      )
-      .setOrigin(1, 0.5)
-      .setDepth(DEPTH.hud + 1);
-
-    this.add
-      .text(8, VIEW_H - 12, '← → 选幕　E 进入', {
-        fontFamily: FONT_UI,
-        fontSize: '9px',
-        color: '#6B6489',
-      })
-      .setOrigin(0, 0.5)
-      .setDepth(DEPTH.hud + 1);
 
     const save = getSave();
 
@@ -228,16 +188,19 @@ export class HubScene extends Phaser.Scene {
         .setStrokeStyle(1, b.enabled ? PALETTE.greyPlum : PALETTE.ink)
         .setDepth(DEPTH.hud + 1)
         .setInteractive({ useHandCursor: true });
-      this.add
-        .text(x, y, b.badge ? `${b.label} ${b.badge}` : b.label, {
-          fontFamily: FONT_UI,
-          fontSize: '9px',
-          color: b.enabled ? '#F2EDE4' : '#6B6489',
-        })
-        .setOrigin(0.5)
-        .setDepth(DEPTH.hud + 2);
       r.on('pointerdown', b.onClick);
     });
+
+    // 顶栏文字走 DOM
+    showOverlay(
+      `<div style="position:absolute;left:8px;top:6px;font-size:13px;color:#F2EDE4;">${this.meta.name} · ${this.meta.period}</div>
+       <div style="position:absolute;right:8px;top:6px;font-size:13px;color:#C2BCD1;text-align:right;">Lv${s.player.level}　HP ${stats.hp}　知识卡 ${s.knowledge.length}</div>
+       <div style="position:absolute;left:8px;top:250px;font-size:12px;color:#6B6489;">← → 选幕　E 进入</div>
+       <div style="position:absolute;left:214px;top:251px;font-size:12px;text-align:center;color:${bar[0].enabled ? '#F2EDE4' : '#6B6489'};width:62px;">图鉴</div>
+       <div style="position:absolute;left:280px;top:251px;font-size:12px;text-align:center;color:${bar[1].enabled ? '#F2EDE4' : '#6B6489'};width:62px;">装备</div>
+       <div style="position:absolute;left:346px;top:251px;font-size:12px;text-align:center;color:${bar[2].enabled ? '#F2EDE4' : '#6B6489'};width:62px;">图谱</div>
+       <div style="position:absolute;left:412px;top:251px;font-size:12px;text-align:center;color:${bar[3].enabled ? '#F2EDE4' : '#6B6489'};width:62px;">测验${bar[3].badge ? ' ✓' : ''}</div>`,
+    );
 
     this.buildDungeonPanel();
   }
@@ -265,20 +228,13 @@ export class HubScene extends Phaser.Scene {
         const rowH = 16;
         const top = 54;
         const bottom = top + (list.length - 1) * rowH + 7;
-        // 面板底板：没有它，白字直接压在长廊地板上，看不清
+        // 面板底板
         this.add
           .rectangle(88, (24 + bottom) / 2, 160, bottom - 24, PALETTE.ink, 0.8)
           .setStrokeStyle(1, PALETTE.greyPlum)
           .setDepth(DEPTH.hud);
-        this.add
-          .text(10, 30, '副本（可重复刷）', {
-            fontFamily: FONT_UI,
-            fontSize: '9px',
-            color: '#948DAB',
-          })
-          .setOrigin(0, 0)
-          .setDepth(DEPTH.hud + 1);
 
+        let rowsHtml = '';
         list.forEach((d, i) => {
           const y = top + i * rowH;
           const unlocked = dungeonUnlocked(save, d);
@@ -289,14 +245,7 @@ export class HubScene extends Phaser.Scene {
             .setDepth(DEPTH.hud + 1)
             .setInteractive({ useHandCursor: true });
           const label = unlocked ? `${d.name}　${st.clears} 次` : `${d.name}（未解锁）`;
-          this.add
-            .text(84, y, label, {
-              fontFamily: FONT_UI,
-              fontSize: '8px',
-              color: unlocked ? '#F2EDE4' : '#6B6489',
-            })
-            .setOrigin(0.5)
-            .setDepth(DEPTH.hud + 2);
+          rowsHtml += `<div style="position:absolute;left:8px;top:${y - 7}px;width:152px;text-align:center;font-size:11px;color:${unlocked ? '#F2EDE4' : '#6B6489'};">${label}</div>`;
           r.on('pointerdown', () => {
             if (!unlocked) {
               emitToast(`通关「觉醒年代」第 ${this.actIndex(d.unlock_act) + 1} 幕后解锁`, 1600);
@@ -309,6 +258,15 @@ export class HubScene extends Phaser.Scene {
             });
           });
         });
+
+        // 追加副本面板文字到 overlay
+        const ui = document.querySelector('#dom-ui #dom-overlay') as HTMLElement;
+        if (ui) {
+          ui.insertAdjacentHTML(
+            'beforeend',
+            `<div style="position:absolute;left:10px;top:28px;font-size:12px;color:#948DAB;">副本（可重复刷）</div>${rowsHtml}`,
+          );
+        }
       })
       .catch(() => {
         /* 副本表缺失时静默：不影响长廊主流程 */
@@ -357,15 +315,28 @@ export class HubScene extends Phaser.Scene {
   private enter(i: number): void {
     const d = this.doors[i];
     if (!d) return;
-    if (!d.implemented) {
-      emitToast('这一幕尚未开放（见设计书第五章）', 1400);
-      return;
-    }
     const s = getSave();
     s.progress.chapter = this.meta.id;
     s.progress.act = d.actId;
     persist();
     this.scene.start('Level', { actId: d.actId, chapterId: this.meta.id, startNode: 0 });
+  }
+
+  private updateDoorLabels(): void {
+    // door label 是 #dom-ui 的直接子元素，用 CSS 像素坐标 = 逻辑坐标 × 画布缩放比
+    const scale = this.game.canvas.clientWidth / VIEW_W;
+    this.doorLabelEls.forEach((el, i) => {
+      const d = this.doors[i];
+      if (!d) return;
+      el.style.left = `${(d.x - this.camX) * scale}px`;
+      el.style.top = `${120 * scale}px`;
+    });
+  }
+
+  shutdown(): void {
+    hideOverlay();
+    this.doorLabelEls.forEach((el) => el.remove());
+    this.doorLabelEls = [];
   }
 
   override update(_time: number, delta: number): void {
@@ -374,5 +345,6 @@ export class HubScene extends Phaser.Scene {
       this.camX = Phaser.Math.Linear(this.camX, this.targetCamX, Math.min(1, delta / 180));
       this.corridor.setX(-this.camX);
     }
+    this.updateDoorLabels();
   }
 }

@@ -9,6 +9,7 @@ import { InputSystem } from '../systems/InputSystem';
 import { EV, bus, getCannonVisible, getControlsVisible, getHudVisible, getSceneLabel, setControlsVisible, type HudPayload, type SceneLabelPayload, type ToastPayload } from '../core/EventBus';
 import { DYNASTY_MAX } from '../core/cannon';
 import { FONT_UI } from '../gfx/TextStyle';
+import { setHudDynasty, setHudLevel, setHudObjective, setHudScene, setHudVisible, setHudWeapon, showToast } from '../systems/DomUi';
 
 const BAR_X = 6;
 const BAR_W = 84;
@@ -218,6 +219,12 @@ export class UIScene extends Phaser.Scene {
     this.pauseText.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.openPause());
 
     this.inputSystem = new InputSystem(this);
+    // 中文文字全部搬到 DOM（DomUi）：canvas 上这些 Text 对象隐藏，只留血条/底槽等色块
+    for (const t of [this.levelText, this.weaponText, this.objectiveText, this.dynastyText, this.defeatTag, this.sceneText, this.yearText, this.detailText]) {
+      t.setVisible(false);
+    }
+    this.toastText.setAlpha(0);
+    this.scenePlate.setVisible(false);
     // LevelScene 会在 launch('UI') 之后立刻进节点并发出 CONTROLS_VISIBLE，
     // 而 UIScene 的 create() 要下一帧才跑 —— 那一条事件会被丢掉。这里按模块级状态补一次。
     this.inputSystem.setShown(getControlsVisible());
@@ -268,6 +275,8 @@ export class UIScene extends Phaser.Scene {
 
     this.levelText.setText(`Lv${p.level}　知识 ${p.knowledgeCount}`);
     this.weaponText.setText(p.weaponName);
+    setHudLevel(`Lv${p.level}  知识 ${p.knowledgeCount}`);
+    setHudWeapon(p.weaponName);
 
     // 虎门重炮冷却：整秒数上按钮，冷却中压暗
     this.inputSystem.setCannonCooldown((p.cannonLeftMs ?? 0) / 1000);
@@ -280,16 +289,18 @@ export class UIScene extends Phaser.Scene {
       if (dyn !== this.dynastyShown) {
         this.dynastyShown = dyn;
         this.dynastyText.setText(`清王朝 ${dyn}`);
+        setHudDynasty(`清王朝 ${dyn}`, this.defeatedNow);
       }
     }
     // 「战败」标记不能走 setHudShown 的统一开关：那个开关收/放 HUD 时会把
     // 所有部件一起点亮，导致没输过也显示「战败」。这里记住状态，收放时按状态给。
     this.defeatedNow = p.defeated === true;
-    this.defeatTag.setVisible(this.hudShown && this.defeatedNow);
+    setHudDynasty(`清王朝 ${p.dynasty ?? 0}`, this.defeatedNow);
   }
 
   private onObjective(text: string): void {
     this.objectiveText.setText(text);
+    setHudObjective(text);
   }
 
   /**
@@ -298,40 +309,23 @@ export class UIScene extends Phaser.Scene {
    */
   private onSceneLabel(p: SceneLabelPayload): void {
     if (!p || !p.title) {
-      this.scenePlate.setVisible(false);
-      this.sceneText.setVisible(false);
-      this.yearText.setVisible(false);
-      this.detailText.setVisible(false);
-      this.objectiveText.setY(38);
+      setHudScene('', '', '');
       return;
     }
     const head = p.act && p.act !== p.title ? `${p.act} · ${p.title}` : p.title;
-    this.sceneText.setText(head).setVisible(true);
     const year = p.year ? `${p.year} 年` : '';
-    this.yearText.setText(year).setVisible(year !== '');
-    // 年份贴在名字右侧，中间留 6px
-    const yx = this.sceneText.x + this.sceneText.width + 6;
-    this.yearText.setX(yx);
-    const right = (year ? yx + this.yearText.width : this.sceneText.x + this.sceneText.width) + 6;
-
-    // 第三行：时间 · 地点 · 敌军数量（有才显示）
     const bits: string[] = [];
     if (p.time) bits.push(p.time);
     if (p.place) bits.push(p.place);
     if (p.enemy) bits.push(p.enemy);
     const detail = bits.join(' · ');
-    this.detailText.setText(detail).setVisible(detail !== '');
-    const width = detail ? Math.max(right, this.detailText.x + this.detailText.width + 6) : right;
-    this.scenePlate.setSize(Math.max(96, width - this.scenePlate.x), detail ? 45 : 33).setVisible(true);
-    // 目标文字贴着战役条底边排（甲方要求：放在左上角事件下面，而不是屏幕正中下方）
-    this.objectiveText.setY(this.scenePlate.y + this.scenePlate.height + 3);
-    // 卡片开着时不许把 HUD 显出来（onSceneLabel 会无条件 setVisible(true)）
+    setHudScene(head, year, detail);
     if (!this.hudShown) this.setHudShown(false);
   }
 
   private onToast(p: ToastPayload): void {
-    this.toastText.setText(p.text).setAlpha(1);
     this.toastTimer = (p.ms ?? 1600) / 1000;
+    showToast(p.text, p.ms ?? 1600);
   }
 
   private onInputEnable(v: boolean): void {
@@ -363,6 +357,7 @@ export class UIScene extends Phaser.Scene {
    */
   private setHudShown(v: boolean): void {
     this.hudShown = v;
+    setHudVisible(v);
     if (!v) {
       // 收 HUD 时顺手把飘字清掉：演出结束后恢复 HUD，残留的旧 toast 会突然冒出来
       this.toastTimer = 0;
@@ -372,20 +367,10 @@ export class UIScene extends Phaser.Scene {
       ...this.hpBars,
       this.hpBack,
       this.expBar,
-      this.levelText,
-      this.weaponText,
-      this.objectiveText,
       this.dynastyFill,
-      this.dynastyText,
-      this.scenePlate,
-      this.sceneText,
-      this.yearText,
-      this.detailText,
       this.hudStrip,
       this.expBack,
       this.dynBack,
-      // 演出/toast 期间也要收：战败演出时「第 N 波敌军来袭」这种飘字会盖在城破大字上
-      this.toastText,
       // 开场卡/战败演出是全屏的，右上角「暂停」也要跟着收，否则会浮在卡片上
       this.pauseBtn,
       this.pauseText,
@@ -395,7 +380,7 @@ export class UIScene extends Phaser.Scene {
       if (vis && typeof vis.setVisible === 'function') vis.setVisible(v);
     }
     // 战败标记只跟「本次是否输过」走，不跟 HUD 开关一起无脑点亮（见 applyHud）
-    this.defeatTag.setVisible(v && this.defeatedNow);
+    // （canvas 上的「战败」小标签已搬到 DOM，这里不再 setVisible）
   }
 
   /* ------------------------------------------------------------------ *

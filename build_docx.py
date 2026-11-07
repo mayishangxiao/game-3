@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-党史像素RPG游戏·完整设计书 —— Markdown -> DOCX 构建脚本
+党史像素RPG游戏·第一章设计书 —— Markdown -> DOCX 构建脚本
 用法: python build_docx.py
 """
 import os, re, sys, io, glob
@@ -8,7 +8,7 @@ import os, re, sys, io, glob
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 from docx import Document
-from docx.shared import Pt, Cm, RGBColor, Emu
+from docx.shared import Pt, Cm, RGBColor, Emu, Twips
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING, WD_BREAK
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.section import WD_SECTION
@@ -17,7 +17,7 @@ from docx.oxml import OxmlElement
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 MD_DIR = os.path.join(BASE, "design")
-OUT = os.path.join(BASE, "党史像素RPG游戏·完整设计书 v2.0.docx")
+OUT = os.path.join(BASE, "党史像素RPG游戏·第一章设计书 v2.1.docx")
 
 # ---------- 配色 ----------
 C_RED = RGBColor(0x8C, 0x1C, 0x1C)
@@ -155,7 +155,7 @@ def build_doc():
     footer = sec.footer
     fp = footer.paragraphs[0]
     fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = fp.add_run("党史像素 RPG 游戏 · 完整设计书 v2.0     —  ")
+    r = fp.add_run("党史像素 RPG 游戏 · 第一章设计书 v2.1     —  ")
     set_font(r, FONT, 8, False, C_MUTED)
     add_field(fp, ' PAGE ')
     r2 = fp.add_run("  —")
@@ -238,11 +238,15 @@ def table(doc, rows, widths=None):
     t = doc.add_table(rows=len(rows), cols=ncol)
     t.style = 'Table Grid'
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
-    t.autofit = True
+    t.autofit = False
     cell_margins(t)
+    # 固定布局：否则 Word/LO 会按内容重算列宽，多列表格会顶出版心
+    tblPr = t._tbl.tblPr
+    layout = OxmlElement('w:tblLayout'); layout.set(qn('w:type'), 'fixed'); tblPr.append(layout)
 
-    # 列宽：按内容长度加权
-    avail = Cm(16.8)
+    # 列宽：按内容长度加权。可用宽度必须扣掉每格左右内边距（80+80 dxa = 160 twips），
+    # 否则 6 列表格光内边距就要吃掉 1.7 cm，右侧一列会被切在版心外。
+    avail = Cm(16.8).twips - ncol * 160
     if widths is None:
         weights = []
         for c in range(ncol):
@@ -251,13 +255,21 @@ def table(doc, rows, widths=None):
                 L = len(re.sub(r'[*`]', '', r[c]))
                 mx = max(mx, min(L, 46))
             weights.append(max(mx, 3) ** 0.85)
-        tot = sum(weights)
-        widths = [int(avail * w / tot) for w in weights]
+    else:
+        weights = list(widths)
+    tot = sum(weights)
+    widths = [max(560, int(avail * w / tot)) for w in weights]
+    # 取整可能留下几 twips 余量，全部补给最宽的一列
+    widths[widths.index(max(widths))] += avail - sum(widths)
+    grid = t._tbl.find(qn('w:tblGrid'))
+    if grid is not None:
+        for gc, w in zip(grid.findall(qn('w:gridCol')), widths):
+            gc.set(qn('w:w'), str(w))
 
     for ri, row in enumerate(rows):
         for ci, val in enumerate(row):
             cell = t.cell(ri, ci)
-            cell.width = widths[ci]
+            cell.width = Twips(widths[ci])
             p = cell.paragraphs[0]
             p.paragraph_format.space_before = Pt(1.5)
             p.paragraph_format.space_after = Pt(1.5)

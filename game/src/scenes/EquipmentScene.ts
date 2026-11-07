@@ -18,6 +18,7 @@ import {
 import { getSave, persist } from './BootScene';
 import type { ItemInstance, Slot } from '../core/types';
 import { FONT_UI } from '../gfx/TextStyle';
+import { hideOverlay } from '../systems/DomUi';
 
 const SLOT_NAMES: { key: Slot; label: string }[] = [
   { key: 'weapon', label: '武器' },
@@ -49,6 +50,7 @@ export class EquipmentScene extends Phaser.Scene {
   }
 
   create(): void {
+    hideOverlay();
     this.cursor = 0;
     this.page = 0;
     this.equipSel = null;

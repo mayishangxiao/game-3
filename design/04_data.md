@@ -1,51 +1,50 @@
-# 第七章 数据表设计
+# 第五章 数据表设计
 
 > **设计原则**：改内容不动代码。新增一章 = 新增几个 JSON 文件 + 贴图，核心代码零改动。所有游戏逻辑由数据驱动，不做硬编码的事件、敌人、对话与掉落。
 
-## 7.1 目录结构与加载流程
+## 5.1 目录结构与加载流程
 
-### 7.1.1 数据目录
+### 5.1.1 数据目录
 
 ```
 /public/data/
-├── index.json              # 章列表、版本号、加载依赖
-├── config.json             # 全局数值平衡配置
+├── index.json                 # 章列表 + 版本号（本期只有 ch00）
+├── config.json                # 全局数值平衡配置
 ├── chapters/
-│   ├── ch00.json           # 章元数据 + 幕引用
-│   ├── ch01.json
-│   └── ...
+│   └── ch00.json              # 章元数据 + 幕引用
 ├── acts/
-│   ├── ch00_act1.json      # 幕定义：事件卡列表、地图、入口
-│   └── ...
+│   ├── ch00_act1.json         # 幕定义：事件卡列表、地图、首通奖励
+│   └── ch00_act2.json
 ├── events/
-│   ├── events_ch00.json    # 事件卡合集（一章一个文件）
-│   └── ...
+│   └── events_ch00.json       # 事件卡合集（本章 11 张，含 1 张隐藏卡）
 ├── nodes/
-│   ├── nodes_ch00.json     # 玩法节点（按原型分类，引用对话/敌人/地图）
-│   └── ...
+│   └── nodes_ch00.json        # 玩法节点（本章 9 个，引用对话/敌人/地图）
 ├── maps/
-│   ├── map_ch00_act1a.json # 瓦片地图元数据
-│   └── ...
+│   ├── map_ch00_act1a.json    # 关卡图 4 张
+│   ├── map_ch00_act1b.json
+│   ├── map_ch00_act2a.json
+│   ├── map_ch00_act2b.json
+│   ├── map_dg01_alley.json    # 副本图 3 张
+│   ├── map_dg02_bandit.json
+│   └── map_dg03_dock.json
 ├── dialogues/
-│   ├── dlg_ch00.json       # 对话树（一章一个文件）
-│   └── ...
+│   └── dlg_ch00.json          # 对话树
 ├── enemies/
-│   ├── enemies_ch00.json   # 敌人表（一章一个文件）
-│   └── ...
+│   └── enemies_ch00.json      # 敌人表（19 种，含 4 Boss）
 ├── equipment/
-│   ├── items_base.json     # 装备模板（全作分量不大，一个文件）
-│   └── drops.json          # 掉落配置表
+│   ├── items_base.json        # 装备模板
+│   └── drops.json             # 掉落配置表
+├── dungeons/
+│   └── dungeons.json          # 副本定义（解锁条件、波次、掉落权重、唯一掉落）
 ├── knowledge/
-│   ├── knowledge_all.json  # 全知识卡（每条 ≤ 800 字，总 < 100 KB）
-│   └── ...
-├── quiz/
-│   ├── quiz_ch00.json      # 章末测验题库
-│   └── ...
-└── achievements/
-    └── achievements.json   # 成就定义
+│   └── knowledge_all.json     # 知识卡（12 张）
+└── quiz/
+    └── quiz_ch00.json         # 章末测验题库（12 题）
 ```
 
-### 7.1.2 加载流程
+> 目录里的文件数量与实测一致（`Get-ChildItem` 可复核）。**没有 `achievements/` 与 `characters/` 目录**——成就系统与角色数值表本期都未实现，`achievements` 只是存档里的一个空数组字段。
+
+### 5.1.2 加载流程
 
 ```
 浏览器打开 → 加载 Phaser3 + 游戏主代码
@@ -53,18 +52,18 @@
   → 加载 config.json（全局数值）
   → 加载 equipment/items_base.json + drops.json
   → 加载 knowledge/knowledge_all.json（轻量，全量预加载）
-  → 检查 localStorage 存档 → 决定从哪章开始
+  → 加载 dungeons/dungeons.json（副本定义，长廊要显示副本入口）
+  → 检查 localStorage 存档 → 决定从哪一章 / 哪一幕继续
   → 进入章节时：
-       加载 chapters/chXX.json
-       加载 events/events_chXX.json
-       加载 enemies/enemies_chXX.json
+       加载 chapters/ch00.json
+       加载 events/events_ch00.json
+       加载 enemies/enemies_ch00.json
        加载知识卡（已在内存）
   → 进入幕时：
-       加载 acts/chXX_actY.json
-       加载 nodes/nodes_chXX.json（本幕相关只）
-       加载 maps/map_chXX_actY_*.json
-       加载 dialogues/dlg_chXX.json（本幕相关只）
-       异步加载本幕图集与音频
+       加载 acts/ch00_actY.json
+       加载 nodes/nodes_ch00.json（只取本幕相关）
+       加载 maps/map_ch00_actY_*.json
+       加载 dialogues/dlg_ch00.json（只取本幕相关）
   → 幕通关后：卸载前幕非共享资源，进入下一幕
 ```
 
@@ -73,11 +72,11 @@
 - 不在一个 `nodes` 文件里写全章所有节点——按幕拆分写入、按需提取。
 - `knowledge_all.json` 是例外：它只有 100+ 条，每条 300—600 字，总量 < 80 KB，加载一次后常驻内存。
 
-## 7.2 JSON Schema 全集
+## 5.2 JSON Schema 全集
 
 以下所有字段表即为实际 JSON 的字段。**`type` 列标注 JavaScript 类型；`"?"` 后缀表示可选。**
 
-### 7.2.1 `index.json` —— 全局索引
+### 5.2.1 `index.json` —— 全局索引
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -90,29 +89,30 @@
 | --- | --- | --- |
 | `id` | `string` | 章 ID，例 `"ch00"` |
 | `name` | `string` | 章名，例 `"觉醒年代"` |
-| `period` | `string` | 时间范围，例 `"1840—1921"` |
+| `period` | `string` | 时间范围，例 `"1840—1864"` |
 | `acts` | `string[]` | 幕 ID 列表，例 `["ch00_act1","ch00_act2"]` |
-| `bonus_acts` | `string[]?` | 章内补充节点 ID |
 | `quiz_id` | `string` | 章末测验 ID |
 | `level_range` | `[number,number]` | 推荐等级区间 |
-| `unlock` | `string` | 解锁条件，`"chXX_complete"` 或 `"chXX_quiz_pass"` |
+| `unlock` | `string` | 解锁条件，`"start"` 或 `"chXX_complete"` / `"chXX_quiz_pass"` |
 
-### 7.2.2 `chapters/chXX.json` —— 章定义
+> **`acts` 只列已实现的幕。** 旧版还有一个 `acts_planned` 字段，用来在长廊上显示"未来会有哪些幕"——本期两幕全部做完，这个字段已从数据与代码里删除（`HubScene` 不再读取它）。
+
+### 5.2.2 `chapters/chXX.json` —— 章定义
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `string` | 同 index |
 | `name` | `string` | |
-| `subtitle` | `string` | 章副标题（载入画面显示），例 `"开天辟地"` |
-| `time_text` | `string` | 时期描述，例 `"1921.7 — 1923.2"` |
-| `protagonist_chain` | `string[]` | 化身链 ID，按幕序，例 `["av_wang_huiwu","av_li_da"]` |
-| `hub_map` | `string?` | 章节地图 ID（序章是时间轴长廊，第一章无→ `null`） |
+| `subtitle` | `string` | 章副标题（载入画面显示），例 `"旧中国试过的两条路"` |
+| `time_text` | `string` | 时期描述，例 `"1840.6 — 1864.7"` |
+| `protagonist_chain` | `string[]` | 化身链 ID，按幕序，例 `["av_guan_tianpei","av_lixiucheng"]` |
+| `hub_map` | `string?` | 章节地图 ID（序章是时间轴长廊） |
 | `corridor_bgm` | `string` | 章节地图 BGM |
 | `new_weapon` | `string?` | 本章解锁的新武器 ID |
 | `new_skill` | `string?` | 本章解锁的新技能 ID |
 | `completion_weight` | `object` | 完成度权重 `{events:.4,knowledge:.3,quiz:.2,hidden:.1}` |
 
-### 7.2.3 `acts/chXX_actY.json` —— 幕定义
+### 5.2.3 `acts/chXX_actY.json` —— 幕定义
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -122,7 +122,7 @@
 | `name` | `string` | 幕名，例 `"鸦片战争"` |
 | `avatar` | `string` | 本幕化身 ID |
 | `events` | `string[]` | 事件卡 ID 列表 |
-| `primary_archetype` | `string` | 主原型，例 `"C"` |
+| `primary_archetype` | `string` | 主原型，例 `"F"`（第一幕）/ `"G"`（第二幕） |
 | `secondary_archetypes` | `string[]` | 辅原型 |
 | `map_refs` | `string[]` | 本幕使用的地图 ID |
 | `bgm` | `string` | BGM ID |
@@ -130,7 +130,7 @@
 | `exp_base` | `number` | 基础经验值（通关后） |
 | `nodes` | `string[]` | 节点的加载引用（ID 列表，实际数据在 nodes 文件） |
 
-### 7.2.4 `events/events_chXX.json` —— 事件卡
+### 5.2.4 `events/events_chXX.json` —— 事件卡
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -149,20 +149,20 @@
 | `unlock_condition` | `string?` | 解锁条件描述，隐藏卡必填 |
 | `five_element_check` | `string[]` | 五要素校验占位（校对时人工填写 `"OK"` 五条） |
 
-### 7.2.5 `nodes/nodes_chXX.json` —— 玩法节点
+### 5.2.5 `nodes/nodes_chXX.json` —— 玩法节点
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `string` | 节点 ID，例 `"nd_1839_humen_dialog"` |
 | `event_id` | `string` | 所属事件卡 |
 | `archetype` | `string` | 原型 |
-| `type` | `string` | 具体玩法类型：`"dialog"` / `"combat"` / `"assembly"` / `"choice"` / `"management"` / `"rhythm"` / `"sort"` / `"puzzle"` / `"stealth"` / `"cutscene"` |
+| `type` | `string` | 具体玩法类型。**本期只实现 5 种**：`"dialog"`（对话/过场）/ `"combat"`（战斗）/ `"choice"`（抉择）/ `"management"`（经营分配）/ `"cutscene"`（纯展示）。设计稿里还有 `"assembly"` / `"rhythm"` / `"sort"` / `"puzzle"` / `"stealth"` / `"explore"` 等类型，属于未实现的原型，代码里没有对应分支 |
 | `params` | `object` | 详见下表（按 type） |
 | `dialogue_ref` | `string?` | 对话树引用 |
 | `enemy_ref` | `string?` | 敌人配置引用（combat 专用） |
 | `map_ref` | `string?` | 地图引用 |
 
-### 7.2.6 `maps/map_*.json` —— 瓦片地图
+### 5.2.6 `maps/map_*.json` —— 瓦片地图
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -180,7 +180,7 @@
 | `data` | `number[][]` | 瓦片网格，数值为 tileset 中的格号 |
 | `collidable` | `boolean` | 该层是否可碰撞 |
 
-### 7.2.7 `dialogues/dlg_chXX.json` —— 对话
+### 5.2.7 `dialogues/dlg_chXX.json` —— 对话
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -198,7 +198,7 @@
 | `next` | `string?` | 下一条 ID，省略则顺延 |
 | `branch` | `object?` | 分支 `{"prompt":"…","options":[{"label":"…","next":"dlg_…"},…]}` |
 
-### 7.2.8 `enemies/enemies_chXX.json` —— 敌人定义
+### 5.2.8 `enemies/enemies_chXX.json` —— 敌人定义
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -209,7 +209,7 @@
 | `atk_base` | `number` | 基准 ATK |
 | `def_base` | `number` | 基准 DEF |
 | `spd` | `number` | 移速乘数（0.4—2.2） |
-| `ai_params` | `object` | 见 6.1.6 的参数表 |
+| `ai_params` | `object` | 见 4.1.6 的参数表 |
 | `frames` | `number` | 动画帧数 |
 | `atlas` | `string` | 图集引用 |
 | `boss_phases` | `array?` | Boss 专属 |
@@ -223,7 +223,7 @@
 | `adds` | `string?` | 召唤的敌人 ID |
 | `weakpoint` | `boolean` | 是否暴露弱点 |
 
-### 7.2.9 `equipment/items_base.json` —— 装备模板
+### 5.2.9 `equipment/items_base.json` —— 装备模板
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -237,18 +237,23 @@
 | `source` | `string` | 获取方式 `"drop"/"quest"/"first_clear"` |
 | `flavor` | `string` | 一行风味文字，例 `"道光二十年造，曾守虎门三昼夜。"` |
 
-### 7.2.10 `equipment/drops.json` —— 掉落配置
+### 5.2.10 `equipment/drops.json` —— 掉落配置
+
+顶层三个字段：`rules`（按敌人分级的掉落规则）、`level_coeff`（属性随关卡等级的放大倍数，本期 1.0）、`pity`（保底）。
+
+`rules[i]`：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `source_type` | `string` | `"mob"/"standard"/"ranged"/"elite"/"boss"` |
-| `drop_chance` | `number` | 掉落概率（0—1） |
-| `slot_weights` | `object` | 五槽位权重，例 `{"weapon":20,"head":20,…}` |
-| `quality_weights` | `object` | 品质权重，例 `{"white":72,"blue":23,"purple":5}` |
-| `level_coeff` | `number` | 关卡等级系数应用于属性的倍数 |
-| `pity` | `object` | 保底 `{"threshold":5,"boost":25}` |
+| `source_type` | `string` | `"mob"` / `"standard"` / `"ranged"` / `"elite"` / `"boss"` |
+| `drop_chance` | `number` | 掉落概率（0—1）。杂兵三类 0.08，精英与 Boss 1.0 |
+| `slot_weights` | `object` | 五槽位权重。杂兵均分 20/20/20/20/20；精英与 Boss 24/19/19/19/19 |
+| `quality_weights` | `object` | 品质权重。杂兵 `{"white":72,"blue":23,"purple":5}`；精英 35/45/20；Boss 15/50/35 |
+| `pity` | `object` | 保底 `{"threshold":5,"boost":25}`：连续 5 次不出紫，则把白装权重挪 25 点到紫装（见 `core/dungeon.ts` 的 `PITY_BOOST`） |
 
-### 7.2.11 `knowledge/knowledge_all.json` —— 知识卡
+> 副本的掉落不走 `drops.json`，而是写在 `dungeons/dungeons.json` 每个副本自己的 `quality_weights` 与 `unique_drop` 上——副本要固定风格、固定唯一掉落，不能用通用规则。
+
+### 5.2.11 `knowledge/knowledge_all.json` —— 知识卡
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -263,7 +268,7 @@
 | `hidden` | `boolean` | 是否为隐藏卡 |
 | `unlock_hint` | `string?` | 解锁提示，中文一句话 |
 
-### 7.2.12 `quiz/quiz_chXX.json` —— 章末测验
+### 5.2.12 `quiz/quiz_chXX.json` —— 章末测验
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -282,24 +287,32 @@
 | `explanation` | `string` | 无论对错都显示的简短解释 |
 | `knowledge_ref` | `string` | 对应知识卡 ID |
 
-### 7.2.13 `config.json` —— 全局平衡配置
+### 5.2.13 `config.json` —— 全局平衡配置
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `exp_curve` | `object` | 经验曲线 `{base:300,slope:60}`（公式见 6.4.2） |
+| `exp_curve` | `object` | 经验曲线 `{base:300,slope:60}`（公式见 4.4.2） |
 | `hp_formula` | `object` | HP `{base:100,per_level:18}` |
 | `atk_formula` | `object` | ATK `{base:10,per_level:2.2}` |
 | `def_formula` | `object` | DEF `{base:4,per_level:1.2}` |
 | `damage` | `object` | 伤害 `{random_min:0.95,random_max:1.05,def_factor:0.5,boss_weakpoint_mult:2.5,level_suppress_threshold:5,level_suppress_def_factor:0.7}` |
-| `dodge` | `object` | 闪避 `{invincible_ms:180,cooldown_ms:1200,distance_px:200}` |
-| `combat_feedback` | `object` | 打击感 `{flash_ms:60,knockback_melee:18,knockback_ranged:8,screenshake_amp:2,…}` |
-| `knowledge` | `object` | 知识 `{bonus_per_10:2,bonus_cap:20}` |
-| `drop` | `object` | 掉落 `{pitty_threshold:5,pitty_boost:25}` |
-| `ui` | `object` | UI `{dialog_speed:40,text_chars_per_line:18,max_lines:3}` |
+| `player_damage_mult` | `number` | 玩家伤害总倍率，当前 `0.5`（见 4.1.3 的说明） |
+| `dodge` | `object` | 闪避 `{invincible_ms:180,cooldown_ms:1200,distance_px:64}` |
+| `level_coeff` | `object` | 敌人随关卡等级的系数 `{base:1.0,per_level:0.085}`（见 4.4.3） |
+| `weapons` | `object` | 武器数值表，键为 `wp_dao` / `wp_bow` / `wp_matchlock` / `wp_mg`（本期只用前两把，见 4.2.1） |
+| `enemy_tiers` | `object` | 五档敌人模板 `mob/standard/ranged/elite/boss` |
+| `affixes` | `array` | 10 条装备词条 `{id,name,min,max,weight}` |
+| `quality_multiplier` | `object` | 品质倍率 `{white:1.0,blue:1.15,purple:1.32}` |
+| `knowledge` | `object` | 知识加成 `{bonus_per_10:2,bonus_cap:20}` |
+| `combat_feedback` | `object` | 打击感 `{flash_ms:60,knockback_melee:18,knockback_ranged:8,screenshake_amp:2}` |
+| `ui` | `object` | UI `{dialog_speed:40,text_chars_per_line:18,max_lines:3,portraits:{…}}` |
+| `skills` | `object` | 技能表，本期只有 `humen_cannon`（虎门重炮，虎门炮台场景专用，见 4.1.7） |
 
-## 7.3 示例数据（节选）
+> 掉落保底不在这里：它在 `equipment/drops.json` 的 `pity` 与 `dungeons/dungeons.json` 里。旧稿曾把这个表里的 `dodge.distance_px` 写成 200，实际值是 64（= 4 格 × 16 px）。
 
-### 7.3.1 事件卡：`ev_1839_humen`
+## 5.3 示例数据（节选）
+
+### 5.3.1 事件卡：`ev_1839_humen`
 
 ```json
 {
@@ -323,7 +336,7 @@
 }
 ```
 
-### 7.3.2 敌人：`en_uk_infantry`
+### 5.3.2 敌人：`en_uk_infantry`
 
 ```json
 {
@@ -344,7 +357,7 @@
 }
 ```
 
-### 7.3.3 装备模板：`eq_wp_dao_white_01`
+### 5.3.3 装备模板：`eq_wp_dao_white_01`
 
 ```json
 {
@@ -358,7 +371,7 @@
 }
 ```
 
-### 7.3.4 知识卡：`kc_1839_humen`
+### 5.3.4 知识卡：`kc_1839_humen`
 
 ```json
 {
@@ -382,7 +395,7 @@
 }
 ```
 
-### 7.3.5 章末测验题：`qz_ch00_q01`
+### 5.3.5 章末测验题：`qz_ch00_q01`
 
 ```json
 {
@@ -399,78 +412,55 @@
 }
 ```
 
-## 7.4 数值参考表
+## 5.4 数值参考表
 
 以下为游戏运行时从 `config.json` 派生的全部数值。**本文档即验收基准**；若游戏内数值与下表不符，以游戏代码中的 `config.json` 为准。
 
-### 7.4.1 经验曲线
+### 5.4.1 经验曲线
 
 | 等级 | 升到下一级需求 | 等级 | 升到下一级需求 |
 | --- | --- | --- | --- |
-| 1 | 300 | 28 | 1920 |
-| 2 | 360 | 29 | 1980 |
-| 3 | 420 | 30 | 2040 |
-| 4 | 480 | 31 | 2100 |
-| 5 | 540 | 32 | 2160 |
-| 6 | 600 | 33 | 2220 |
-| 7 | 660 | 34 | 2280 |
-| 8 | 720 | 35 | 2340 |
-| 9 | 780 | 36 | 2400 |
-| 10 | 840 | 37 | 2460 |
-| 11 | 900 | 38 | 2520 |
-| 12 | 960 | 39 | 2580 |
-| 13 | 1020 | 40 | 2640 |
-| 14 | 1080 | 41 | 2700 |
-| 15 | 1140 | 42 | 2760 |
-| 16 | 1200 | 43 | 2820 |
-| 17 | 1260 | 44 | 2880 |
-| 18 | 1320 | 45 | 2940 |
-| 19 | 1380 | 46 | 3000 |
-| 20 | 1440 | 47 | 3060 |
-| 21 | 1500 | 48 | 3120 |
-| 22 | 1560 | 49 | 3180 |
-| 23 | 1620 | 50 | 3240 |
-| 24 | 1680 | 51 | 3300 |
-| 25 | 1740 | 52 | 3360 |
-| 26 | 1800 | 53 | 3420 |
-| 27 | 1860 | 54 | 3480 |
+| 1 | 300 | 6 | 600 |
+| 2 | 360 | 7 | 660 |
+| 3 | 420 | 8 | 720 |
+| 4 | 480 | 9 | 780 |
+| 5 | 540 | — | — |
 
-### 7.4.2 玩家属性与等级
+`需求(L→L+1) = 300 + 60 × (L − 1)`。**本期只到 Lv8**，上表列到 Lv9 是为了让"升满"之后还能看见下一级需求（超过 Lv8 的等级本期不可达）。
 
-| Lv | HP | ATK | DEF | Lv | HP | ATK | DEF |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 100 | 10 | 4 | 28 | 586 | 69 | 36 |
-| 5 | 172 | 19 | 9 | 32 | 658 | 78 | 41 |
-| 8 | 226 | 25 | 12 | 37 | 748 | 89 | 47 |
-| 12 | 298 | 34 | 17 | 42 | 838 | 100 | 53 |
-| 17 | 388 | 45 | 23 | 45 | 892 | 107 | 57 |
-| 22 | 478 | 56 | 29 | 50 | 982 | 118 | 63 |
-| 27 | 568 | 67 | 35 | 54 | 1054 | 127 | 68 |
+### 5.4.2 玩家属性与等级
 
-### 7.4.3 关卡等级系数
+| Lv | HP | ATK | DEF |
+| --- | --- | --- | --- |
+| 1 | 100 | 10 | 4 |
+| 5 | 172 | 19 | 9 |
+| 8 | 226 | 25 | 12 |
+
+`HP = 100 + 18(L−1)`、`ATK = round(10 + 2.2(L−1))`、`DEF = round(4 + 1.2(L−1))`。本期只用这三档；公式对任意等级成立。
+
+### 5.4.3 关卡等级系数
 
 | 关卡推荐等级 L | 系数 | 关卡推荐等级 L | 系数 |
 | --- | --- | --- | --- |
-| 1 | 1.00 | 25 | 3.04 |
-| 5 | 1.34 | 30 | 3.47 |
-| 8 | 1.60 | 35 | 3.89 |
-| 12 | 1.94 | 40 | 4.32 |
-| 17 | 2.36 | 45 | 4.74 |
-| 22 | 2.79 | 50 | 5.17 |
+| 1 | 1.00 | 6 | 1.43 |
+| 3 | 1.17 | 8 | 1.60 |
+| 5 | 1.34 | — | — |
 
 `系数 = 1.00 + 0.085 × (L − 1)`
 
-### 7.4.4 掉落权重表
+### 5.4.4 掉落权重表
 
-| 来源 | 白 | 蓝 | 紫 | 掉落率 | 每紫保底 |
+| 来源 | 白 | 蓝 | 紫 | 掉落率 | 保底 |
 | --- | --- | --- | --- | --- | --- |
-| 普通敌人 | 72% | 23% | 5% | 8% | 无 |
+| 普通敌人（mob / standard / ranged） | 72% | 23% | 5% | 8% | 无 |
 | 精英敌人 | 35% | 45% | 20% | 100% | 无 |
-| Boss | 15% | 50% | 35% | 100%（2 件） | 无 |
-| 副本（首次） | 30% | 45% | 25% | — | 6 次不出紫→ +25% |
-| 副本（重复） | 40% | 42% | 18% | — | 同上 |
+| Boss | 15% | 50% | 35% | 100% | 无 |
+| 副本 · 租界暗巷（dg01） | 45% | 40% | 15% | 通关必出 1 件 | 5 次不出紫 → 白装权重挪 25 点到紫 |
+| 副本 · 匪寨 / 码头（dg02、dg03） | 40% | 42% | 18% | 通关必出 1 件 | 同上 |
 
-### 7.4.5 词条池与权重
+> 表中副本数字直接来自 `dungeons/dungeons.json` 的 `quality_weights`；前四行来自 `equipment/drops.json` 的 `rules`。旧稿把副本首通写成 30/45/25，与数据不符，已按实测值更正。
+
+### 5.4.5 词条池与权重
 
 | # | 词条 | 区间 | 权重 |
 | --- | --- | --- | --- |

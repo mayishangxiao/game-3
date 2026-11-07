@@ -357,7 +357,36 @@
     </style>
   </head>
   <body>
-    <div id="game-root"></div>
+    <div id="game-root">
+      <!-- DOM 游戏内文字层：跟 #game-root 一起旋转，框定画布实际位置（由 DomUi 同步）。
+           canvas 后缓冲只有 480×270，手机高 dpr 下中文被拉糊；关键文字放这里由浏览器渲染，清晰。 -->
+      <div id="dom-ui" style="position:absolute;left:0;top:0;pointer-events:none;z-index:50;">
+        <div id="dom-title" style="display:none;position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;text-align:center;">
+          <div style="position:absolute;left:0;top:24%;width:100%;color:#F2EDE4;font:bold 38px 'PingFang SC','Microsoft YaHei',sans-serif;">党史像素 RPG</div>
+          <div style="position:absolute;left:0;top:35%;width:100%;color:#C2BCD1;font:16px 'PingFang SC','Microsoft YaHei',sans-serif;">序 章 · 觉 醒 年 代  1840 — 1921</div>
+          <div style="position:absolute;left:0;top:43%;width:100%;color:#948DAB;font:13px 'PingFang SC','Microsoft YaHei',sans-serif;">你扮演历史中的人，亲手把每一件大事「做」一遍</div>
+          <div id="dom-title-hint" style="position:absolute;left:0;bottom:3%;width:100%;color:#6B6489;font:12px sans-serif;">WASD / 方向键移动　J 攻击　K 技能　L 闪避　E 交互</div>
+        </div>
+        <div id="dom-dialogue" style="display:none;position:absolute;left:0.8%;top:59.2%;width:98.4%;height:33.4%;background:rgba(13,11,20,.94);border:1px solid #6B6489;border-radius:2px;box-sizing:border-box;padding:6px 10px;pointer-events:auto;">
+          <div id="dom-dlg-name" style="color:#F0C419;font:600 16px 'PingFang SC','Microsoft YaHei',sans-serif;margin-bottom:3px;"></div>
+          <div id="dom-dlg-body" style="color:#F2EDE4;font:16px/1.6 'PingFang SC','Microsoft YaHei',sans-serif;white-space:pre-wrap;"></div>
+          <div id="dom-dlg-hint" style="position:absolute;right:8px;bottom:4px;color:#948DAB;font:13px sans-serif;">▼ 继续</div>
+        </div>
+        <div id="dom-hud" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;">
+          <div id="dom-hud-panel" style="position:absolute;left:0;top:0;display:none;background:rgba(13,11,20,.55);padding:2px 6px;max-width:62%;">
+            <div id="dom-hud-dynasty" style="color:#F0C419;font:12px/1.3 sans-serif;display:none;"></div>
+            <div id="dom-hud-scene" style="color:#F2EDE4;font:12px/1.5 sans-serif;"></div>
+            <div id="dom-hud-detail" style="color:#C2BCD1;font:12px/1.4 sans-serif;"></div>
+          </div>
+          <div id="dom-hud-objective" style="position:absolute;left:4px;top:42%;background:rgba(13,11,20,.9);color:#F0C419;font:13px/1.4 sans-serif;padding:2px 6px;display:none;max-width:72%;"></div>
+          <div id="dom-hud-level" style="position:absolute;left:20%;bottom:3px;color:#C2BCD1;font:13px/1 sans-serif;display:none;"></div>
+          <div id="dom-hud-weapon" style="position:absolute;right:6px;bottom:3px;color:#F2EDE4;font:13px/1 sans-serif;display:none;"></div>
+          <div id="dom-toast" style="position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);background:rgba(13,11,20,.9);color:#F2EDE4;font:18px/1.4 sans-serif;padding:3px 8px;display:none;white-space:nowrap;"></div>
+          <div id="dom-float" style="display:none;position:absolute;background:#241F35;color:#FFE08A;font:12px sans-serif;padding:2px 6px;transform:translate(-50%,-100%);white-space:nowrap;"></div>
+          <div id="dom-overlay" style="display:none;position:absolute;left:0;top:0;width:100%;height:100%;color:#F2EDE4;font:13px/1.4 sans-serif;pointer-events:none;overflow:hidden;"></div>
+        </div>
+      </div>
+    </div>
 
     <div id="boot-hint">正 在 唤 醒 一 八 四 〇 年</div>
 

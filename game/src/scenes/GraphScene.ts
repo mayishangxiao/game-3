@@ -21,6 +21,7 @@ import { getSave, persist } from './BootScene';
 import { emitToast } from '../core/EventBus';
 import type { EventCard } from '../core/types';
 import { FONT_UI } from '../gfx/TextStyle';
+import { hideOverlay } from '../systems/DomUi';
 
 interface NodeView {
   id: string;
@@ -51,6 +52,7 @@ export class GraphScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(PALETTE.ink);
+    hideOverlay();
     void this.boot();
   }
 

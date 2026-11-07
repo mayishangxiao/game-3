@@ -16,8 +16,8 @@ main.ts
        └─ core/         ← 数据、数值、存档、纯玩法逻辑
 ```
 
-**硬性约束：`core/` 里的 `balance / constants / DataLoader / dungeon / graph / management / quiz / SaveManager / types` 不 import Phaser。**
-这条线是单元测试能跑在 node 环境的前提（`vitest.config.ts` 里 `environment: 'node'`）。往这些文件里加 `import Phaser` 会让 7 个测试文件全部炸掉。
+**硬性约束：`core/` 里的 15 个模块（balance / cannon / constants / DataLoader / defeat / dungeon / EventBus / graph / management / orientation / quiz / SaveManager / space / types / waveUpgrade）不 import Phaser。**
+这条线是单元测试能跑在 node 环境的前提（`vitest.config.ts` 里 `environment: 'node'`）。往这些文件里加 `import Phaser` 会让 14 个测试文件全部炸掉。
 需要渲染的东西一律往 `scenes/` 或 `gfx/` 放。
 
 ## core/ —— 纯逻辑层（可单元测试）
@@ -25,8 +25,8 @@ main.ts
 | 文件 | 行数 | 职责 | 主要导出 | 改动波及 |
 | --- | --- | --- | --- | --- |
 | `core/constants.ts` | 282 | 全局常量：内部分辨率 480×270、瓦片 16、角色 24×32、24 色锁定调色板、`darkerOf/lighterOf`、`DEPTH`、`SAVE_KEY`、`DATA_ROOT`、`CONTROL_LAYOUT`/`CONTROL_HIT_PAD`（虚拟按键圆心与半径）、`ART`/`SHIP_TEX`/`TEX_CRATE`/`SHIP_FRAME`/`BG_TEX`/`SCAR_TEX`/`UNIT_ART`/`unitArtOf`/`HORIZON_ROWS`（正式美术路径、纹理 key、兵种→贴图映射）、`FX_TEX`/`FX_CANNON_FRAMES`/`FX_FRAME_MS`（炮火特效帧数与每帧时长） | 常量 + 两个配色函数 | 全部文件。改 `VIEW_W/H` 要同步 `FIELD_COLS/ROWS` 与 UIScene 布局；改 `SAVE_KEY` 等于清档；改 `CONTROL_LAYOUT` 要跑 `tests/data.test.ts` + `tests/art.test.ts`（后者断言 8 个鸦片箱不在按钮命中圈内，曾被玩家反馈「第八个鸦片找不到」）；改 `ART` 里的路径要跑 `tests/art.test.ts`（会真的读 PNG 头校验尺寸，含炮火特效的 48 帧 × 96×96） |
-| `core/types.ts` | 466 | 与设计书 7.2 节 JSON Schema 一一对应的接口定义 | 全部接口 | 编译器会把影响面直接指出来，改字段名很安全。`NodeDef.title` / `NodeDef.year` 只服务左上角战役条（数据里有则不写代码也能改显示名） |
-| `core/balance.ts` | 335 | 数值公式：等级属性、经验曲线、伤害（减法防御 + 暴击 + 弱点 ×2.5 + 等级压制）、掉落品质、词条、强化/拆解价值、`effectiveStats` | `levelStats` `expToNext` `applyExp` `computeDamage` `rollQuality` `makeItemInstance` `enhanceCost` `salvageValue` `knowledgeBonus` `aggregateEquipment` `effectiveStats` | `tests/balance.test.ts` 用设计书表格断言。改数值必须同步设计书 6.4 / 6.6 表格，否则测试红 |
+| `core/types.ts` | 466 | 与设计书 5.2 节 JSON Schema 一一对应的接口定义 | 全部接口 | 编译器会把影响面直接指出来，改字段名很安全。`NodeDef.title` / `NodeDef.year` 只服务左上角战役条（数据里有则不写代码也能改显示名）。`ChapterMeta` 里**没有 `acts_planned`**——本期只有 ch00 两幕，别再把它加回来 |
+| `core/balance.ts` | 335 | 数值公式：等级属性、经验曲线、伤害（减法防御 + 暴击 + 弱点 ×2.5 + 等级压制）、掉落品质、词条、强化/拆解价值、`effectiveStats` | `levelStats` `expToNext` `applyExp` `computeDamage` `rollQuality` `makeItemInstance` `enhanceCost` `salvageValue` `knowledgeBonus` `aggregateEquipment` `effectiveStats` | `tests/balance.test.ts` 用设计书表格断言。改数值必须同步设计书 4.4 / 4.3 表格，否则测试红 |
 | `core/SaveManager.ts` | 230 | localStorage 存档 + 版本迁移（缺字段用默认值补齐，绝不清档）、背包/装备/知识/成就写入、章节完成度 | `createDefaultSave` `migrate` `SaveManager` `equipItem` `addToBag` `markNodeDone` `addKnowledge` `unlockWeapon` `chapterCompletion` | 改 `SaveData` 结构必须同时改 `migrate()` 和 `tests/save.test.ts`，否则老玩家存档会缺字段 |
 | `core/DataLoader.ts` | 164 | 从 `public/data/` 读 JSON（带缓存）：index / config / 装备 / 掉落 / 知识 / 章节包 / 地图 / 幕 / 副本 | `dataLoader` `DataLoader` `ChapterBundle` `clearDataCache` | 改了 JSON 目录结构或文件名要同步这里 |
 | `core/EventBus.ts` | 127 | 跨场景事件总线（HUD、toast、目标、输入开关、操控显隐、HUD 整块显隐、左上角战役条） | `bus` `EV` `emitHud` `emitToast` `emitObjective` `emitSceneLabel` `getSceneLabel` `setInputEnabled` `setControlsVisible` `getControlsVisible` `setHudVisible` `getHudVisible` | 加事件先在这里加常量；订阅方要处理场景重启（旧 scene 的回调会打到已销毁对象）。**`CONTROLS_VISIBLE` / `HUD_VISIBLE` / `SCENE_LABEL` 都存了模块级状态**：LevelScene 比 UIScene 先发，事件会丢，UIScene 建好时必须用 `get*()` 补读一次 |
@@ -72,7 +72,8 @@ main.ts
 | `core/defeat.ts` | 90 | 战败演出时间轴：`DEFEAT_BEATS`（freeze/pullback/fleet/boom/text/hold/reveal 各自毫秒数）、`defeatTimeline()`、`beatAt(ms)`、`beatStart(name)`、`DEFEAT_TEXT`（大字文案与副标题）| 纯逻辑，可单测；改节奏只改这张表，演出实现（`DefeatCinematic`）按它排程 |
 | `systems/AudioKit.ts` | 130 | 无素材音效：WebAudio 现场合成炮响 / 爆炸 / 闷响 / 心跳；`AudioKit.play(name)` 惰性创建 AudioContext，`mute()` / `resume()` | 手机浏览器要求先有用户手势（点引导层即可）；没有 mp3 也出声是刻意的，换真素材改 `SYNTH` 表 |
 | `systems/DefeatCinematic.ts` | 260 | 「城破」演出：冻结世界 → 镜头拉远 → 舰队剪影推进 → 炮火余响 → 大字放大 + 画面抖动 → 停留 → 移交；`play(opts)`，结束时自己还原镜头与 HUD | 演出期间必须 `setHudVisible(false)` + `setControlsVisible(false)`；重进关卡要 `destroyAll()`，否则镜头停在拉远状态；E2E 用 `lvl.breachCinema` 判断是否在演 |
-| systems/DialogueBox.ts | 231 | 底部对话框 + 打字机（≤3 行 ×18 字），E/点击推进；说话人立绘（config.json → ui.portraits，首次出现时按需 load.image） | 打字机计时用 performance.now()，**不能用 scene.time.now**（会被暂停/缩放影响）；立绘必须 container.addAt(img, 2)——插在 1 会被占位框盖住；**对话期间摇杆与按键要隐藏**（LevelScene.updateWorld 每帧 setControlsVisible(!dialogue.isActive && …)），否则摇杆正压在立绘上 |
+| systems/DialogueBox.ts | 220 | 底部对话框 + 打字机（≤3 行 ×18 字），E/点击推进；说话人立绘（config.json → ui.portraits，首次出现时按需 load.image）。**中文文字已搬到 DOM 层（DomUi）**，canvas 上只留立绘画框 | 打字机计时用 performance.now()，**不能用 scene.time.now**（会被暂停/缩放影响）；立绘必须 container.addAt(img, 2)——插在 1 会被占位框盖住；**对话期间摇杆与按键要隐藏**（LevelScene.updateWorld 每帧 setControlsVisible(!dialogue.isActive && …)），否则摇杆正压在立绘上 |
+| systems/DomUi.ts | 90 | 游戏内 DOM 文字层桥接：把对话框/HUD 中文从 480×270 canvas 搬到 HTML 层（手机高 dpr 下 canvas 中文被拉糊），挂在 #game-root 里随 CSS 旋转一起转，`syncDomUiToCanvas()` 每 400ms 对齐画布实际盒 | 百分比定位按 480×270 逻辑坐标系；文字显隐/内容都走这里的函数，不要再在 canvas 上 add.text |
 
 ## vendor/ —— 运行时适配层
 

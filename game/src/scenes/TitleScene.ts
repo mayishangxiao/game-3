@@ -10,6 +10,7 @@ import { getSave, persist, reloadSave, saveManager } from './BootScene';
 import { emitToast } from '../core/EventBus';
 import type { SaveData } from '../core/types';
 import { FONT_UI } from '../gfx/TextStyle';
+import { hideTitle, setTitleHint, showTitle } from '../systems/DomUi';
 
 /**
  * 存档里有没有「真实的进度」。
@@ -55,6 +56,7 @@ export class TitleScene extends Phaser.Scene {
     // 太阳/星黄的点
     this.add.circle(VIEW_W - 74, 58, 12, PALETTE.star, 0.85).setDepth(2);
 
+    // 标题文字已搬到 DOM（DomUi），canvas 上的版本隐藏
     this.add
       .text(cx, 66, '党史像素 RPG', {
         fontFamily: FONT_UI,
@@ -63,7 +65,8 @@ export class TitleScene extends Phaser.Scene {
         fontStyle: 'bold',
       })
       .setOrigin(0.5)
-      .setDepth(10);
+      .setDepth(10)
+      .setVisible(false);
 
     this.add
       .text(cx, 94, '序 章 · 觉 醒 年 代  1840 — 1921', {
@@ -72,7 +75,8 @@ export class TitleScene extends Phaser.Scene {
         color: '#C2BCD1',
       })
       .setOrigin(0.5)
-      .setDepth(10);
+      .setDepth(10)
+      .setVisible(false);
 
     this.add
       .text(cx, 116, '你扮演历史中的人，亲手把每一件大事「做」一遍', {
@@ -81,7 +85,9 @@ export class TitleScene extends Phaser.Scene {
         color: '#948DAB',
       })
       .setOrigin(0.5)
-      .setDepth(10);
+      .setDepth(10)
+      .setVisible(false);
+    showTitle();
 
     // 按钮表由 buildMenu() 画，点「重新开始」之后也走同一条路重画一遍
     // （而不是重启场景：Phaser 的 restart 只会把操作塞进队列等下一帧，
@@ -97,11 +103,15 @@ export class TitleScene extends Phaser.Scene {
     const controlHint = this.add
       .text(cx, VIEW_H - 12, baseHint, { fontFamily: FONT_UI, fontSize: '8px', color: '#6B6489' })
       .setOrigin(0.5)
-      .setDepth(10);
+      .setDepth(10)
+      .setVisible(false);
     const syncHint = (): void => {
       const nag = window.innerHeight > window.innerWidth && !gate?.rotated;
       const want = nag ? `${baseHint}　手机请横屏` : baseHint;
-      if (controlHint.text !== want) controlHint.setText(want);
+      if (controlHint.text !== want) {
+        controlHint.setText(want);
+        setTitleHint(want);
+      }
     };
     syncHint();
     this.events.on(Phaser.Scenes.Events.POST_UPDATE, syncHint);
@@ -237,6 +247,7 @@ export class TitleScene extends Phaser.Scene {
     }
     const s = getSave();
     void persist;
+    hideTitle();
     // 从存档记录的幕开始；无进度则进入第一幕
     this.scene.start('Hub', { chapterId: s.progress.chapter || 'ch00' });
   }

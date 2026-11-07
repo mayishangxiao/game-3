@@ -1,19 +1,16 @@
 /**
- * 数据结构定义 —— 与《完整设计书 v2.0》第七章 7.2 节 JSON Schema 一一对应。
+ * 数据结构定义 —— 与《第一章设计书 v2.1》第五章 5.2 节 JSON Schema 一一对应。
  * 字段名与设计书保持一致，便于直接把 JSON 当作文档校对对象。
  */
 
-/* ============ 7.2.1 index.json ============ */
+/* ============ 5.2.1 index.json ============ */
 
 export interface ChapterMeta {
   id: string;
   name: string;
   period: string;
-  /** 已实现、可进入的幕 */
+  /** 本章的幕（本期两幕全部已实现，不再有"未开放"占位） */
   acts: string[];
-  /** 已设计但尚未实现的幕（长廊上显示为未开放） */
-  acts_planned?: string[];
-  bonus_acts?: string[];
   quiz_id: string;
   level_range: [number, number];
   unlock: string;

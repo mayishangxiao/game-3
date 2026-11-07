@@ -376,7 +376,7 @@ idx = load("index.json")
 for ch in idx["chapters"]:
     if ch["id"] == "ch00":
         ch["acts"] = ["ch00_act1", "ch00_act2"]
-        ch["acts_planned"] = ["ch00_act3", "ch00_act4", "ch00_act5", "ch00_act6", "ch00_act7"]
+        ch.pop("acts_planned", None)
 save("index.json", idx)
 
 print("\n--- 汇总 ---")
