@@ -86,6 +86,7 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 - 敌人：Boss 阶段区间**连续覆盖 100%→0%** 且招式名合法；普通敌人 `ai_params` 在合理范围；按行为分类检查射程与前摇搭配；Boss 基准 HP 与设计书一致。
 - 对话：每行 ≤3 行 ×18 字（对话框容量），说话人都在 `npcs` 表里。
 - 地图：所有 `tile_colors` 都有定义、出生点不在实心格；**可交互物本身或四邻可达**（BFS）；护送地图右端可达；战斗节点至少有一个可用敌人出生点；通用「右侧 55% 之后有可站立出生格」（`minCol = floor(cols*0.55)`，需 `!solid[y][col] && !solid[y+1][col]`）。
+- 地图：**非探索关不得残留第一幕鸦片箱**——`kind:'pickup', payload:'crate'` 只允许出现在被 `crate_target>0` 的 explore 节点引用的地图上；`map_ch00_tp_*` 三图不允许任何 `pickup`。这条来自真机截图反馈「太平天国地图上还有鸦片箱」，引擎侧 `LevelScene.startNode()` 另有非探索模式自动隐藏 pickup 的兜底。
 - 地图：**可交互物不能摆在虚拟按键底下**——单屏地图（`width*16 ≤ 480` 且 `height*16 ≤ 256`）不滚动，世界坐标即屏幕坐标，物件圆心离 `CONTROL_LAYOUT` 里每个按键圆心必须 ≥ `r + CONTROL_HIT_PAD`。这条来自玩家反馈「第八个鸦片找不到」：两个箱子正好压在「攻」「技」按钮下面，既看不见也点不到。
 - 副本：`quality_weights` 三档键恰为 `blue/purple/white`、非负、`white > 0`（否则保底扣不动）、`purple > 0`、**和为 100**；`waves` 2—5；`unlock_act` 是本章已实现的幕；Boss/副 Boss 存在；`unique_drop` 存在且全局唯一。
 
@@ -112,10 +113,12 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 | `maps/map_ch00_tp_city.json` | 太平天国专题 · 城池「天京城」（经营 / 管理 / 对话）；已接入 `nd_1853_tianjing_manage` | `tools/gen_taiping_tilemap.py` |
 | `maps/map_ch00_tp_battlefield.json` | 太平天国专题 · 战场「天京城墙夜战」（Boss 战，`sky_rows=4` + `battle_scars`）；已接入 `nd_1864_tianjing_fall` | `tools/gen_taiping_tilemap.py` |
 
-> 上面三张是 `tp_act2` 图块集的**可选专题地图**：文件已就位、`DataLoader.loadMap(id)` 直接可读，
-> 但**没有**登记进任何 `acts[].map_refs` / `nodes[].map_ref` / `dungeons[].map_ref`，因此改动零回归。
+> 上面三张是 `tp_act2` 图块集的**太平天国专题地图**：自 v1.1 起已登记进第二幕三个节点的
+> `map_ref` 与 `acts/ch00_act2.json` 的 `map_refs`，是线上正在跑的关卡地图。
 > 规格见 `design/12_taiping_tilemap_spec.md`，四层编辑源与 36 张瓦片在 `public/art/tiles/tp/`。
-> 三张图的 `tileset` 字段是 `tp_act2`（旧图仍是 `placeholder`，渲染器不读该字段）。
+> 三张图的 `tileset` 字段是 `tp_act2`（旧图仍是 `placeholder`，渲染器按该字段切换图集绘制）。
+> **v1.2**：`objects[]` 只放 `kind:'prop'` 静态布景，禁止第一幕的 `pickup/crate` 鸦片箱；
+> 装饰层也不再摆放 `tp_deco_crate` 木箱瓦片。生成器与 `tests/data.test.ts` 双重断言。
 
 **静态布景（`kind:'prop'` + `payload` = `SUNNY_PROPS` 里的道具名）**：act1b / act2a / act2b / dg01 四张图上有
 `rock / skulls / spikeSkull / spikes` 这几件，由 `art_ref/place_sunny_props.py` 落进 JSON（不在 `tools/`，因为它是

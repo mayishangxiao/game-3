@@ -1087,19 +1087,19 @@
   "objects": [
     {
       "id": "obj_tp_battle_01",
-      "kind": "pickup",
+      "kind": "prop",
       "x": 6,
       "y": 9,
-      "label": "弹药箱",
-      "payload": "crate"
+      "label": "残骸",
+      "payload": "spikeSkull"
     },
     {
       "id": "obj_tp_battle_02",
-      "kind": "pickup",
+      "kind": "prop",
       "x": 18,
       "y": 5,
-      "label": "火药",
-      "payload": "crate"
+      "label": "碎墙",
+      "payload": "block"
     },
     {
       "id": "obj_tp_battle_03",

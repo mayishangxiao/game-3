@@ -1192,7 +1192,7 @@
       "collidable": true,
       "engine_hex": "#CFA26A",
       "render_style_hint": "sand",
-      "note": "战场掩体，阻挡",
+      "note": "战场掩体，阻挡；横向矮墙造型，避免被读成一排鸦片箱",
       "properties": [
         {
           "name": "category",

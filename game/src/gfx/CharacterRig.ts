@@ -691,6 +691,10 @@ export class CharacterRig extends Phaser.GameObjects.Container {
   playDeath(onDone?: () => void): void {
     if (this.dead) return;
     this.dead = true;
+    // 死亡瞬间先撤掉受击闪白：dead 之后 tick() 首行就 return，
+    // 留着 tintFill 永远等不到 clearFlash()，重开后会看到一个通体发白的人形。
+    this.flashTimer = 0;
+    this.clearFlash();
     this.scene.tweens.add({
       targets: this,
       angle: this.facing === 'left' ? -90 : 90,
@@ -701,6 +705,29 @@ export class CharacterRig extends Phaser.GameObjects.Container {
         onDone?.();
       },
     });
+  }
+
+  /**
+   * 复活 / 节点重开：把 `playDeath()` 与 `hitFlash()` 留下的状态一次清干净。
+   *
+   * 之前关卡重开只写 `alive=true; hp=stats.hp; rig.setAlpha(1).setAngle(0)`，
+   * `dead` 从没被复位。`tick()` 首行 `if (this.dead) return` 让闪白计时器停摆，
+   * 表现就是玩家反馈的「死后没重试，人物变白原地复活」——角色其实是白的、
+   * 不动的，只是血条被填满了。这里必须同时清 dead、tint 和倒地 tween。
+   */
+  revive(): void {
+    this.scene.tweens.killTweensOf(this);
+    this.dead = false;
+    this.flashTimer = 0;
+    this.attackTimer = 0;
+    this.frameTimer = 0;
+    this.damaged = false;
+    this.setAlpha(1).setAngle(0);
+    // facing 归位 + scale 取正：贴图模式和矩形模式都用同一套状态，
+    // 免得上次是朝左被镜像（负 scale）或倒地 90° 的残留带进新一局。
+    this.facing = 'down';
+    this.setScale(1, 1);
+    this.clearFlash();
   }
 
   /** 简单的受击音效钩子（无音频资源时静默） */

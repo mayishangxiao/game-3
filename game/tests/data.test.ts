@@ -678,6 +678,32 @@ describe('地图可达性（防止关卡走不通）', () => {
     expect(checked).toBeGreaterThan(0);
   });
 
+  it('非探索关不得残留第一幕的鸦片箱（防串幕）', () => {
+    // `kind:'pickup', payload:'crate'` 是虎门海滩「搬鸦片箱投销烟池」的专属可交互物：
+    // LevelScene 会给它挂金色呼吸标记，交互文案写死「抱起一箱鸦片」。
+    // 它被误放进天京战场/城池/村落时，玩家看到的就是串幕的鸦片箱（真机截图反馈）。
+    // 引擎侧还有一道防线（非 explore 模式自动隐藏 pickup），这里是数据层的源头约束。
+    const crateNodes = new Set(
+      nodes
+        .filter((n) => n.params.mode === 'explore' && Number(n.params.crate_target ?? 8) > 0)
+        .map((n) => n.map_ref),
+    );
+    for (const m of maps) {
+      const crates = m.objects.filter((o) => o.kind === 'pickup' && o.payload === 'crate');
+      if (crates.length === 0) continue;
+      expect(
+        crateNodes.has(m.id),
+        `${m.id} 摆了 ${crates.length} 个鸦片箱，却没有搬箱探索节点引用它`,
+      ).toBe(true);
+    }
+    // 太平天国三张图是纯护送 / 经营 / 战斗场景，一个可交互物都不该有
+    const tpMaps = maps.filter((m) => m.id.startsWith('map_ch00_tp_'));
+    expect(tpMaps).toHaveLength(3);
+    for (const m of tpMaps) {
+      expect(m.objects.filter((o) => o.kind === 'pickup'), `${m.id} 残留 pickup 物件`).toHaveLength(0);
+    }
+  });
+
   it('经营/过场节点不需要地图也能进行（map_ref 允许为空）', () => {
     const noMap = nodes.filter((n) => !n.map_ref);
     for (const n of noMap) {

@@ -275,6 +275,8 @@ export class LevelScene extends Phaser.Scene {
   private dungeon: DungeonDef | null = null;
   private runDrops: ItemInstance[] = [];
   private dungeonResultOpen = false;
+  /** 剧情关卡战败面板是否开着：开着时冻结世界更新，等玩家点「再试一次」 */
+  private storyFailOpen = false;
 
   /* 演示版：虎门重炮与清王朝血条 */
   private cannonCd = 0;
@@ -434,6 +436,7 @@ export class LevelScene extends Phaser.Scene {
     this.introOpen = false;
     this.cannonCd = 0;
     this.defeated = false;
+    this.storyFailOpen = false;
     this.finalStrikeStage = 'none';
     this.finalStrikeRunning = false;
     this.bossShip = null;
@@ -688,10 +691,7 @@ export class LevelScene extends Phaser.Scene {
         this.save.equipment,
         this.cfg,
       );
-      this.player.setStats(stats);
-      this.player.alive = true;
-      this.player.hp = stats.hp;
-      this.player.rig.setAlpha(1).setAngle(0).setScale(1, 1);
+      this.player.resetForNode(stats);
 
       const st = getDungeonState(this.save, d.id);
       // 副本没有「幕」：左上角直接显示副本名与推荐等级年份位
@@ -886,6 +886,64 @@ export class LevelScene extends Phaser.Scene {
     this.dungeonButton(overlay, 240 + 62, 150, 104, 20, '返回长廊', () => {
       overlay.destroy();
       this.leaveDungeon();
+    });
+  }
+
+  /**
+   * 剧情关卡战败：给玩家一个明确的「再试一次」入口。
+   * 副本失败走 `showDungeonFail()`，虎门炮台史实必败走 `playDefeatSequence()`，其余到这里。
+   * 面板期间 `updateWorld` 整体冻结，敌人不会在弹窗后面继续围殴尸体。
+   */
+  private showStoryFail(): void {
+    if (this.storyFailOpen || !this.scene.isActive()) return;
+    this.storyFailOpen = true;
+    this.nodeBusy = true;
+    setInputEnabled(false);
+    setControlsVisible(false);
+    // 面板一开就冻结 updateWorld，HUD 不会自己再刷一次；手动把血条推到 0
+    this.pushHud();
+
+    const cx = VIEW_W / 2;
+    const cy = VIEW_H / 2;
+    const overlay = this.add.container(0, 0).setDepth(DEPTH.overlay).setScrollFactor(0);
+    overlay.add([
+      this.add.rectangle(cx, cy, VIEW_W, VIEW_H, PALETTE.ink, 0.72).setScrollFactor(0),
+      this.add
+        .rectangle(cx, cy, 300, 132, PALETTE.ink, 0.98)
+        .setStrokeStyle(1, PALETTE.greyPlum)
+        .setScrollFactor(0),
+      this.add
+        .text(cx, cy - 42, '战败', {
+          fontFamily: FONT_UI,
+          fontSize: '15px',
+          color: '#F2A08C',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0),
+      this.add
+        .text(cx, cy - 18, '这一场没能守住 —— 可以从头再来。', {
+          fontFamily: FONT_UI,
+          fontSize: '9.5px',
+          color: '#C2BCD1',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0),
+    ]);
+    this.dungeonButton(overlay, cx - 62, cy + 26, 104, 22, '再试一次', () => {
+      overlay.destroy();
+      this.storyFailOpen = false;
+      setInputEnabled(true);
+      setControlsVisible(true);
+      void this.startNode(this.nodeIndex);
+    });
+    this.dungeonButton(overlay, cx + 62, cy + 26, 104, 22, '返回长廊', () => {
+      overlay.destroy();
+      this.storyFailOpen = false;
+      setInputEnabled(true);
+      setControlsVisible(true);
+      this.scene.stop('UI');
+      this.scene.start('Hub', { chapterId: this.act.chapter_id });
     });
   }
 
@@ -1451,10 +1509,22 @@ export class LevelScene extends Phaser.Scene {
       this.save.equipment,
       this.cfg,
     );
-    this.player.setStats(stats);
-    this.player.alive = true;
-    this.player.hp = stats.hp;
-    this.player.rig.setAlpha(1).setAngle(0).setScale(1, 1);
+    this.player.resetForNode(stats);
+    // 重试必须回到关卡出生点：以前只把 alive 翻回 true，玩家还站在倒下的位置，
+    // 看起来就是「原地诈尸」。地图没换时 buildWorld 不会重跑，这一步得在这里做。
+    const spawn = this.map?.def.spawn;
+    if (spawn) this.player.rig.setPosition((spawn.x + 0.5) * TILE, (spawn.y + 0.5) * TILE);
+
+    // 第一幕「搬鸦片箱投销烟池」的 pickup 是专属可交互物，只在探索关有意义。
+    // 战斗 / 经营 / 护送关里出现就会串幕（天京战场残留两箱、头顶还带金色标记）。
+    // 数据层已把太平天国三张图的 pickup 换成静态布景，这里是兜底防线：
+    // 任何地图误带 pickup 进非探索关，都不会被画出来、也不会出现在交互候选里
+    // （findNearObject 会跳过 rect.visible === false 的物件）。
+    if (this.mode !== 'explore' || this.crateTarget <= 0) {
+      for (const o of this.worldObjects) {
+        if (o.def.kind === 'pickup') this.hideWorldObject(o);
+      }
+    }
 
     switch (this.mode) {
       case 'explore':
@@ -3983,6 +4053,8 @@ export class LevelScene extends Phaser.Scene {
 
   private updateWorld(_time: number, delta: number): void {
     if (!this.player || !this.map) return;
+    // 战败面板：冻结世界，也别让下面每帧的 setControlsVisible 把摇杆又放回来
+    if (this.storyFailOpen) return;
     // 节点切换期间（startNode 内有 await）不做任何世界逻辑
     if (this.transitioning) return;
 
@@ -4183,10 +4255,10 @@ export class LevelScene extends Phaser.Scene {
         // 打光血之后走震撼弹窗 + 后续条约剧情，而不是把玩家弹回重打（老师的要求）。
         this.time.delayedCall(600, () => this.playDefeatSequence());
       } else {
-        this.time.delayedCall(900, () => {
-          emitToast('重整旗鼓，再来一次', 1200);
-          void this.startNode(this.nodeIndex);
-        });
+        // 剧情关卡战败：弹面板让玩家自己点「再试一次」。
+        // 原来是 900ms 后直接 startNode 自动重开，玩家既看不到失败提示，
+        // 也来不及反应，只看到一个白影在原地站了起来。
+        this.time.delayedCall(600, () => this.showStoryFail());
       }
     }
 

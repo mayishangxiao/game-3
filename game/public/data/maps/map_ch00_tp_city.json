@@ -221,7 +221,7 @@
           28,
           8,
           8,
-          29,
+          28,
           8,
           7,
           7,
@@ -390,13 +390,13 @@
           8,
           8,
           8,
-          29,
+          28,
           8,
           28,
           8,
           8,
           8,
-          29,
+          28,
           8,
           8,
           18
@@ -1087,19 +1087,19 @@
   "objects": [
     {
       "id": "obj_tp_city_01",
-      "kind": "pickup",
+      "kind": "prop",
       "x": 5,
       "y": 8,
-      "label": "圣库账册",
-      "payload": "crate"
+      "label": "街石",
+      "payload": "block"
     },
     {
       "id": "obj_tp_city_02",
-      "kind": "pickup",
+      "kind": "prop",
       "x": 12,
       "y": 6,
-      "label": "米粮",
-      "payload": "crate"
+      "label": "花坛",
+      "payload": "shrooms"
     },
     {
       "id": "obj_tp_city_03",

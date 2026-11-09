@@ -32,7 +32,10 @@ tools/_cdp/*/
 # 本轮新增的两个专项探针（场景布景 / 第一幕人工评审）：报告与截图仍不入库
 !tools/_cdp/props-probe.mjs
 !tools/_cdp/act1-shot.mjs
+# 战败重试 / 清箱回归探针（判据写在文件里，是源码；截图与 profile 仍忽略）
+!tools/_cdp/tp-defeat.mjs
 
-# 发布 staging：由 DEPLOY.md 的流程从 dist 重建，纯产物，不入库。
+# 发布 staging / 打包产物：由 DEPLOY.md 的流程从 dist 重建，纯产物，不入库。
 # 历史版本曾被误提交，用 `git rm -r --cached tools/_stage` 移出索引即可（工作区保留）。
 tools/_stage/
+tools/_deploy_game.zip

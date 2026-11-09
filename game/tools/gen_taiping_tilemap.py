@@ -15,6 +15,9 @@
   MapDef 只认 ground / collision 两层（foreground 会挡住角色，禁用）
   单屏地图 30x16，边界整圈实心；sky_rows 行必须碰撞全实心
   objects 里 kind:'prop' 的 payload 必须落在 SUNNY_PROPS 表内
+  objects 里禁止 kind:'pickup'：那是第一幕「搬鸦片箱投销烟池」的专属可交互物，
+      带金色标记与「抱起一箱鸦片」文案，出现在太平天国关卡就是串幕
+  三图不摆放 tp_deco_crate 木箱瓦片：地面上一排小箱子同样会被读成没清干净的鸦片箱
   数据文件 UTF-8 无 BOM
 
 用法：
@@ -308,9 +311,11 @@ WELL = ["................", "..QQQQQQQQQQ....", "..QppppppppQ....", "..QpUUUUUUp
         "..QpUiiiiUpQ....", "..QpUiUUiUpQ....", "..QpUiiiiUpQ....", "..QpUUUUUUpQ....",
         "..QppppppppQ....", "..QQQQQQQQQQ....", "..QQQQQQQQQQ....", "...Q......Q.....",
         "...Q......Q.....", "..QQQQQQQQQQ....", "................", "................"]
-SANDBAG = ["................", "................", "...ssss..ssss...", "..sSSSSssSSSSs..",
-           "..sSssSSssSsSs..", "..ssssssssssss..", ".ssss..ssss..ss.", ".sSSSSsSSSSsSSs.",
-           ".sSssSSssSSsSSs.", ".ssssssssssssss.", "..dddddddddddd..", "..eeeeeeeeeeee..",
+# 两层横向堆叠的沙袋矮墙。旧图案是「两三个并排的小方块」，在 2x 放大的手机上
+# 被读成「一排没清干净的鸦片箱」（真机截图反馈），改成连成一体的工事后不再混淆。
+SANDBAG = ["................", "................", "..ssssssssssss..", "..sSsssSsssSss..",
+           "..ssssssssssss..", "..dddddddddddd..", "..ssssssssssss..", "..sSsssSsssSss..",
+           "..ssssssssssss..", "..dddddddddddd..", "..eeeeeeeeeeee..", "................",
            "................", "................", "................", "................"]
 BARRICADE = ["................", "..w..........w..", "..d..........d..", "...d........d...",
              "....d......d....", ".....d....d.....", "..ddddddddddd...", "...d.......d....",
@@ -344,7 +349,7 @@ T("tp_deco_barrel", "粮桶", "decoration", ["village", "city", "battlefield"], 
 T("tp_deco_well", "水井", "decoration", ["village"], True, "greyPlum", "green",
   [("art", 0, WELL)], "村落水井，阻挡")
 T("tp_deco_sandbag", "沙袋工事", "decoration", ["battlefield"], True, "sand", "brownDeep",
-  [("art", 0, SANDBAG)], "战场掩体，阻挡")
+  [("art", 0, SANDBAG)], "战场掩体，阻挡；横向矮墙造型，避免被读成一排鸦片箱")
 T("tp_deco_barricade", "鹿角拒马", "decoration", ["battlefield"], True, "brownDark", "brownDeep",
   [("art", 0, BARRICADE)], "战场掩体，阻挡")
 T("tp_deco_cannon", "炮位", "decoration", ["battlefield"], True, "ink", "brownDeep",
@@ -515,19 +520,19 @@ def build_village():
     fill_rect(L, "building", 10, 11, 11, 12, tid("tp_building_granary"))
     for x in range(19, 24):
         put(L, "building", x, 5, tid("tp_building_fence"))
-    # 装饰：竹丛、旗、粮桶、木箱、水井（都不压主路）
+    # 装饰：竹丛、旗、粮桶、水井（都不压主路；木箱瓦片不再摆放，避免串成第一幕鸦片箱）
     for (x, y) in [(2, 5), (9, 5), (18, 2), (26, 5), (3, 13), (14, 13), (27, 13)]:
         put(L, "decoration", x, y, tid("tp_deco_bamboo"))
     for (x, y) in [(2, 6), (27, 6), (12, 2)]:
         put(L, "decoration", x, y, tid("tp_deco_banner"))
     for (x, y) in [(8, 6), (22, 6), (17, 13)]:
-        put(L, "decoration", x, y, tid("tp_deco_crate"))
+        put(L, "decoration", x, y, tid("tp_deco_bamboo"))
     put(L, "decoration", 2, 10, tid("tp_deco_well"))
     put(L, "decoration", 26, 10, tid("tp_deco_barrel"))
     objects = [
-        {"id": "obj_tp_village_01", "kind": "pickup", "x": 4, "y": 6, "label": "军粮", "payload": "crate"},
-        {"id": "obj_tp_village_02", "kind": "pickup", "x": 12, "y": 8, "label": "抬枪", "payload": "crate"},
-        {"id": "obj_tp_village_03", "kind": "pickup", "x": 20, "y": 6, "label": "药包", "payload": "crate"},
+        {"id": "obj_tp_village_01", "kind": "prop", "x": 4, "y": 6, "label": "草药", "payload": "shrooms"},
+        {"id": "obj_tp_village_02", "kind": "prop", "x": 12, "y": 8, "label": "石碾", "payload": "block"},
+        {"id": "obj_tp_village_03", "kind": "prop", "x": 20, "y": 6, "label": "石阶", "payload": "block"},
         {"id": "obj_tp_village_04", "kind": "prop", "x": 9, "y": 9, "label": "山石", "payload": "rock"},
         {"id": "obj_tp_village_05", "kind": "prop", "x": 22, "y": 9, "label": "路牌", "payload": "sign"},
     ]
@@ -579,17 +584,17 @@ def build_city():
     # 箭楼两座
     put(L, "building", 2, 4, tid("tp_building_watchtower"))
     put(L, "building", 26, 4, tid("tp_building_watchtower"))
-    # 装饰：灯笼、黄旗、货箱、粮桶
+    # 装饰：灯笼、黄旗、粮桶（不用木箱瓦片：地面上一排小箱子会被读成没清干净的鸦片箱）
     for (x, y) in [(3, 5), (8, 5), (17, 5), (25, 5), (3, 10), (22, 10)]:
         put(L, "decoration", x, y, tid("tp_deco_lantern"))
     for (x, y) in [(13, 2), (16, 2), (13, 11)]:
         put(L, "decoration", x, y, tid("tp_deco_banner"))
     for (x, y) in [(11, 5), (20, 10), (26, 10)]:
-        put(L, "decoration", x, y, tid("tp_deco_crate"))
+        put(L, "decoration", x, y, tid("tp_deco_lantern"))
     put(L, "decoration", 6, 10, tid("tp_deco_barrel"))
     objects = [
-        {"id": "obj_tp_city_01", "kind": "pickup", "x": 5, "y": 8, "label": "圣库账册", "payload": "crate"},
-        {"id": "obj_tp_city_02", "kind": "pickup", "x": 12, "y": 6, "label": "米粮", "payload": "crate"},
+        {"id": "obj_tp_city_01", "kind": "prop", "x": 5, "y": 8, "label": "街石", "payload": "block"},
+        {"id": "obj_tp_city_02", "kind": "prop", "x": 12, "y": 6, "label": "花坛", "payload": "shrooms"},
         {"id": "obj_tp_city_03", "kind": "prop", "x": 21, "y": 8, "label": "石墩", "payload": "rock"},
         {"id": "obj_tp_city_04", "kind": "prop", "x": 23, "y": 9, "label": "告示牌", "payload": "sign"},
     ]
@@ -642,8 +647,8 @@ def build_battlefield():
     for (x, y) in [(7, 7), (19, 7), (25, 11)]:
         put(L, "decoration", x, y, tid("tp_deco_barrel"))
     objects = [
-        {"id": "obj_tp_battle_01", "kind": "pickup", "x": 6, "y": 9, "label": "弹药箱", "payload": "crate"},
-        {"id": "obj_tp_battle_02", "kind": "pickup", "x": 18, "y": 5, "label": "火药", "payload": "crate"},
+        {"id": "obj_tp_battle_01", "kind": "prop", "x": 6, "y": 9, "label": "残骸", "payload": "spikeSkull"},
+        {"id": "obj_tp_battle_02", "kind": "prop", "x": 18, "y": 5, "label": "碎墙", "payload": "block"},
         {"id": "obj_tp_battle_03", "kind": "prop", "x": 10, "y": 10, "label": "遗骸", "payload": "skulls"},
         {"id": "obj_tp_battle_04", "kind": "prop", "x": 22, "y": 11, "label": "拒马残骸", "payload": "spikes"},
     ]
@@ -717,10 +722,13 @@ def validate(m: dict, L: dict) -> None:
             continue
         seen.add((x, y))
         stack.extend([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
+    crate_tid = tid("tp_deco_crate")
+    assert crate_tid not in {v for row in g for v in row}, f"{mid} 仍摆着木箱瓦片，会被读成第一幕鸦片箱"
     for o in m["objects"]:
         nb = [(o["x"], o["y"]), (o["x"] + 1, o["y"]), (o["x"] - 1, o["y"]),
               (o["x"], o["y"] + 1), (o["x"], o["y"] - 1)]
         assert any(p in seen for p in nb), f"{mid} 物件 {o['id']} 走不到"
+        assert o["kind"] != "pickup", f"{mid} 物件 {o['id']} 是第一幕的鸦片箱 pickup，禁止串幕"
         if o["kind"] == "prop":
             assert o.get("payload") in SUNNY_PROPS, f"{mid} 布景 payload 未登记：{o.get('payload')}"
         # 虚拟按键避让（单屏地图，世界坐标 == 屏幕坐标）

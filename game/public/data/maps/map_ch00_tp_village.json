@@ -250,7 +250,7 @@
           1,
           2,
           1,
-          29,
+          26,
           1,
           1,
           2,
@@ -264,7 +264,7 @@
           1,
           1,
           2,
-          29,
+          26,
           1,
           1,
           1,
@@ -483,7 +483,7 @@
           26,
           6,
           6,
-          29,
+          26,
           2,
           1,
           1,
@@ -1087,27 +1087,27 @@
   "objects": [
     {
       "id": "obj_tp_village_01",
-      "kind": "pickup",
+      "kind": "prop",
       "x": 4,
       "y": 6,
-      "label": "军粮",
-      "payload": "crate"
+      "label": "草药",
+      "payload": "shrooms"
     },
     {
       "id": "obj_tp_village_02",
-      "kind": "pickup",
+      "kind": "prop",
       "x": 12,
       "y": 8,
-      "label": "抬枪",
-      "payload": "crate"
+      "label": "石碾",
+      "payload": "block"
     },
     {
       "id": "obj_tp_village_03",
-      "kind": "pickup",
+      "kind": "prop",
       "x": 20,
       "y": 6,
-      "label": "药包",
-      "payload": "crate"
+      "label": "石阶",
+      "payload": "block"
     },
     {
       "id": "obj_tp_village_04",

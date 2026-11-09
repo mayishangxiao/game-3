@@ -226,6 +226,27 @@ export class Player {
   }
 
   /**
+   * 节点开始 / 战败重试时把玩家完整复位。
+   *
+   * 场景里原来只写 `alive=true; hp=stats.hp; rig.setAlpha(1)...`，
+   * 死亡时 `CharacterRig.playDeath()` 置的 `dead` 一直留着，重开后角色仍是
+   * 白色且不动（见 `CharacterRig.revive` 的注释）。血量、冷却、无敌帧也一并归位。
+   */
+  resetForNode(stats: { hp: number; atk: number; def: number; crit: number; critDmg: number; spd: number }): void {
+    this.setStats(stats);
+    this.hp = this.maxHp;
+    this.alive = true;
+    this.attackCd = 0;
+    this.skillCd = 0;
+    this.dodgeCd = 0;
+    this.attackAnimMs = 0;
+    this.moving = false;
+    // 重开后半秒无敌：同一波敌人还围在身边，站起来立刻被秒的话「再试一次」形同虚设
+    this.invincibleMs = 600;
+    this.rig.revive();
+  }
+
+  /**
    * 无视受击无敌的直接扣血（虎门重炮炸膛用）。
    * 走 takeDamage 会被 420 ms 的无敌帧吞掉，表现就是「炸膛没扣血」。
    */

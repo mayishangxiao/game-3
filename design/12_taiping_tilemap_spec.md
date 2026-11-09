@@ -1,4 +1,10 @@
-# 太平天国篇章 · 瓦片地图规格说明书 v1.1
+# 太平天国篇章 · 瓦片地图规格说明书 v1.2
+
+> **v1.2（2026-11-09）**：按真机截图反馈修两处 —— ① 剧情关战败改为弹「战败 / 再试一次 / 返回长廊」面板，
+> 不再 900ms 后自动原地复活；`CharacterRig.revive()` / `Player.resetForNode()` 完整复位死亡状态
+> （清 `dead`、闪白 `tintFill`、倒地 tween），重开回到地图出生点。② 三张图清掉误放的第一幕
+> `pickup/crate` 鸦片箱共 7 个，改为静态布景；木箱装饰瓦片不再摆放，沙袋工事改横向矮墙造型。
+> 详见 4.3 / 6.4 / 8.5 节。
 
 > **v1.1（2026-11-09）**：三张地图已接入第二幕三个节点，`tp_act2` 图集已在渲染器生效并随版本上线。
 > 第 8 节由「接入建议」改写为「已实现」，回退方式见 8.4。
@@ -89,7 +95,7 @@ ground.data   = terrain 底图
               → 被 building 非零格覆盖
               → 再被 decoration 非零格覆盖
 collision.data = 各层 collidable 瓦片的并集（0/1），外加显式边界
-objects[]     = 可交互物（pickup / prop / npc / exit），与装饰层分开
+objects[]     = 场上物件（本篇章只用 prop 静态布景；pickup 属第一幕专属），与装饰层分开
 triggers[]    = 走到即触发节点的矩形，本包三张图都为空
 ```
 
@@ -108,9 +114,15 @@ triggers[]    = 走到即触发节点的矩形，本包三张图都为空
 
 | 地图 | `layers` | `sky_rows` | `battle_scars` | `objects` | 阻挡格数 |
 | --- | --- | --- | --- | --- | --- |
-| 村落 | `ground` + `collision` | 无 | 无 | 3 pickup + 2 prop | 178 |
-| 城池 | `ground` + `collision` | 无 | 无 | 2 pickup + 2 prop | 171 |
-| 战场 | `ground` + `collision` | **4** | **true** | 2 pickup + 2 prop | 211 |
+| 村落 | `ground` + `collision` | 无 | 无 | 5 prop（无可交互物） | 178 |
+| 城池 | `ground` + `collision` | 无 | 无 | 4 prop（无可交互物） | 171 |
+| 战场 | `ground` + `collision` | **4** | **true** | 4 prop（无可交互物） | 211 |
+
+> **v1.2 串幕修正**：`kind:'pickup', payload:'crate'` 是第一幕虎门海滩「搬鸦片箱投销烟池」的
+> 专属可交互物——引擎给它挂金色呼吸标记，交互文案写死「抱起一箱鸦片」。初版误放进三张图共 7 个，
+> 真机上就是「太平天国战场残留鸦片箱」。现在全改成 `kind:'prop'` 静态布景（竹丛 / 石墩 / 残骸等），
+> 数据层由生成器自检 + `tests/data.test.ts` 双锁，引擎层 `LevelScene.startNode()` 在非探索模式
+> 还会自动隐藏任何残留 pickup（`findNearObject` 跳过不可见物件，交互一并失效）。
 
 战场 `sky_rows=4` 时，`y=0..3` 必须**整行实心**（`art.test.ts` 有断言锁着），
 否则玩家会走进远景带、看起来像站在空中。
@@ -140,8 +152,9 @@ triggers[]    = 走到即触发节点的矩形，本包三张图都为空
 - 出生点必须落在非实心格；所有可交互物本身或四邻可达（BFS）。
 - 物件中心离 `CONTROL_LAYOUT` 每个虚拟按键圆心 > `r + CONTROL_HIT_PAD(8)`，
   `pickup` 再加 10 px 视觉余量（甲方反馈过「第八个鸦片找不到」）。
-- `kind:'prop'` 的 `payload` 只能取 `SUNNY_PROPS` 表内名字（`rock / sign / skulls / spikes` 等），
+- `kind:'prop'` 的 `payload` 只能取 `SUNNY_PROPS` 表内名字（`rock / sign / skulls / spikes / block / shrooms / spikeSkull` 等），
   写错运行时只留一条 `console.warn`，截图评审看不出来。
+- 本篇章三图**禁止 `kind:'pickup'`**，也不摆放 `tp_deco_crate` 木箱瓦片（4.3 节的串幕修正）。
 - 地图 JSON 一律 **UTF-8 无 BOM**，2 空格缩进；用 Python 写，别用 PowerShell `Set-Content`。
 
 ---
@@ -218,10 +231,10 @@ triggers[]    = 走到即触发节点的矩形，本包三张图都为空
 | 26 | `tp_deco_bamboo.png` | 竹丛 | 村落 | `#A8D070` | 否 |
 | 27 | `tp_deco_banner.png` | 太平军黄旗 | 全部 | `#C0392B` | 否 |
 | 28 | `tp_deco_lantern.png` | 街市灯笼 | 城池 | `#E85C4A` | 否 |
-| 29 | `tp_deco_crate.png` | 木箱 | 村落 / 城池 | `#A8763F` | 否 |
+| 29 | `tp_deco_crate.png` | 木箱（**备用，v1.2 起三图不摆放**） | 村落 / 城池 | `#A8763F` | 否 |
 | 30 | `tp_deco_barrel.png` | 粮桶 | 全部 | `#A8763F` | 否 |
 | 31 | `tp_deco_well.png` | 水井 | 村落 | `#948DAB` | 是 |
-| 32 | `tp_deco_sandbag.png` | 沙袋工事 | 战场 | `#CFA26A` | 是 |
+| 32 | `tp_deco_sandbag.png` | 沙袋工事（v1.2 改横向矮墙） | 战场 | `#CFA26A` | 是 |
 | 33 | `tp_deco_barricade.png` | 鹿角拒马 | 战场 | `#7A4F2A` | 是 |
 | 34 | `tp_deco_cannon.png` | 炮位 | 战场 | `#0D0B14` | 是 |
 | 35 | `tp_deco_tent.png` | 营帐 | 战场 | `#E8CFA8` | 是 |
@@ -304,8 +317,8 @@ design/
     { "name": "collision", "data": [[...]], "collidable": true  }
   ],
   "triggers": [],
-  "objects": [ { "id": "obj_tp_village_01", "kind": "pickup", "x": 4, "y": 6,
-                 "label": "军粮", "payload": "crate" } ],
+  "objects": [ { "id": "obj_tp_village_01", "kind": "prop", "x": 4, "y": 6,
+                 "label": "草药", "payload": "shrooms" } ],  // 静态布景，非可交互物
   "meta": { ... }                       // 引擎忽略的编辑元数据（场景/用途/层映射/边界）
 }
 ```
@@ -379,6 +392,33 @@ this.paintTile(ctx, x * TILE, y * TILE, hex);   // 旧图 placeholder 原样不�
 - 战斗目标文案按幕区分：第二幕「守住天京城墙」，第一幕 / 副本仍是「守住威远炮台」
   （修的是 `LevelScene.setupCombat()` 里的硬编码，实拍 1864 战场时发现的串幕文案）。
 
+### 8.5 v1.2：战败重试与角色复活（真机截图反馈）
+
+**症状**：1864 天京战场阵亡后没有重试界面，角色「通体发白」在倒地处重新站起来。
+
+**根因**（两个问题叠在一起）：
+
+1. `LevelScene.update()` 的死亡分支，对非副本、非「战败也继续」的剧情关，
+   900ms 后直接 `startNode(this.nodeIndex)` 自动重开，只发一条 toast，没有失败面板。
+2. `startNode()` 复用同一个 `Player` 实例，只重置 `alive / hp / alpha / angle / scale`。
+   但死亡时 `CharacterRig.playDeath()` 把 `dead` 置真，`tick()` 首行 `if (this.dead) return`
+   让 `hitFlash()` 设的 `setTintFill(paper)` 永远等不到 `clearFlash()`。角色永久白色、
+   动画停摆，血条却已被填满 —— 看起来就像诈尸。
+
+| 位置 | 改动 |
+| --- | --- |
+| `CharacterRig.playDeath()` | 死亡瞬间先清 `flashTimer` + `clearFlash()`，不留白色 tint |
+| `CharacterRig.revive()`（新增） | 杀掉倒地 tween、清 `dead`、复位 alpha/angle/scale/facing、清 tint 与动画计时 |
+| `Player.resetForNode()`（新增） | 统一 `setStats` + 满血 + `alive` + 冷却归零 + 600ms 重开无敌 + `rig.revive()`；副本重来与节点开始都改调它 |
+| `LevelScene.startNode()` | 重开回到 `map.def.spawn`；非探索模式自动隐藏残留 `pickup` |
+| `LevelScene.showStoryFail()`（新增） | 剧情关战败弹「战败 / 再试一次 / 返回长廊」面板；`storyFailOpen` 为真时冻结 `updateWorld()` 并压住摇杆，点按钮才重开；手动 `pushHud()` 让血条归零 |
+
+虎门炮台史实必败（`defeat_continues`）与副本失败仍走各自原有链路，不受影响。
+
+**实拍验收**（`tools/_cdp/tp-defeat.mjs`，CDP 无头 Edge）：阵亡后 `storyFailOpen=true`、
+面板四个文本齐全；点「再试一次」后 `alive=true / hp=100 / rigDead=false /
+tintFill=false / angle=0`，坐标回到出生点 (56,152)，三张地图 `visiblePickups=0`，控制台零异常。
+
 ---
 
 ## 9. 生成、复现与验收
@@ -397,6 +437,7 @@ pnpm build
 - 边界整圈实心；`sky_rows` 行全实心；出生点非实心；
 - BFS：所有物件本身或四邻可达、护送地图右端可达、右侧 55% 后有双格敌人出生点；
 - 物件离虚拟按键圆心 > `r + 8`（pickup 再 +10）；`prop.payload` 在 `SUNNY_PROPS` 内；
+- `objects` 无 `kind:'pickup'`、`ground` 无 `tp_deco_crate` 木箱瓦片（防第一幕鸦片箱串幕）；
 - 四层编辑源折叠结果与引擎 JSON 逐格一致。
 
 工程侧会自动扫到新文件的测试：
