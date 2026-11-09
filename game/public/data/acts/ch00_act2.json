@@ -19,8 +19,9 @@
   "I"
  ],
  "map_refs": [
-  "map_ch00_act2a",
-  "map_ch00_act2b"
+  "map_ch00_tp_village",
+  "map_ch00_tp_city",
+  "map_ch00_tp_battlefield"
  ],
  "bgm": "bgm_ch00_act2",
  "first_clear_reward": "eq_leg_taiping_blue_01",

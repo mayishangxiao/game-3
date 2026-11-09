@@ -18,7 +18,7 @@
 | `equipment/items_base.json` | 装备模板：`slot` `quality` `stat` `base_value` `quality_multiplier` `source` | 16 | `id` |
 | `equipment/drops.json` | 掉落规则：按来源类型的掉率、部位权重、品质权重；`pity` 保底参数 | 5 条规则 | `rules[].source_type` |
 | `dungeons/dungeons.json` | 副本：波次（`waves[]`）、Boss、`quality_weights`、`unique_drop`、`unlock_act` | 3 | `id` |
-| `maps/map_ch00_act1a.json` `maps/map_ch00_act1b.json` `maps/map_ch00_act2a.json` `maps/map_ch00_act2b.json` `maps/map_dg01_alley.json` `maps/map_dg02_bandit.json` `maps/map_dg03_dock.json` | 瓦片地图：`width/height` `tile_colors` `spawn` `layers[]` `objects[]` `triggers[]`（清单见第六节） | 7 张 | `id` |
+| `maps/map_ch00_act1a.json` `maps/map_ch00_act1b.json` `maps/map_ch00_act2a.json` `maps/map_ch00_act2b.json` `maps/map_ch00_tp_village.json` `maps/map_ch00_tp_city.json` `maps/map_ch00_tp_battlefield.json` `maps/map_dg01_alley.json` `maps/map_dg02_bandit.json` `maps/map_dg03_dock.json` | 瓦片地图：`width/height` `tile_colors` `spawn` `layers[]` `objects[]` `triggers[]`（清单见第六节）。`map_ch00_act2a/b` 自 v1.1 起保留为回退素材、不再被引用 | 10 张 | `id` |
 | `quiz/quiz_ch00.json` | 章末题库：题干/选项/答案/解析/`knowledge_ref` | 12 题（抽 5） | `pool[].id` |
 | `dialogues/dlg_ch00.json` | 对话块 + NPC 表 | 9 块 | `dialogues[].id` |
 
@@ -108,6 +108,14 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 | `maps/map_dg01_alley.json` | 副本「租界暗巷」（上下砖墙夹出的窄巷） | `tools/gen_maps_dungeon.py` |
 | `maps/map_dg02_bandit.json` | 副本「广州城外匪寨」（寨门广场 + 高台） | `tools/gen_maps_dungeon.py` |
 | `maps/map_dg03_dock.json` | 副本「沪上码头」（空地 + 货箱堆 + 吊机） | `tools/gen_maps_dungeon.py` |
+| `maps/map_ch00_tp_village.json` | 太平天国专题 · 村落「金田村」（护送 / 探索），图块集 `tp_act2`；已接入 `nd_1851_jintian_escort` | `tools/gen_taiping_tilemap.py` |
+| `maps/map_ch00_tp_city.json` | 太平天国专题 · 城池「天京城」（经营 / 管理 / 对话）；已接入 `nd_1853_tianjing_manage` | `tools/gen_taiping_tilemap.py` |
+| `maps/map_ch00_tp_battlefield.json` | 太平天国专题 · 战场「天京城墙夜战」（Boss 战，`sky_rows=4` + `battle_scars`）；已接入 `nd_1864_tianjing_fall` | `tools/gen_taiping_tilemap.py` |
+
+> 上面三张是 `tp_act2` 图块集的**可选专题地图**：文件已就位、`DataLoader.loadMap(id)` 直接可读，
+> 但**没有**登记进任何 `acts[].map_refs` / `nodes[].map_ref` / `dungeons[].map_ref`，因此改动零回归。
+> 规格见 `design/12_taiping_tilemap_spec.md`，四层编辑源与 36 张瓦片在 `public/art/tiles/tp/`。
+> 三张图的 `tileset` 字段是 `tp_act2`（旧图仍是 `placeholder`，渲染器不读该字段）。
 
 **静态布景（`kind:'prop'` + `payload` = `SUNNY_PROPS` 里的道具名）**：act1b / act2a / act2b / dg01 四张图上有
 `rock / skulls / spikeSkull / spikes` 这几件，由 `art_ref/place_sunny_props.py` 落进 JSON（不在 `tools/`，因为它是

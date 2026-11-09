@@ -16,10 +16,11 @@
  *  - `system-ui` 放在最后一位兜底，避免某些安卓 ROM 把 sans-serif 解析成衬线体。
  */
 
+import { RENDER_SCALE } from '../core/constants';
+
 /** 正文/标题共用的字体栈。想换字体验只改这一行。 */
 export const FONT_UI =
   '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, sans-serif';
-
 /** 数字/伤害数字等纯西文场景，用系统 UI 字体的数字（等宽感更好，不会跳）。 */
 export const FONT_NUM = '"Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif';
 
@@ -29,12 +30,24 @@ export const FONT_NUM = '"Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHe
  * Phaser 的 Text 是「先画到一张 canvas，再当纹理贴出来」，这张 canvas 的像素数 =
  * 字号 × style.resolution。resolution 为 1 时，10px 的字真的只有 10 个像素高，
  * 屏幕上再放大 3 倍就是马赛克——这就是「像素感」的来源之一。
- * 4 倍：微信竖屏 CSS 旋转兜底时，画布实际显示尺寸 = FIT 缩放 × dpr（实测手机上 ~4.3 倍逻辑像素），
- * 3 倍栅格会被再放大 1.4 倍发糊；4 倍对齐后缓冲（见 OrientationGate 里的 fitBackingResolution）。
- * 再高会让每次改文案都重新生成更大的 canvas，HUD 每帧刷新数字时会掉帧。
+ *
+ * 取 **max(4, RENDER_SCALE)**：字栅格必须**不低于**后缓冲的超采样倍数，否则文字画布
+ * 会被放进更大的缓冲里再放大，等于自己先糊一次（之前 R 封顶 3、栅格固定 4 时是 4 ≥ 3，
+ * 侥幸覆盖；现在手机上 R 会到 5，写死 4 就反过来被放大 1.25 倍）。
+ * 再高会让每次改文案都重新生成更大的 canvas，HUD 每帧刷新数字时会掉帧，所以上面就封顶。
+ *
+ * 注意：**只调这个数没用**。栅格再高，画到 480 宽的小画布上也会被压回去——
+ * 真正的瓶颈是后缓冲尺寸，见 `RENDER_SCALE` 的注释。
  */
-export const TEXT_RESOLUTION = 4;
+export const TEXT_RESOLUTION_MIN = 4;
 
+/** 实时读：`RENDER_SCALE` 会随横竖屏/窗口变化重算，文字栅格必须跟着走。 */
+export function textResolution(): number {
+  return Math.max(TEXT_RESOLUTION_MIN, RENDER_SCALE);
+}
+
+/** @deprecated 用 `textResolution()`；这个常量只是历史调用点的兼容值。 */
+export const TEXT_RESOLUTION = TEXT_RESOLUTION_MIN;
 /** 常用字号的语义名，避免同一个「小字」在不同场景写成 8px / 9px / 10px 三种。 */
 export const FS = {
   /** 角标、坐标、提示小字 */

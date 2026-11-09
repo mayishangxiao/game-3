@@ -11,7 +11,7 @@
  *   3. 任何对象都要能被 `destroyAll()` 收干净：玩家可能在中途重开关卡，残留文字会盖在新场景上。
  */
 import Phaser from 'phaser';
-import { DEPTH, PALETTE, VIEW_H, VIEW_W } from '../core/constants';
+import { DEPTH, GAME_H, GAME_W, PALETTE, RENDER_SCALE, VIEW_H, VIEW_W } from '../core/constants';
 import { DEFEAT_BEATS, DEFEAT_TEXT, beatStart } from '../core/defeat';
 import { backdropImage } from '../gfx/Backdrop';
 import { setControlsVisible, setHudVisible } from '../core/EventBus';
@@ -108,8 +108,15 @@ export class DefeatCinematic {
     // 战场摄像机会被拉远（zoom 0.62），同一个摄像机里的黑边/压暗/大字/海战背景也会一起缩小，
     // 结果就是黑边只盖住半屏、背景图歪在右边（截图里就是这样），构图整个散架。
     // 这里给演出层单独开一台不缩放、不滚动的摄像机。
-    const uiCam = scene.cameras.add(0, 0, VIEW_W, VIEW_H);
+    // 视口必须是**后缓冲尺寸**（GAME_W×GAME_H）而不是逻辑 480×270，并且 origin 归零 +
+    // zoom = RENDER_SCALE：否则这台摄像机只盖住屏幕左上角一格，黑边和大字都只有一半大。
+    const uiCam = scene.cameras.add(0, 0, GAME_W, GAME_H);
+    uiCam.setOrigin(0, 0);
+    uiCam.setZoom(RENDER_SCALE);
     uiCam.setName('defeat-ui');
+    // 演出层也得跟着超采样：后缓冲是 VIEW×RENDER_SCALE，不加 zoom 的话这张黑边/大字
+    // 只会画在左上角 1/R² 的方格里（R=3 时就是九分之一屏）。
+    uiCam.setZoom(RENDER_SCALE);
     const worldOnly = scene.children.list.filter((o) => !this.parts.includes(o));
     uiCam.ignore(worldOnly);
     cam.ignore(this.parts);
@@ -125,7 +132,9 @@ export class DefeatCinematic {
       audio.cannonAftermath();
       // 拉得比「稍微退一点」更狠：0.7 倍能真的读成「退到江面上看这场败仗」，
       // 只退到 0.86 的话画面上还是战场占满屏，和后面整屏的海战背景打架。
-      cam.zoomTo(Math.max(0.62, this.prevZoom * 0.7), DEFEAT_BEATS.pullback + 200, 'Sine.easeInOut');
+      // 下限也要跟着 RENDER_SCALE 走：写死 0.62 的话，R=3 时会被夹到 0.62，
+      // 等于从 3 倍一路拉到 0.62，画面直接缩成一个点。
+      cam.zoomTo(Math.max(0.62 * RENDER_SCALE, this.prevZoom * 0.7), DEFEAT_BEATS.pullback + 200, 'Sine.easeInOut');
       scene.tweens.add({ targets: dark, fillAlpha: 0.66, duration: DEFEAT_BEATS.pullback, ease: 'Sine.easeInOut' });
     });
 

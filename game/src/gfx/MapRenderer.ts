@@ -15,7 +15,7 @@
  */
 
 import Phaser from 'phaser';
-import { DEPTH, PALETTE, SCAR_TEX, TILE, darkerOf, lighterOf } from '../core/constants';
+import { DEPTH, PALETTE, SCAR_TEX, TILE, TP_SHEET_COLS, TP_SHEET_TEX, TP_TILESET_ID, darkerOf, lighterOf } from '../core/constants';
 import type { MapDef, MapLayer, MapTrigger } from '../core/types';
 import { markPixel } from './PixelArt';
 
@@ -103,7 +103,35 @@ export class MapRenderer {
       else if (layer.name !== 'collision') this.drawGround(layer);
       if (layer.collidable) this.markCollision(layer);
     }
-    this.paintWalls();
+    // tp_act2 的每个实心格本身就是一张画好的建筑/山林/掩体瓦片 PNG，
+    // 再刷一层紫灰石墙会把美术整个盖掉；旧图仍需要 paintWalls 补「撞得住但看不见」的空气墙。
+    if (this.def.tileset !== TP_TILESET_ID) this.paintWalls();
+  }
+
+  /**
+   * 从 tp_act2 拼版里取一帧画到地面 canvas 上，成功返回 true。
+   *
+   * 帧号就是地图 JSON 的瓦片 id（id 0 恒透明，不会进循环），布局与
+   * `public/art/tiles/tp/tileset.json → columns / sheet_cell` 一致：
+   * `col = id % 8`、`row = ⌊id / 8⌋`。越界（换了图集没同步数据）返回 false，
+   * 让调用方回退 `tile_colors` 的程序化材质，而不是留一个空白洞。
+   */
+  private blitSheetTile(
+    ctx: CanvasRenderingContext2D,
+    sheet: CanvasImageSource,
+    id: number,
+    x: number,
+    y: number,
+  ): boolean {
+    if (!Number.isInteger(id) || id <= 0) return false;
+    const col = id % TP_SHEET_COLS;
+    const row = Math.floor(id / TP_SHEET_COLS);
+    // 图集加载失败 / 尺寸对不上时宁可回退：drawImage 超界在部分浏览器会静默不画。
+    const sw = Number((sheet as HTMLImageElement).width) || 0;
+    const sh = Number((sheet as HTMLImageElement).height) || 0;
+    if (sw && sh && (col * TILE + TILE > sw || row * TILE + TILE > sh)) return false;
+    ctx.drawImage(sheet, col * TILE, row * TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
+    return true;
   }
 
   /**
@@ -170,6 +198,14 @@ export class MapRenderer {
     const tex = this.scene.textures.createCanvas(key, w, h);
     if (!tex) return;
     const ctx = tex.getContext();
+    // 1:1 像素拷贝，别让画布默认的双线性插值把 16×16 瓦片糊掉。
+    ctx.imageSmoothingEnabled = false;
+
+    // 太平天国篇章走真图块：LevelScene.preload() 已把拼版挂到纹理管理器。
+    // 旧地图 tileset === 'placeholder'（或图集没加载成功）时 sheet 为 null，原逻辑一行不改。
+    const sheet = this.def.tileset === TP_TILESET_ID && this.scene.textures.exists(TP_SHEET_TEX)
+      ? (this.scene.textures.get(TP_SHEET_TEX).getSourceImage() as CanvasImageSource)
+      : null;
 
     // 顶上 `sky_rows` 行留空（透明），由 LevelScene 在那条带上叠远景条，
     // 战斗地图因此有「炮台外的海面」而不是光秃秃的格子地。
@@ -179,6 +215,8 @@ export class MapRenderer {
       for (let x = 0; x < Math.min(cols, layer.data[y].length); x++) {
         const tile = layer.data[y][x];
         if (!tile) continue;
+        // 图集优先：拿到帧就不再画程序化材质，避免两套美术叠在一起。
+        if (sheet && this.blitSheetTile(ctx, sheet, Number(tile), x, y)) continue;
         const hex = this.def.tile_colors[String(tile)];
         if (!hex) continue;
         this.paintTile(ctx, x * TILE, y * TILE, hex);

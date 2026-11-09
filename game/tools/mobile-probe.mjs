@@ -119,6 +119,7 @@ async function main() {
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-gpu',
+      '--disable-features=HttpsUpgrades,HttpsFirstBalancedMode,HttpsFirstModeV2ForDesktop',
       'about:blank',
     ],
     { stdio: 'ignore' },

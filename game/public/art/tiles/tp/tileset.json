@@ -1,0 +1,1482 @@
+{
+  "name": "tp_act2",
+  "version": "1.0",
+  "description": "太平天国篇章（序章第二幕 1851-1864）通用图块集：村落 / 城池 / 战场",
+  "engine": "Phaser 3 (MapDef JSON) + Tiled 兼容字段",
+  "tilewidth": 16,
+  "tileheight": 16,
+  "tilecount": 37,
+  "columns": 8,
+  "image": "tp_act2_sheet.png",
+  "imagewidth": 128,
+  "imageheight": 80,
+  "margin": 0,
+  "spacing": 0,
+  "tiles": [
+    {
+      "id": 1,
+      "name": "tp_terrain_grass_00",
+      "cn": "草地·基",
+      "type": "terrain",
+      "file": "tp_terrain_grass_00.png",
+      "sheet_cell": {
+        "col": 1,
+        "row": 0
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "village",
+        "city"
+      ],
+      "collidable": false,
+      "engine_hex": "#7BA84A",
+      "render_style_hint": "wood",
+      "note": "村口、城外草地",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village,city"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "tp_terrain_grass_01",
+      "cn": "草地·变体",
+      "type": "terrain",
+      "file": "tp_terrain_grass_01.png",
+      "sheet_cell": {
+        "col": 2,
+        "row": 0
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": false,
+      "engine_hex": "#7BA84A",
+      "render_style_hint": "wood",
+      "note": "打散平铺重复感",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "tp_terrain_grass_edge",
+      "cn": "草地·田埂边",
+      "type": "terrain",
+      "file": "tp_terrain_grass_edge.png",
+      "sheet_cell": {
+        "col": 3,
+        "row": 0
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": false,
+      "engine_hex": "#A8D070",
+      "render_style_hint": "sand",
+      "note": "田埂与地块分界",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "tp_terrain_dirt_path",
+      "cn": "土路",
+      "type": "terrain",
+      "file": "tp_terrain_dirt_path.png",
+      "sheet_cell": {
+        "col": 4,
+        "row": 0
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "village",
+        "battlefield"
+      ],
+      "collidable": false,
+      "engine_hex": "#CFA26A",
+      "render_style_hint": "sand",
+      "note": "护送主路，宽 3 格",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village,battlefield"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "tp_terrain_dirt_path_01",
+      "cn": "土路·变体",
+      "type": "terrain",
+      "file": "tp_terrain_dirt_path_01.png",
+      "sheet_cell": {
+        "col": 5,
+        "row": 0
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": false,
+      "engine_hex": "#CFA26A",
+      "render_style_hint": "sand",
+      "note": "车辙与碎石",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "tp_terrain_paddy",
+      "cn": "水田/稻田",
+      "type": "terrain",
+      "file": "tp_terrain_paddy.png",
+      "sheet_cell": {
+        "col": 6,
+        "row": 0
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": false,
+      "engine_hex": "#A8763F",
+      "render_style_hint": "sand",
+      "note": "金田村稻田",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "tp_terrain_stone_road",
+      "cn": "青石板街",
+      "type": "terrain",
+      "file": "tp_terrain_stone_road.png",
+      "sheet_cell": {
+        "col": 7,
+        "row": 0
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "city"
+      ],
+      "collidable": false,
+      "engine_hex": "#6B6489",
+      "render_style_hint": "stone",
+      "note": "天京城主街",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "tp_terrain_stone_road_01",
+      "cn": "青石板·变体",
+      "type": "terrain",
+      "file": "tp_terrain_stone_road_01.png",
+      "sheet_cell": {
+        "col": 0,
+        "row": 1
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "city",
+        "battlefield"
+      ],
+      "collidable": false,
+      "engine_hex": "#948DAB",
+      "render_style_hint": "stone",
+      "note": "街面明暗变化",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city,battlefield"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "tp_terrain_rampart",
+      "cn": "城墙砖面",
+      "type": "terrain",
+      "file": "tp_terrain_rampart.png",
+      "sheet_cell": {
+        "col": 1,
+        "row": 1
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "city",
+        "battlefield"
+      ],
+      "collidable": false,
+      "engine_hex": "#4A4468",
+      "render_style_hint": "stone",
+      "note": "大砖错缝 + 压顶",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city,battlefield"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "tp_terrain_water",
+      "cn": "护城河",
+      "type": "terrain",
+      "file": "tp_terrain_water.png",
+      "sheet_cell": {
+        "col": 2,
+        "row": 1
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "city",
+        "battlefield"
+      ],
+      "collidable": true,
+      "engine_hex": "#2A5A8A",
+      "render_style_hint": "sea",
+      "note": "水体自带阻挡",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city,battlefield"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "tp_terrain_shore",
+      "cn": "岸线",
+      "type": "terrain",
+      "file": "tp_terrain_shore.png",
+      "sheet_cell": {
+        "col": 3,
+        "row": 1
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "city",
+        "village"
+      ],
+      "collidable": false,
+      "engine_hex": "#E8CFA8",
+      "render_style_hint": "sand",
+      "note": "水陆过渡，禁止画成半透明",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city,village"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "tp_terrain_scorched",
+      "cn": "焦土瓦砾",
+      "type": "terrain",
+      "file": "tp_terrain_scorched.png",
+      "sheet_cell": {
+        "col": 4,
+        "row": 1
+      },
+      "category": "terrain",
+      "layer": "ground",
+      "scenes": [
+        "battlefield"
+      ],
+      "collidable": false,
+      "engine_hex": "#4E2F1A",
+      "render_style_hint": "plain",
+      "note": "1864 城破后的地表",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "terrain"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "battlefield"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "tp_building_village_roof",
+      "cn": "村舍瓦顶",
+      "type": "building",
+      "file": "tp_building_village_roof.png",
+      "sheet_cell": {
+        "col": 5,
+        "row": 1
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": true,
+      "engine_hex": "#7A4F2A",
+      "render_style_hint": "wood",
+      "note": "屋顶整块阻挡",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "tp_building_village_wall",
+      "cn": "村舍土墙",
+      "type": "building",
+      "file": "tp_building_village_wall.png",
+      "sheet_cell": {
+        "col": 6,
+        "row": 1
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": true,
+      "engine_hex": "#E8CFA8",
+      "render_style_hint": "sand",
+      "note": "木框 + 窗",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "tp_building_village_door",
+      "cn": "村舍门洞",
+      "type": "building",
+      "file": "tp_building_village_door.png",
+      "sheet_cell": {
+        "col": 7,
+        "row": 1
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": true,
+      "engine_hex": "#4E2F1A",
+      "render_style_hint": "plain",
+      "note": "门是视觉，不是传送点",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "tp_building_fence",
+      "cn": "竹篱笆",
+      "type": "building",
+      "file": "tp_building_fence.png",
+      "sheet_cell": {
+        "col": 0,
+        "row": 2
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": true,
+      "engine_hex": "#7BA84A",
+      "render_style_hint": "wood",
+      "note": "田块隔断，阻挡",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "tp_building_granary",
+      "cn": "粮仓/圣库",
+      "type": "building",
+      "file": "tp_building_granary.png",
+      "sheet_cell": {
+        "col": 1,
+        "row": 2
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "village",
+        "city"
+      ],
+      "collidable": true,
+      "engine_hex": "#A8763F",
+      "render_style_hint": "sand",
+      "note": "圣库是经营玩法目标物",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village,city"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "tp_building_city_wall",
+      "cn": "城墙段",
+      "type": "building",
+      "file": "tp_building_city_wall.png",
+      "sheet_cell": {
+        "col": 2,
+        "row": 2
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "city",
+        "battlefield"
+      ],
+      "collidable": true,
+      "engine_hex": "#6B6489",
+      "render_style_hint": "stone",
+      "note": "垛口 + 错缝砖",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city,battlefield"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "tp_building_city_gate",
+      "cn": "城门洞",
+      "type": "building",
+      "file": "tp_building_city_gate.png",
+      "sheet_cell": {
+        "col": 3,
+        "row": 2
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "city"
+      ],
+      "collidable": true,
+      "engine_hex": "#2F2B45",
+      "render_style_hint": "stone",
+      "note": "城门在本包里是布景（阻挡）",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "name": "tp_building_watchtower",
+      "cn": "箭楼",
+      "type": "building",
+      "file": "tp_building_watchtower.png",
+      "sheet_cell": {
+        "col": 4,
+        "row": 2
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "city",
+        "battlefield"
+      ],
+      "collidable": true,
+      "engine_hex": "#948DAB",
+      "render_style_hint": "stone",
+      "note": "角楼 + 太平军红旗",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city,battlefield"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "tp_building_palace_roof",
+      "cn": "王府琉璃顶",
+      "type": "building",
+      "file": "tp_building_palace_roof.png",
+      "sheet_cell": {
+        "col": 5,
+        "row": 2
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "city"
+      ],
+      "collidable": true,
+      "engine_hex": "#D4A840",
+      "render_style_hint": "sand",
+      "note": "天王府专用",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "tp_building_palace_wall",
+      "cn": "王府红墙",
+      "type": "building",
+      "file": "tp_building_palace_wall.png",
+      "sheet_cell": {
+        "col": 6,
+        "row": 2
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "city"
+      ],
+      "collidable": true,
+      "engine_hex": "#8C1C1C",
+      "render_style_hint": "wood",
+      "note": "金钉 + 窗",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "tp_building_shop_front",
+      "cn": "街市铺面",
+      "type": "building",
+      "file": "tp_building_shop_front.png",
+      "sheet_cell": {
+        "col": 7,
+        "row": 2
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "city"
+      ],
+      "collidable": true,
+      "engine_hex": "#7A4F2A",
+      "render_style_hint": "wood",
+      "note": "幌子 + 柜台",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "tp_building_bridge",
+      "cn": "护城河木桥",
+      "type": "building",
+      "file": "tp_building_bridge.png",
+      "sheet_cell": {
+        "col": 0,
+        "row": 3
+      },
+      "category": "building",
+      "layer": "ground",
+      "scenes": [
+        "city"
+      ],
+      "collidable": false,
+      "engine_hex": "#7A4F2A",
+      "render_style_hint": "wood",
+      "note": "唯一可通行的跨水瓦片",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "building"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "tp_deco_pine",
+      "cn": "松树/山林",
+      "type": "decoration",
+      "file": "tp_deco_pine.png",
+      "sheet_cell": {
+        "col": 1,
+        "row": 3
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": true,
+      "engine_hex": "#4A7A2E",
+      "render_style_hint": "plain",
+      "note": "村落上下边界的实心山林（深底亮冠，形成清晰的边界带）",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "tp_deco_bamboo",
+      "cn": "竹丛",
+      "type": "decoration",
+      "file": "tp_deco_bamboo.png",
+      "sheet_cell": {
+        "col": 2,
+        "row": 3
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": false,
+      "engine_hex": "#A8D070",
+      "render_style_hint": "sand",
+      "note": "不阻挡，纯布景",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "name": "tp_deco_banner",
+      "cn": "太平军黄旗",
+      "type": "decoration",
+      "file": "tp_deco_banner.png",
+      "sheet_cell": {
+        "col": 3,
+        "row": 3
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "village",
+        "city",
+        "battlefield"
+      ],
+      "collidable": false,
+      "engine_hex": "#C0392B",
+      "render_style_hint": "wood",
+      "note": "史实：太平军黄旗红边，不用清军龙旗",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village,city,battlefield"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "name": "tp_deco_lantern",
+      "cn": "街市灯笼",
+      "type": "decoration",
+      "file": "tp_deco_lantern.png",
+      "sheet_cell": {
+        "col": 4,
+        "row": 3
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "city"
+      ],
+      "collidable": false,
+      "engine_hex": "#E85C4A",
+      "render_style_hint": "wood",
+      "note": "夜景光点，星黄不用于美术主体",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "city"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "name": "tp_deco_crate",
+      "cn": "木箱",
+      "type": "decoration",
+      "file": "tp_deco_crate.png",
+      "sheet_cell": {
+        "col": 5,
+        "row": 3
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "village",
+        "city"
+      ],
+      "collidable": false,
+      "engine_hex": "#A8763F",
+      "render_style_hint": "sand",
+      "note": "与 objects 的 pickup 区分：这个是布景",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village,city"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "name": "tp_deco_barrel",
+      "cn": "粮桶",
+      "type": "decoration",
+      "file": "tp_deco_barrel.png",
+      "sheet_cell": {
+        "col": 6,
+        "row": 3
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "village",
+        "city",
+        "battlefield"
+      ],
+      "collidable": false,
+      "engine_hex": "#A8763F",
+      "render_style_hint": "sand",
+      "note": "圣库/军粮",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village,city,battlefield"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "name": "tp_deco_well",
+      "cn": "水井",
+      "type": "decoration",
+      "file": "tp_deco_well.png",
+      "sheet_cell": {
+        "col": 7,
+        "row": 3
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "village"
+      ],
+      "collidable": true,
+      "engine_hex": "#948DAB",
+      "render_style_hint": "stone",
+      "note": "村落水井，阻挡",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "village"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "name": "tp_deco_sandbag",
+      "cn": "沙袋工事",
+      "type": "decoration",
+      "file": "tp_deco_sandbag.png",
+      "sheet_cell": {
+        "col": 0,
+        "row": 4
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "battlefield"
+      ],
+      "collidable": true,
+      "engine_hex": "#CFA26A",
+      "render_style_hint": "sand",
+      "note": "战场掩体，阻挡",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "battlefield"
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "name": "tp_deco_barricade",
+      "cn": "鹿角拒马",
+      "type": "decoration",
+      "file": "tp_deco_barricade.png",
+      "sheet_cell": {
+        "col": 1,
+        "row": 4
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "battlefield"
+      ],
+      "collidable": true,
+      "engine_hex": "#7A4F2A",
+      "render_style_hint": "wood",
+      "note": "战场掩体，阻挡",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "battlefield"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "name": "tp_deco_cannon",
+      "cn": "炮位",
+      "type": "decoration",
+      "file": "tp_deco_cannon.png",
+      "sheet_cell": {
+        "col": 2,
+        "row": 4
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "battlefield"
+      ],
+      "collidable": true,
+      "engine_hex": "#0D0B14",
+      "render_style_hint": "plain",
+      "note": "湘军/洋枪队炮位，阻挡",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "battlefield"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "name": "tp_deco_tent",
+      "cn": "营帐",
+      "type": "decoration",
+      "file": "tp_deco_tent.png",
+      "sheet_cell": {
+        "col": 3,
+        "row": 4
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "battlefield"
+      ],
+      "collidable": true,
+      "engine_hex": "#E8CFA8",
+      "render_style_hint": "sand",
+      "note": "军帐，阻挡",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "battlefield"
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "name": "tp_deco_breach",
+      "cn": "城墙缺口",
+      "type": "decoration",
+      "file": "tp_deco_breach.png",
+      "sheet_cell": {
+        "col": 4,
+        "row": 4
+      },
+      "category": "decoration",
+      "layer": "ground",
+      "scenes": [
+        "battlefield"
+      ],
+      "collidable": false,
+      "engine_hex": "#6B6489",
+      "render_style_hint": "stone",
+      "note": "1864 城破处，可通行（视觉焦点）",
+      "properties": [
+        {
+          "name": "category",
+          "type": "string",
+          "value": "decoration"
+        },
+        {
+          "name": "collidable",
+          "type": "bool",
+          "value": false
+        },
+        {
+          "name": "scene",
+          "type": "string",
+          "value": "battlefield"
+        }
+      ]
+    }
+  ],
+  "grid": {
+    "tile_px": 16,
+    "cols": 30,
+    "rows": 16,
+    "world_px": [
+      480,
+      256
+    ],
+    "single_screen": true,
+    "camera_scroll": false
+  },
+  "palette": {
+    "ink": "#0D0B14",
+    "night": "#1C1A2B",
+    "plumDark": "#2F2B45",
+    "plumMid": "#4A4468",
+    "plumLight": "#6B6489",
+    "greyPlum": "#948DAB",
+    "greyLight": "#C2BCD1",
+    "paper": "#F2EDE4",
+    "cream": "#E8CFA8",
+    "sand": "#CFA26A",
+    "brown": "#A8763F",
+    "brownDark": "#7A4F2A",
+    "brownDeep": "#4E2F1A",
+    "redDark": "#8C1C1C",
+    "red": "#C0392B",
+    "redBright": "#E85C4A",
+    "redSoft": "#F2A08C",
+    "greenDark": "#4A7A2E",
+    "green": "#7BA84A",
+    "greenLight": "#A8D070",
+    "indigo": "#2A5A8A",
+    "blue": "#4A90C8",
+    "blueLight": "#7BC0E8",
+    "star": "#D4A840"
+  },
+  "palette_rule": "24 色锁定 v2，唯一真相 game/src/core/constants.ts -> PALETTE；禁止新增色号、禁止半透明像素、禁止渐变",
+  "layers": [
+    {
+      "name": "terrain",
+      "cn": "地形",
+      "collidable": false,
+      "engine_layer": "ground",
+      "order": 0
+    },
+    {
+      "name": "building",
+      "cn": "建筑",
+      "collidable": "per_tile",
+      "engine_layer": "ground",
+      "order": 1
+    },
+    {
+      "name": "decoration",
+      "cn": "装饰",
+      "collidable": "per_tile",
+      "engine_layer": "ground",
+      "order": 2
+    },
+    {
+      "name": "collision",
+      "cn": "碰撞",
+      "collidable": true,
+      "engine_layer": "collision",
+      "order": 3
+    }
+  ],
+  "layer_fold_rule": "ground = terrain 底图，被 building 非零格覆盖，再被 decoration 非零格覆盖；collision 层取各层 collidable 瓦片的并集（0/1）。foreground 禁用（会遮挡角色）。",
+  "engine_binding": {
+    "map_field": "tileset",
+    "value": "tp_act2",
+    "tile_colors": {
+      "1": "#7BA84A",
+      "2": "#7BA84A",
+      "3": "#A8D070",
+      "4": "#CFA26A",
+      "5": "#CFA26A",
+      "6": "#A8763F",
+      "7": "#6B6489",
+      "8": "#948DAB",
+      "9": "#4A4468",
+      "10": "#2A5A8A",
+      "11": "#E8CFA8",
+      "12": "#4E2F1A",
+      "13": "#7A4F2A",
+      "14": "#E8CFA8",
+      "15": "#4E2F1A",
+      "16": "#7BA84A",
+      "17": "#A8763F",
+      "18": "#6B6489",
+      "19": "#2F2B45",
+      "20": "#948DAB",
+      "21": "#D4A840",
+      "22": "#8C1C1C",
+      "23": "#7A4F2A",
+      "24": "#7A4F2A",
+      "25": "#4A7A2E",
+      "26": "#A8D070",
+      "27": "#C0392B",
+      "28": "#E85C4A",
+      "29": "#A8763F",
+      "30": "#A8763F",
+      "31": "#948DAB",
+      "32": "#CFA26A",
+      "33": "#7A4F2A",
+      "34": "#0D0B14",
+      "35": "#E8CFA8",
+      "36": "#6B6489"
+    },
+    "note": "当前 MapRenderer 不读 PNG，只按 tile_colors 的 hex 推断材质（sea/sand/stone/wood/plain）；render_style_hint 就是该推断结果。接入真图块时按 sheet_cell 取帧，见 design/12_taiping_tilemap_spec.md 第 8 节。"
+  },
+  "files": {
+    "single_tiles": "public/art/tiles/tp/tp_*.png（每瓦片一张，16x16）",
+    "sheet": "public/art/tiles/tp/tp_act2_sheet.png",
+    "config": "public/art/tiles/tp/tileset.json（本文件）",
+    "edit_source": "public/art/tiles/tp/layers/*.layers.json（四层编辑源）",
+    "engine_maps": "public/data/maps/map_ch00_tp_*.json"
+  }
+}

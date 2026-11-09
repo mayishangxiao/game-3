@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ART, CONTROL_LAYOUT, FX_CANNON_FRAMES, HORIZON_ROWS, SCAR_TEX, SHIP_FRAME, SHIP_TEX, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, type SunnyProp } from '../src/core/constants';
+import { ART, CONTROL_LAYOUT, FX_CANNON_FRAMES, HORIZON_ROWS, SCAR_TEX, SHIP_FRAME, SHIP_TEX, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TP_SHEET_COLS, TP_TILESET_ID, type SunnyProp } from '../src/core/constants';
 
 const ROOT = process.cwd();
 const PUBLIC = join(ROOT, 'public');
@@ -32,13 +32,13 @@ function pngSize(rel: string): PngHeader {
 
 describe('正式美术资源', () => {
   it('ART 里登记的每个文件都存在', () => {
-    const all = [...ART.shipBossFrames, ART.crate, ART.portraitLinZexu, ART.portraitGuanTianpei];
+    const all = [...ART.shipBossFrames, ART.crate, ART.portraitLinZexu, ART.portraitGuanTianpei, ART.tpSheet];
     const missing = all.filter((p) => !existsSync(join(PUBLIC, p)));
     expect(missing).toEqual([]);
   });
 
   it('路径写法统一：不带 public 前缀，用正斜杠', () => {
-    for (const p of [...ART.shipBossFrames, ART.crate, ART.portraitLinZexu, ART.portraitGuanTianpei]) {
+    for (const p of [...ART.shipBossFrames, ART.crate, ART.portraitLinZexu, ART.portraitGuanTianpei, ART.tpSheet]) {
       expect(p.startsWith('public/')).toBe(false);
       expect(p.includes('\\')).toBe(false);
       expect(p.startsWith('art/')).toBe(true);
@@ -228,6 +228,54 @@ describe('正式美术资源', () => {
       for (const b of buttons) {
         const dist = Math.hypot(cx - b.x, cy - b.y);
         expect(dist, `${c.id} 压在控件上`).toBeGreaterThan(b.r + 8);
+      }
+    }
+  });
+});
+
+/**
+ * 太平天国篇章瓦片图集接入（design/12_taiping_tilemap_spec.md 第 8 节）。
+ * 挡的是「图集被删 / columns 改了没同步 / 地图漏填 tileset」——这三种在浏览器里
+ * 都只会静默回退成程序化材质，画面看着还「能玩」，截图评审极难发现。
+ */
+describe('太平天国图集接入（tp_act2）', () => {
+  const cfg = JSON.parse(
+    readFileSync(join(PUBLIC, 'art/tiles/tp/tileset.json'), 'utf8'),
+  ) as {
+    columns: number;
+    tilecount: number;
+    imagewidth: number;
+    imageheight: number;
+    tiles: { id: number; sheet_cell: { col: number; row: number } }[];
+  };
+
+  it('拼版图存在、尺寸与 tileset.json 的 columns/sheet_cell 对齐', () => {
+    expect(existsSync(join(PUBLIC, ART.tpSheet))).toBe(true);
+    expect(cfg.columns).toBe(TP_SHEET_COLS);
+    expect(pngSize(ART.tpSheet)).toEqual({ width: cfg.imagewidth, height: cfg.imageheight });
+    for (const t of cfg.tiles) {
+      expect(t.sheet_cell.col, `瓦片 ${t.id} 的列号`).toBe(t.id % TP_SHEET_COLS);
+      expect(t.sheet_cell.row, `瓦片 ${t.id} 的行号`).toBe(Math.floor(t.id / TP_SHEET_COLS));
+    }
+  });
+
+  it('三张新地图都声明 tp_act2，瓦片号不越界，场景开关按规格', () => {
+    const ids = ['map_ch00_tp_village', 'map_ch00_tp_city', 'map_ch00_tp_battlefield'];
+    for (const id of ids) {
+      const m = JSON.parse(
+        readFileSync(join(PUBLIC, 'data', 'maps', `${id}.json`), 'utf8'),
+      ) as { tileset: string; layers: { data: number[][] }[]; sky_rows?: number; battle_scars?: boolean };
+      expect(m.tileset, `${id} 漏了 tileset 声明`).toBe(TP_TILESET_ID);
+      const used = new Set<number>();
+      for (const l of m.layers) for (const row of l.data) for (const v of row) if (v) used.add(v);
+      for (const v of used) expect(v, `${id} 的瓦片号 ${v} 超出图集`).toBeLessThan(cfg.tilecount);
+      expect(used.size, `${id} 没用到瓦片`).toBeGreaterThan(10);
+      if (id === 'map_ch00_tp_battlefield') {
+        expect(m.sky_rows).toBe(4);
+        expect(m.battle_scars).toBe(true);
+      } else {
+        expect(m.sky_rows ?? 0, `${id} 不该开远景带`).toBe(0);
+        expect(m.battle_scars ?? false, `${id} 不该开残破化`).toBe(false);
       }
     }
   });

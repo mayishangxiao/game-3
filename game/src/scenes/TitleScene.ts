@@ -117,6 +117,9 @@ export class TitleScene extends Phaser.Scene {
     this.events.on(Phaser.Scenes.Events.POST_UPDATE, syncHint);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.events.off(Phaser.Scenes.Events.POST_UPDATE, syncHint);
+      // 只有「开始游戏」按钮会调 hideTitle()。任何别的离开路径（探针切场景、以后加的
+      // 直接续档）都会把标题大字留在屏幕上，压住关卡里的事件条——DOM 层得自己收。
+      hideTitle();
     });
 
     this.input.keyboard?.on('keydown-ENTER', () => this.startGame(hasProgress(getSave())));

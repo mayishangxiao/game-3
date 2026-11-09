@@ -6,7 +6,7 @@
  */
 
 import Phaser from 'phaser';
-import { CONTROL_HIT_PAD, CONTROL_LAYOUT, DEPTH, PALETTE, VIEW_H, VIEW_W } from '../core/constants';
+import { CONTROL_HIT_PAD, CONTROL_LAYOUT, DEPTH, PALETTE, RENDER_SCALE, VIEW_H, VIEW_W } from '../core/constants';
 import { FONT_UI } from '../gfx/TextStyle';
 
 /** 共享输入状态（跨场景单例） */
@@ -48,6 +48,9 @@ const LAYOUT = {
 /** 可点区域比视觉尺寸大 8px（设计书 6.1.1 移动端要点） */
 const HIT_PAD = CONTROL_HIT_PAD;
 
+/** 一根手指一次只认一个用途 */
+type ControlRole = 'stick' | 'attack' | 'cannon' | 'dodge' | 'interact';
+
 export class InputSystem {
   private scene: Phaser.Scene;
   private knob: Phaser.GameObjects.Arc;
@@ -64,6 +67,26 @@ export class InputSystem {
   /** 炮键的全部视觉件与命中区（隐藏时连命中区一起收，免得点到空气） */
   private cannonParts: Array<{ setVisible(v: boolean): unknown }> = [];
   private stickPointerId: number | null = null;
+  /**
+   * 手指 → 用途。
+   *
+   * 为什么自己算命中而不用 Phaser 的 `setInteractive`：
+   * 后缓冲超采样（`RENDER_SCALE`）之后，`camera.setZoom(R)` 会让 Phaser 的命中测试
+   * 对这批 `scrollFactor=0` 的 Zone 全部落空（实测：R=1 时 `hitTestPointer` 命中
+   * `Zone@404,192`，R=2 时返回空数组，键盘却照常工作）。
+   * 与其去猜它的矩阵分支，不如把这件事变成显式的：指针坐标 ÷ R = 逻辑坐标，
+   * 再和 `CONTROL_LAYOUT` 的圆做距离比较。以后摄像机再怎么调都不会再悄悄吃掉触摸。
+   */
+  private roles = new Map<number, ControlRole>();
+  /** 按钮登记表：几何 + 按下/抬起回调，`bindPointerRouting` 按这张表做纯数学命中 */
+  private buttons: Array<{
+    role: ControlRole;
+    x: number;
+    y: number;
+    r: number;
+    onDown: () => void;
+    onUp?: () => void;
+  }> = [];
   /** 触屏「攻」是否正被按住（键盘与触屏分开记，否则按住的下一帧就被键盘读数清掉） */
   private touchAttack = false;
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
@@ -89,25 +112,12 @@ export class InputSystem {
       .setScrollFactor(0)
       .setDepth(DEPTH.hud + 1);
 
-    const stickHit = scene.add
-      .zone(
-        LAYOUT.stickCenter.x,
-        LAYOUT.stickCenter.y,
-        (LAYOUT.stickRadius + HIT_PAD) * 2,
-        (LAYOUT.stickRadius + HIT_PAD) * 2,
-      )
-      .setScrollFactor(0)
-      .setDepth(DEPTH.hud + 2);
-    stickHit.setInteractive(
-      new Phaser.Geom.Circle(LAYOUT.stickRadius + HIT_PAD, LAYOUT.stickRadius + HIT_PAD, LAYOUT.stickRadius + HIT_PAD),
-      Phaser.Geom.Circle.Contains,
-    );
     void stickBase;
-    this.parts.push(stickBase, this.knob, stickHit);
-    this.bindStick(stickHit);
+    this.parts.push(stickBase, this.knob);
+    this.bindPointerRouting();
 
     // ---- 三键 ----
-    this.makeButton(LAYOUT.attack, '攻', () => {
+    this.makeButton('attack', LAYOUT.attack, '攻', () => {
       this.touchAttack = true;
       controls.attackHeld = true;
       controls.attackPressed = true;
@@ -119,7 +129,7 @@ export class InputSystem {
     // ---- 虎门重炮：金色描边的金色字，一眼看出这是「大招」 ----
     // 只有「带炮的关卡」才显示（见 `setCannonShown`）——甲方要求炮是这一幕的专属手段，
     // 别的情况下多一个按不动的键只会让人以为坏了。
-    const cannonBtn = this.makeButton(LAYOUT.cannon, '炮', () => {
+    const cannonBtn = this.makeButton('cannon', LAYOUT.cannon, '炮', () => {
       controls.cannonPressed = true;
     });
     this.cannonFace = cannonBtn.face;
@@ -135,10 +145,10 @@ export class InputSystem {
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(DEPTH.hud + 1);
-    this.cannonParts = [cannonBtn.face, cannonBtn.text, cannonBtn.hit, this.cannonCd];
+    this.cannonParts = [cannonBtn.face, cannonBtn.text, this.cannonCd];
     this.parts.push(...this.cannonParts);
 
-    this.makeButton(LAYOUT.dodge, '闪', () => {
+    this.makeButton('dodge', LAYOUT.dodge, '闪', () => {
       controls.dodgePressed = true;
     });
 
@@ -160,29 +170,28 @@ export class InputSystem {
       .setDepth(DEPTH.hud + 1)
       .setVisible(false);
 
-    const interactHit = scene.add
-      .zone(LAYOUT.interact.x, LAYOUT.interact.y, (LAYOUT.interact.r + HIT_PAD) * 2, (LAYOUT.interact.r + HIT_PAD) * 2)
-      .setScrollFactor(0)
-      .setDepth(DEPTH.hud + 2);
-    interactHit.setInteractive(
-      new Phaser.Geom.Circle(LAYOUT.interact.r + HIT_PAD, LAYOUT.interact.r + HIT_PAD, LAYOUT.interact.r + HIT_PAD),
-      Phaser.Geom.Circle.Contains,
-    );
-    interactHit.on('pointerdown', () => {
-      if (!this.enabled || this.hidden) return;
-      controls.interactPressed = true;
+    this.parts.push(this.interactBtn, this.interactLabel);
+    // 「查」没有 Zone 了，但同样是按钮：靠近可交互物时才进 pick()（见那里的 visible 判断）
+    this.buttons.push({
+      role: 'interact',
+      x: LAYOUT.interact.x,
+      y: LAYOUT.interact.y,
+      r: LAYOUT.interact.r + HIT_PAD,
+      onDown: () => {
+        controls.interactPressed = true;
+      },
     });
-    this.parts.push(this.interactBtn, this.interactLabel, interactHit);
 
     this.bindKeyboard();
   }
 
   private makeButton(
+    role: ControlRole,
     cfg: { x: number; y: number; r: number },
     label: string,
     onDown: () => void,
     onUp?: () => void,
-  ): { face: Phaser.GameObjects.Arc; text: Phaser.GameObjects.Text; hit: Phaser.GameObjects.Zone } {
+  ): { face: Phaser.GameObjects.Arc; text: Phaser.GameObjects.Text; role: ControlRole } {
     const s = this.scene;
     const face = s.add
       .circle(cfg.x, cfg.y, cfg.r, PALETTE.redDark, 0.72)
@@ -199,38 +208,30 @@ export class InputSystem {
       .setScrollFactor(0)
       .setDepth(DEPTH.hud + 1);
 
-    const hit = s.add
-      .zone(cfg.x, cfg.y, (cfg.r + HIT_PAD) * 2, (cfg.r + HIT_PAD) * 2)
-      .setScrollFactor(0)
-      .setDepth(DEPTH.hud + 2);
-    hit.setInteractive(
-      new Phaser.Geom.Circle(cfg.r + HIT_PAD, cfg.r + HIT_PAD, cfg.r + HIT_PAD),
-      Phaser.Geom.Circle.Contains,
-    );
-    hit.on('pointerdown', () => {
-      if (!this.enabled || this.hidden) return;
-      onDown();
-    });
-    hit.on('pointerup', () => {
-      if (!this.enabled || this.hidden) return;
-      onUp?.();
-    });
-    // 手指按住后滑出按钮再松开：pointerout 会在「还按着」时就触发，
-    // 用它来收尾会把长按攻击打断，所以只在真的松开（outside）时收。
-    hit.on('pointerupoutside', () => {
-      if (!this.enabled || this.hidden) return;
-      onUp?.();
-    });
-    this.parts.push(face, text, hit);
-    return { face, text, hit };
+    // 命中判定统一走 bindPointerRouting()（见 roles 字段的注释），这里只留视觉件。
+    this.buttons.push({ role, x: cfg.x, y: cfg.y, r: cfg.r + HIT_PAD, onDown, onUp });
+    this.parts.push(face, text);
+    return { face, text, role };
   }
 
-  private bindStick(hit: Phaser.GameObjects.Zone): void {
+  /**
+   * 屏幕控件的唯一入口：手指按下 → 纯几何判断这根手指归谁 → 之后整条手势都跟着这个用途走。
+   *
+   * 摇杆的规矩保持原样（也是甲方踩出来的）：只有**按在摇杆圈内**的那根手指才能驱动移动，
+   * 按在「攻」上的手指一抖不该让角色走。以前靠 Phaser 的 Zone 命中来保证，
+   * 现在靠 `roles` 这张表——一根手指一个用途，语义完全相同，且不再依赖摄像机的矩阵。
+   */
+  private bindPointerRouting(): void {
     const cx = LAYOUT.stickCenter.x;
     const cy = LAYOUT.stickCenter.y;
     const R = LAYOUT.stickRadius;
 
-    /** 把触点换算成移动向量（不改变「这根手指归谁」） */
+    /** 后缓冲像素 → 逻辑坐标（见 `roles` 字段注释） */
+    const toLogical = (p: Phaser.Input.Pointer): { x: number; y: number } => ({
+      x: p.x / RENDER_SCALE,
+      y: p.y / RENDER_SCALE,
+    });
+
     const applyStick = (px: number, py: number) => {
       let dx = px - cx;
       let dy = py - cy;
@@ -255,31 +256,71 @@ export class InputSystem {
       }
     };
 
-    const release = (pointerId: number) => {
-      if (this.stickPointerId !== pointerId) return;
-      this.stickPointerId = null;
-      this.knob.setPosition(cx, cy);
-      controls.moveX = 0;
-      controls.moveY = 0;
+    /** 这根手指落在哪个控件上？按钮优先，再看摇杆圈 */
+    const pick = (x: number, y: number): ControlRole | null => {
+      for (const b of this.buttons) {
+        // 「查」只在靠近可交互物时才存在，隐藏时不该吃掉点击
+        if (b.role === 'interact' && !this.interactBtn.visible) continue;
+        if (b.role === 'cannon' && !this.cannonShown) continue;
+        if (Math.hypot(x - b.x, y - b.y) <= b.r) return b.role;
+      }
+      if (Math.hypot(x - cx, y - cy) <= R + HIT_PAD) return 'stick';
+      return null;
     };
 
-    // 只有「按在摇杆范围内」的那根手指才能驱动移动。
-    // 之前是在 scene 的 pointermove 里无条件领取指针，结果按「查/攻」时手指一抖，
-    // 角色就跟着走，交互也点不实——手指在按钮上，摇杆不该动。
-    hit.on('pointerdown', (p: Phaser.Input.Pointer) => {
+    const down = (p: Phaser.Input.Pointer) => {
       if (!this.enabled || this.hidden) return;
-      if (this.stickPointerId !== null && this.stickPointerId !== p.id) return;
-      this.stickPointerId = p.id;
-      applyStick(p.x, p.y);
-    });
-    this.scene.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      const { x, y } = toLogical(p);
+      const role = pick(x, y);
+      if (!role) return;
+      this.roles.set(p.id, role);
+      if (role === 'stick') {
+        // 已经有一根手指在管摇杆时，第二根手指不抢方向盘
+        if (this.stickPointerId !== null && this.stickPointerId !== p.id) {
+          this.roles.delete(p.id);
+          return;
+        }
+        this.stickPointerId = p.id;
+        applyStick(x, y);
+        return;
+      }
+      const b = this.buttons.find((it) => it.role === role);
+      b?.onDown();
+    };
+
+    const move = (p: Phaser.Input.Pointer) => {
       if (!this.enabled || this.hidden) return;
+      if (this.roles.get(p.id) !== 'stick' || !p.isDown) return;
       // 认指针 + 仍按着：滑出圆圈也继续跟手（向量会被夹到半径内）
-      if (p.id !== this.stickPointerId || !p.isDown) return;
-      applyStick(p.x, p.y);
-    });
-    this.scene.input.on('pointerup', (p: Phaser.Input.Pointer) => release(p.id));
-    this.scene.input.on('pointerupoutside', (p: Phaser.Input.Pointer) => release(p.id));
+      const { x, y } = toLogical(p);
+      applyStick(x, y);
+    };
+
+    const up = (p: Phaser.Input.Pointer) => {
+      const role = this.roles.get(p.id);
+      if (!role) return;
+      this.roles.delete(p.id);
+      if (role === 'stick') {
+        if (this.stickPointerId !== p.id) return;
+        this.stickPointerId = null;
+        this.knob.setPosition(cx, cy);
+        controls.moveX = 0;
+        controls.moveY = 0;
+        return;
+      }
+      if (!this.enabled || this.hidden) return;
+      const b = this.buttons.find((it) => it.role === role);
+      // 手指按住后滑出按钮再松开：原来用 pointerupoutside 收尾，
+      // 这里 role 一路跟到抬起，语义一致（长按攻击不会被中途打断）。
+      b?.onUp?.();
+    };
+
+    this.scene.input.on('pointerdown', down);
+    this.scene.input.on('pointermove', move);
+    this.scene.input.on('pointerup', up);
+    this.scene.input.on('pointerupoutside', up);
+    // 系统手势打断（来电、通知栏、浏览器菜单）：没有 up 事件，必须在这里收尾
+    this.scene.input.on('pointercancel', up);
   }
 
   private bindKeyboard(): void {

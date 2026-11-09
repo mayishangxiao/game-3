@@ -9,7 +9,7 @@
  */
 
 import Phaser from 'phaser';
-import { VIEW_H, VIEW_W } from '../core/constants';
+import { RENDER_SCALE, VIEW_H, VIEW_W } from '../core/constants';
 import { syncDomUiToCanvas } from './DomUi';
 import { isPortrait, toGameSpace, unrotateToLocal } from '../core/orientation';
 import { GATE_SKIP_KEY, hasGateBeenStarted, rememberGateStarted } from '../scenes/BootScene';
@@ -154,9 +154,13 @@ function patchInput(game: Phaser.Game, rotated: boolean): void {
       return { u: box.u, v: box.v };
     };
 
-    // 输入到这两个函数时已经是「画布本地坐标」，只需缩放到 480×270
-    scale.transformX = (u: number) => (u * VIEW_W) / Math.max(1, game.canvas.clientWidth);
-    scale.transformY = (v: number) => (v * VIEW_H) / Math.max(1, game.canvas.clientHeight);
+    // 输入到这两个函数时已经是「画布本地坐标」，要换算成**后缓冲像素**。
+    // 注意目标是 GAME_W/GAME_H 而不是 480×270：后缓冲开了 RENDER_SCALE 超采样，
+    // 缩到 480 的话整个触点坐标系会差 R 倍，触摸会整体偏向左上角。
+    const devW = game.scale.width || VIEW_W * RENDER_SCALE;
+    const devH = game.scale.height || VIEW_H * RENDER_SCALE;
+    scale.transformX = (u: number) => (u * devW) / Math.max(1, game.canvas.clientWidth);
+    scale.transformY = (v: number) => (v * devH) / Math.max(1, game.canvas.clientHeight);
 
     const original = input.__origTransformPointer;
     input.transformPointer = (pointer, pageX, pageY, wasMove) => {
@@ -186,8 +190,13 @@ function centerCanvas(game: Phaser.Game): void {
 }
 
 /**
- * 后缓冲分辨率实验已回退：直接改 canvas.width + renderer.resize + 相机视口在 Phaser 3.90 FIT
- * 模式下会黑屏（相机坐标系与后缓冲对不上）。暂时不做事，留着钩子以后再试。
+ * 后缓冲分辨率钩子（现在是空操作，但**已经不再需要**它了）。
+ *
+ * 历史：曾在这里试过「运行期改 canvas.width + renderer.resize + 相机视口」，
+ * 在 Phaser 3.90 的 FIT 模式下直接黑屏（相机坐标系和后缓冲对不上），于是回退成 no-op。
+ * 现在改用**构造期**就把 config 的宽高清成超采样尺寸（`core/constants.ts` 的 GAME_W/GAME_H
+ * + 每个场景 `cameras.main.setZoom(RENDER_SCALE)`）——那条路是 Phaser 官方支持的
+ * 「大后缓冲 + 相机 zoom」，不会黑屏。钩子留着是因为调用点在 resize 流程里，删了要改两处。
  */
 function fitBackingResolution(_game: Phaser.Game): void {
   // no-op

@@ -8,14 +8,13 @@
  * 引擎没到位的话整个包会直接抛错，表现是黑屏 + 一句 TypeError。所以入口必须先 await 这个函数。
  */
 const SOURCES = [
-  // 实测（本机到各 CDN 拉 1.17 MB）：360 ≈ 1.0 MB/s、unpkg ≈ 0.85 MB/s、bootcdn ≈ 0.12 MB/s。
-  // 所以按快的排在前面；单个源超时就换下一个，最后才用同目录副本。
+  // 本地副本优先：服务器在北京，手机直连最快；CDN 只作兜底
+  './phaser.min.js',
   'https://lib.baomitu.com/phaser/3.90.0/phaser.min.js',
   'https://unpkg.com/phaser@3.90.0/dist/phaser.min.js',
-  'https://cdn.bootcdn.net/ajax/libs/phaser/3.90.0/phaser.min.js',
 ];
-const LOCAL = './phaser.min.js';
-/** 单个 CDN 的等待上限：再久就不值得等，直接换源（本地副本兜底，慢但确定能成） */
+const LOCAL = '';
+/** 单个源的等待上限 */
 const SOURCE_TIMEOUT_MS = 9000;
 
 type GlobalScope = { Phaser?: unknown };

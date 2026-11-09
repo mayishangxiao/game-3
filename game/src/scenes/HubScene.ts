@@ -11,7 +11,7 @@ import { dataLoader } from '../core/DataLoader';
 import { getSave, persist } from './BootScene';
 import { effectiveStats } from '../core/balance';
 import { dungeonUnlocked, getDungeonState } from '../core/dungeon';
-import { emitToast } from '../core/EventBus';
+import { emitObjective, emitSceneLabel, emitToast } from '../core/EventBus';
 import type { ActDef, ChapterMeta } from '../core/types';
 import { hideOverlay, showOverlay } from '../systems/DomUi';
 
@@ -144,6 +144,18 @@ export class HubScene extends Phaser.Scene {
     );
 
     if (this.doors.length > 0) this.setCursor(0);
+
+    // DOM 层不归 Phaser 的场景生命周期管，离开长廊必须自己收干净。
+    // **Phaser 3.90 不会自动调用场景里名叫 `shutdown` 的方法**（dist 里 `Systems.shutdown`
+    // 只做 `events.emit(Events.SHUTDOWN, this, data)`，全文没有 `scene.shutdown` 这段接线），
+    // 所以只能自己在 create 里挂监听——挂一次就够，因为 create 每次进入长廊都会重跑。
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.shutdown());
+
+    // 战役条和目标文字是 UIScene 的常驻 DOM，不会随关卡场景一起消失：上一仗的
+    // 「清王朝 100 / 虎门销烟 1839 年 / 看烟土在池中化尽」会一直压在长廊左上角，
+    // 和长廊自己的标题叠成两层字。进长廊就把这两行换成本场景的内容。
+    emitSceneLabel({ act: this.meta.name, title: '时间长廊' });
+    emitObjective('← → 选幕　E 进入');
 
     // DOM 门标签（年份 + 章节名），随 corridor 横向滚动每帧更新
     this.doorLabelEls = [];
@@ -334,6 +346,9 @@ export class HubScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    // 注意：Phaser **不会**自动调用场景里名叫 `shutdown` 的方法（dist 里根本没有
+    // `scene.shutdown` 这段接线），所以真正的清理注册在 create() 的 SHUTDOWN 监听里。
+    // 这个方法留着给探针和老代码直接调用。
     hideOverlay();
     this.doorLabelEls.forEach((el) => el.remove());
     this.doorLabelEls = [];

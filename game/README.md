@@ -193,6 +193,15 @@ node tools/check-boss.mjs "<msedge.exe>" http://127.0.0.1:4173 tools/_cdp2
 python tools/analyze_shots.py tools/_cdp2       # 截图调色板合规性
 ```
 
+### DOM 文字层的重叠问题（2026-11-08 甲方手机截图「有文字重叠」）
+
+HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser 的场景生命周期**——场景停了，它塞进去的节点还在。两处真重叠：
+
+1. 第二次离开长廊时，副本面板 + 底部四入口还叠在战斗画面上（`HubScene` 指着隐式 `shutdown()` 方法，而 Phaser 3.90 根本不会调它）。现在 `create()` 里显式挂 `events.once(SHUTDOWN, ...)`，`LevelScene.boot()` 也在第一个 `await` 之前先把 DOM 浮层收干净。
+2. 右上角「暂停」出现「暂停暂停」：canvas 那份隐藏 Text 被 `setHudShown(true)` 重新点亮，和 DOM 版并排。canvas 版已删除。
+
+验证脚本：`node tools/_cdp/domstale.mjs "<msedge.exe>" <url> <out>` —— 走 Hub→Level→Hub→Level 四跳，逐跳把 `#dom-ui` 的子元素列出来（第二跳之后是关键，隐式钩子的坑只在第二次离开时暴露）。本地与线上四跳均干净、`errors: []`；`touch.mjs` 7/7、`salvo.mjs` ALL PASS。
+
 ### 单元测试锁定了什么（14 个文件 / 261 条）
 
 | 文件 | 数量 | 锁定内容 |
@@ -226,6 +235,7 @@ python tools/analyze_shots.py tools/_cdp2       # 截图调色板合规性
 - 探索场景 11 个可交互物（8 个鸦片箱）；8 箱投入后出口出现、节点推进到过场
 - 战斗 4 名敌人、HP 65 = `round(60 × 1.085)`；Lv1 普攻 8 点（`10×1.0 − 2` 再乘 ±5% 抖动），暴击率 5%
 - 通关一幕 → 回长廊 → 再进关卡：无错误、节点门数量未重复累加
+- **2026-11-08 追加**：`tools/_cdp/crates.mjs` 7 项全过（金色指引标 8 枚、最差净空 32px、8 箱全搬完、场上无残留）；`salvo.mjs` 8 项全过；`tsc` 0 错 / 261 条单测 / `boot-D1L37aXB.js 187.84 kB gzip 60.19 kB`
 
 **Boss 三段招式（专项探针，逐阶段观察招式序列）**
 
@@ -341,17 +351,30 @@ AI 美术交付包里的三样已经进游戏，其余（单位帧、瓦片）�
 - **呼吸动画**：每人的相位由 `(x*7 + y*13) % 20` 定，`y+8 ↔ y+7` 的 900–1400ms 正弦补间，十个人不会同步呼吸。
 - **验证**：`tools/_cdp/crowd.mjs`（端口 9411）8 项断言全为 true —— 10 个都放上了 / 5 种外形都用到 / scale=3 / 碰撞格 10 个 / 不在 worldObjects / 5 张贴图都存在 / 地图一屏不滚 / **按住右移 1.2s 位移 0px**（被百姓挡住）。三张截图逐张看过（全景 / 池子近景 / 被挡）。
 - 踩过的坑：`centerOn` 拿不到近景，因为相机 `startFollow` 玩家、下一帧就被拉回；而且这张图是 30×16 格 = 480×256，**正好一屏、根本不会滚动**，所以「镜头是否移动」这条断言本身就无从成立，改成断言前提（`mapFitsOneScreen`）。
+- **后来甲方又要求「把第一幕的观众也全去掉」**，所以这一套现在**不在游戏里**：`map_ch00_act1a.json` 没有 `door_N` 条目，`spawnWorldObject` 也不再调 `spawnCrowd`（函数与 `crowdSolids`/`isCrowdAt` 机制保留，想恢复往 JSON 加 `{"kind":"prop","payload":"door_2"}` 并恢复那两行分支即可）。`tools/_cdp/crowd.mjs` 随之作废（它断言的是「百姓在」），第一幕的观感改由 `tools/_cdp/act1-shot.mjs` 人工评审；`tools/fix_map_extras.py` 会守住这条——重新生成地图后谁把百姓或 `sky_rows` 加回来，它直接清掉。
 
 ### 战场背景 + 舰炮预警 + 特效归属（2026-11，甲方全景图）
 
 甲方发来一张 480×270 的海战全景（黄昏、双舰、烟柱、远处船队），四条要求一起落地。
 
 - **裁成远景带**：`bg_strip_dusk.png`（crop `0,72,480,136`）用在 `sky_rows` 那条留白带上，`bg_sky_dusk.png`（crop `0,0,480,128`）给开场情境卡当底图。`horizonImage(scene, depth, 'dusk', zoom)` 第三参是「放大几倍」——原尺寸的船塞进 64px 带子里只有指甲盖大，`zoom=1.6` 并水平居中裁切后读作「远处的敌船」。纵向**顶边贴 0**：这条带上半截会被顶部战役条盖住，底边对齐的话敌舰正好长在被盖掉的位置，只剩几根桅杆露出来。交界处再铺 10 行渐隐暗影，免得海平线与第一行地砖是一条刀刃般的硬线。
+  **现状（要说清楚）**：远景带是靠「地图顶上留几行不画地砖」实现的，而那几行必须做成实心才没人走进去——甲方后来要求「第一幕除了边界全去掉空气墙」，`sky_rows` 因此从 `map_ch00_act1b.json` 撤掉了，**这张战斗图现在没有远景带**（`LevelScene` 的绘制分支仍按 `sky_rows > 0` 走，谁开谁有）。全景图仍然出现在开场情境卡（`bg_sky_dusk`）上；战场里的「海」由地图右侧的蓝色瓦片承担。想要带又不留空气墙，得另想画法（比如只压在最上一行墙砖上），这是甲方两条要求之间的取舍，等确认。
 - **军舰不动了**：删掉 `paintSea()` / `onShipBreach()` / `waterGfx` / `shipBreached` 与每 6.5 秒左压 76px 的节拍。现在 `bossCharge` 遇到 `bossShip` 直接开火：`emitToast('炮舰原地舷炮齐射')` + `bossSalvo(e, 3, 44)`，成本是「一直停在岸边打你」，不再有剧情杀突破链。`isSeaAt` 保留但恒为 false（运行时禁区这个口子收敛成一处）。
 - **舰炮落点预警**（`SALVO = { radiusPx: 46, warnMs: 1000, fallMs: 260, fallFromPx: 120, recoverMs: 600, leadPx: 34, damageMult: 1.15 }`）：开炮那一刻把落点定死 → 地上画红圈（内圈按 `Quad.easeIn` 从 0.4 撑到 1 当倒计时）+ 一枚炮弹竖直砸下 → 落地才结算伤害。躲开有提示「躲开了舰炮」，挨了是「被舰炮命中！看到红圈就该躲开」。E2E 实测：站着不动掉 19 血，红圈一出现就挪走零伤害。
 - **特效归属反转**：`playCannonBlastFx`（48 帧金色爆）**只有舰炮能放**，调用点唯一（`salvoImpact`）；我方开炮的 `cannonBlast` 换成「两帧炮口火光 + 1px 细冲击环 + 2 缕烟 + 轻微震屏」，形成甲方的「装备对比」。
 - **验证**：`tools/_cdp/salvo.mjs`（端口 9421）8 项断言 —— `duskStripPlaced` / `warningRingShown` / `standingStillGetsHit` / `dodgedNoDamage` / `shipNeverMoves`（前后坐标一致）/ `noRuntimeSea` / `playerCannonHasNoFxFrames` / `shipSalvoPlaysFxFrames`，本地与线上各跑一次全过，五张截图逐张看过。
 - 踩过的坑：① **Arc 不能被 tween `radius`**，`TweenData` 会去 set 一个不存在的 setter → 运行时抛 `Cannot set properties of null (setting 'radius')`，必须用 `scale`（先按最终半径画，再 `setScale(小值)` tween 到 1）；② `this.bossShip` 以前**从来没被赋值**（军舰前压链时代漏的），在 `spawnBoss()` 里按 `body === 'ship'` 认领；③ 探针里「我方开炮无特效帧」连续三次假失败，最后归因到**前面躲炮那轮留下的 `delayedCall` 在测量窗口里落地**——改成用 `salvoActive` 计数归因（`salvoRestarted: 9` 说明 Boss 自动齐射频率很高，静音窗口几乎抢不到）。
+
+### 第八箱找不到 → 金色指引标（2026-11-08，甲方第二次提同一个问题）
+
+甲方原话（m14809）「第八个鸦片找不到」。**这是第二次**：第一次（m02255）只把箱子从虚拟按键底下挪开，属于「修了碰撞没修可见性」。这一轮先量了现场——截图是 444×99 的微信缩略条，画布只占 2532 宽里的 1136px（缩到 0.45 倍），一个 16×16 的箱子在手机上实际只有 7.2 CSS px，**任何纯像素方案都救不了这个尺寸**，所以改的是「标记」而不是「贴图」。
+
+- **金色指引标**（`LevelScene.spawnWorldObject()` 的 pickup 分支）：每个未搬的箱子上方 17px 处放一枚 `Triangle`（`PALETTE.star` 填充 0.55 + 1px `paper` 描边，`DEPTH.deco + 4`，620ms 上下 4px 呼吸）。它比箱子本身亮、比箱子高半格，缩略图上也只剩它可读。**搬走一个灭一个**——`hideWorldObject()` 里把 `extra` 数组（呼吸光晕 + 指引标）一起 `setVisible(false)`，所以场上剩几个标就摆几个，天然当计数器用；`WorldExtra` 类型（`core/types.ts`）加了 `'triangle'`。
+- **数据**：`map_ch00_act1a.json` 里三个箱子换位——`obj_crate_4 (22,11)→(23,7)`、`obj_crate_7 (17,14)→(7,14)`、**`obj_crate_8 (27,9)→(25,6)`**（第八箱原本贴着右上封锁墙，是甲方点名找不到的那一个）。
+- **目标文字**：搬箱子期间左上角 objective 写成「搬完剩下的鸦片箱（场上金色标记）」——把「找」变成「数」。
+- **测试**：`tests/data.test.ts` 原来只对 `exit`/`inspect` 校验「可交互物不落按键区」，`pickup` 漏在外头（第一次那个 bug 就是这么漏的）。现在 pickup 单独用 `PICKUP_VISUAL_MARGIN = 10`（呼吸光晕半径）判，`exit`/`inspect` 仍按箱子半径。
+- **验证**：`tools/_cdp/crates.mjs`（端口 9457，**别和 `touch.mjs` 的 9451 撞**）7 项断言全过，本地与线上各一次：`eightCrates` / `everyCrateHasBeacon` / `beaconCountMatches` / `allClearOfButtons`（最差净空 32px ≥ 10）/ `worstClearanceOk` / **`allEightDelivered`** / `noneLeftOnField`。
+- 踩过的坑（都在探针里，不在游戏里）：① CDP 必须连 `/json/list` 的 **page** target，连 `/json/version` 的 browser endpoint 时 `Runtime.evaluate` 永远返回 `undefined`；② 同端口连跑两个探针，第二个拿不到 page target（报 `Invalid URL`），要先杀掉残留的 headless Edge；③ **两个箱子只差 16px 时，探针「站到箱子下一格」会站到邻箱身上**，`findNearObject` 先抓邻箱，于是第八箱「明明没搬却已经隐形」——改成直接站到目标格（距离 0，邻箱 16），7/8 → 8/8。
 
 ### 甲方试玩反馈七条（2026-07）
 

@@ -159,7 +159,7 @@
       "type": "dialog",
       "dialogue_ref": "dlg_ch00_act2_intro",
       "enemy_ref": null,
-      "map_ref": "map_ch00_act2a",
+      "map_ref": "map_ch00_tp_village",
       "params": {
         "mode": "escort",
         "recommended_level": 4,
@@ -215,7 +215,7 @@
       "type": "management",
       "dialogue_ref": "dlg_ch00_act2_tianjing",
       "enemy_ref": null,
-      "map_ref": "map_ch00_act2b",
+      "map_ref": "map_ch00_tp_city",
       "params": {
         "mode": "management",
         "recommended_level": 5,
@@ -249,7 +249,7 @@
       "type": "combat",
       "dialogue_ref": null,
       "enemy_ref": null,
-      "map_ref": "map_ch00_act2b",
+      "map_ref": "map_ch00_tp_battlefield",
       "params": {
         "mode": "combat",
         "recommended_level": 5,

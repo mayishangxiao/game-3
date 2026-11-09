@@ -132,6 +132,7 @@ async function main() {
     [
       '--headless=new',
       '--disable-gpu',
+      '--disable-features=HttpsUpgrades,HttpsFirstBalancedMode,HttpsFirstModeV2ForDesktop',
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-extensions',
@@ -763,19 +764,16 @@ async function main() {
     report.hub = await evaluate(`
       (function () {
         var hub = window.__dshGame.scene.getScene('Hub');
-        var texts = [];
-        (hub.children ? hub.children.list : []).forEach(function (o) {
-          (function walk(node) {
-            if (!node) return;
-            if (typeof node.text === 'string') texts.push(node.text);
-            if (node.list) node.list.forEach(walk);
-          })(o);
-        });
+        // 底部入口与副本面板都是 DOM 层（HubScene 往 #dom-ui 塞 div），
+        // 遍历 canvas children 永远拿不到 —— 2026-11 之前这段一直假报 []，
+        // 因为探针写的时候它们还在 canvas 上。现在改成读 DOM 文本。
+        var ui = document.getElementById('dom-ui');
+        var html = ui ? ui.innerHTML : '';
         return {
           active: hub.scene.isActive(),
-          hasDungeonTitle: texts.some(function (t) { return t.indexOf('副本') >= 0; }),
-          dungeonLabels: texts.filter(function (t) { return /\u3000[0-9]+ 次$/.test(t) || /（未解锁）$/.test(t); }),
-          bottomBar: texts.filter(function (t) { return /^(图鉴|装备|图谱|测验)$/.test(t); })
+          hasDungeonTitle: html.indexOf('副本') >= 0,
+          dungeonLabels: (html.match(/（[^）]*）/g) || []).slice(0, 8),
+          bottomBar: ['图鉴', '装备', '图谱', '测验'].filter(function (t) { return html.indexOf(t) >= 0; })
         };
       })()
     `);

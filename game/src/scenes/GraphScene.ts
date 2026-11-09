@@ -20,16 +20,15 @@ import {
 import { getSave, persist } from './BootScene';
 import { emitToast } from '../core/EventBus';
 import type { EventCard } from '../core/types';
-import { FONT_UI } from '../gfx/TextStyle';
-import { hideOverlay } from '../systems/DomUi';
+import { hideOverlay, showOverlay } from '../systems/DomUi';
 
 interface NodeView {
   id: string;
   x: number;
   y: number;
   circle: Phaser.GameObjects.Arc;
-  label: Phaser.GameObjects.Text;
-  year: Phaser.GameObjects.Text;
+  labelText: string;
+  yearNum: number;
   collected: boolean;
 }
 
@@ -43,8 +42,6 @@ export class GraphScene extends Phaser.Scene {
   /** 事件在时间轴上的序号，用来区分「主线短边」与「跨年份远因果」 */
   private orderOf = new Map<string, number>();
   private lines!: Phaser.GameObjects.Graphics;
-  private progressText!: Phaser.GameObjects.Text;
-  private hintText!: Phaser.GameObjects.Text;
 
   constructor() {
     super('Graph');
@@ -76,54 +73,34 @@ export class GraphScene extends Phaser.Scene {
     this.bindKeys();
   }
 
+  private progressText = '';
+  private hintText = '已收集的事件才能连线。Esc 返回长廊。';
+
+  private renderOverlay(): void {
+    const nodeHtml = this.nodes
+      .map((n) => {
+        const c = n.collected ? '#C2BCD1' : '#4A4468';
+        const yc = n.collected ? '#8F87A8' : '#3C3757';
+        return `<div style="position:absolute;left:${n.x - 40}px;top:${n.y - 15}px;width:80px;text-align:center;font-size:10px;color:${yc};">${n.yearNum}</div>` +
+          `<div style="position:absolute;left:${n.x - 50}px;top:${n.y + 14}px;width:100px;text-align:center;font-size:11px;color:${c};line-height:1.2;">${n.labelText}</div>`;
+      })
+      .join('');
+    showOverlay(
+      `<div style="position:absolute;left:14px;top:8px;font-size:16px;color:#F2EDE4;font-weight:bold;">知识图谱</div>
+       <div style="position:absolute;left:14px;top:26px;font-size:11px;color:#6B6489;">点两个事件，把它们之间的因果连起来</div>
+       <div style="position:absolute;right:14px;top:10px;font-size:14px;color:#F0C419;text-align:right;">${this.progressText}</div>
+       ${nodeHtml}
+       <div style="position:absolute;left:0;top:252px;width:100%;text-align:center;font-size:11px;color:#6B6489;">${this.hintText}</div>
+       <div style="position:absolute;left:378px;top:244px;width:72px;text-align:center;font-size:12px;color:#F2EDE4;">返回</div>`,
+    );
+  }
+
   private buildHeader(): void {
-    this.add
-      .text(14, 10, '知识图谱', {
-        fontFamily: FONT_UI,
-        fontSize: '13px',
-        color: '#F2EDE4',
-        fontStyle: 'bold',
-      })
-      .setDepth(DEPTH.hud);
-    this.add
-      .text(14, 26, '点两个事件，把它们之间的因果连起来', {
-        fontFamily: FONT_UI,
-        fontSize: '8.5px',
-        color: '#6B6489',
-      })
-      .setDepth(DEPTH.hud);
-
-    this.progressText = this.add
-      .text(VIEW_W - 14, 12, '', {
-        fontFamily: FONT_UI,
-        fontSize: '11px',
-        color: '#F0C419',
-      })
-      .setOrigin(1, 0)
-      .setDepth(DEPTH.hud);
-
-    this.hintText = this.add
-      .text(VIEW_W / 2, VIEW_H - 12, '已收集的事件才能连线。Esc 返回长廊。', {
-        fontFamily: FONT_UI,
-        fontSize: '9px',
-        color: '#6B6489',
-      })
-      .setOrigin(0.5)
-      .setDepth(DEPTH.hud);
-
     const back = this.add
       .rectangle(VIEW_W - 44, VIEW_H - 26, 72, 16, PALETTE.plumMid, 0.95)
       .setStrokeStyle(1, PALETTE.ink)
       .setDepth(DEPTH.hud + 1)
       .setInteractive({ useHandCursor: true });
-    this.add
-      .text(VIEW_W - 44, VIEW_H - 26, '返回', {
-        fontFamily: FONT_UI,
-        fontSize: '9px',
-        color: '#F2EDE4',
-      })
-      .setOrigin(0.5)
-      .setDepth(DEPTH.hud + 2);
     back.on('pointerdown', () => this.back());
   }
 
@@ -166,26 +143,10 @@ export class GraphScene extends Phaser.Scene {
       hit.input!.cursor = got ? 'pointer' : 'default';
       if (got) hit.on('pointerdown', () => this.pickNode(ev.id));
 
-      const year = this.add
-        .text(x, y - 15, String(yearOf(ev)), {
-          fontFamily: FONT_UI,
-          fontSize: '7px',
-          color: got ? '#8F87A8' : '#3C3757',
-        })
-        .setOrigin(0.5, 0.5)
-        .setDepth(DEPTH.hud);
-      const label = this.add
-        .text(x, y + 14, wrapLabel(ev.title, 8), {
-          fontFamily: FONT_UI,
-          fontSize: '7.5px',
-          color: got ? '#C2BCD1' : '#4A4468',
-          align: 'center',
-          lineSpacing: 1,
-        })
-        .setOrigin(0.5, 0)
-        .setDepth(DEPTH.hud);
+      const yNum = yearOf(ev);
+      const labelText = wrapLabel(ev.title, 8);
 
-      this.nodes.push({ id: ev.id, x, y, circle, label, year, collected: got });
+      this.nodes.push({ id: ev.id, x, y, circle, labelText, yearNum: yNum, collected: got });
     });
   }
 
@@ -225,13 +186,13 @@ export class GraphScene extends Phaser.Scene {
     }
     if (this.selected === null) {
       this.selected = id;
-      this.hintText.setText('再点一个事件，完成这条连线（再点自己可取消）');
+      this.hintText = '再点一个事件，完成这条连线（再点自己可取消）';
       this.redraw();
       return;
     }
     if (this.selected === id) {
       this.selected = null;
-      this.hintText.setText('已取消选择');
+      this.hintText = '已取消选择';
       this.redraw();
       return;
     }
@@ -244,7 +205,7 @@ export class GraphScene extends Phaser.Scene {
         this.accepted.add(key);
         this.saveGraph();
         emitToast('连上了', 900);
-        this.hintText.setText('继续连：这两件事在历史上确实有因果');
+        this.hintText = '继续连：这两件事在历史上确实有因果';
         break;
       }
       case 'duplicate':
@@ -252,7 +213,7 @@ export class GraphScene extends Phaser.Scene {
         break;
       case 'invalid':
         emitToast('这两件事之间没有直接因果', 1300);
-        this.hintText.setText('提示：顺着「一件事导致了下一件事」去找');
+        this.hintText = '提示：顺着「一件事导致了下一件事」去找';
         break;
       default:
         break;
@@ -300,7 +261,7 @@ export class GraphScene extends Phaser.Scene {
     }
 
     const p = graphProgress(this.requiredKeys, this.accepted);
-    this.progressText.setText(`${p.done} / ${p.total} 条因果`);
+    this.progressText = `${p.done} / ${p.total} 条因果`;
 
     if (p.complete) {
       const save = getSave();
@@ -309,9 +270,9 @@ export class GraphScene extends Phaser.Scene {
         save.achievements.push(key);
         persist();
       }
-      this.hintText.setText('这张图连完了——1840 年以来的每一次失败与转向，都在同一条线上。');
-      this.hintText.setColor('#F0C419');
+      this.hintText = '这张图连完了——1840 年以来的每一次失败与转向，都在同一条线上。';
     }
+    this.renderOverlay();
   }
 
   private back(): void {

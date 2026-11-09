@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CROWD_SCALE, CROWD_TEX, DEPTH, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CROWD_SCALE, CROWD_TEX, DEPTH, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -26,7 +26,7 @@ import { DEFEAT_TEXT } from '../core/defeat';
 import { DefeatCinematic } from '../systems/DefeatCinematic';
 import { controls } from '../systems/InputSystem';
 import { DialogueBox } from '../systems/DialogueBox';
-import { hideFloat, hideOverlay, moveFloat, showFloat, showOverlay } from '../systems/DomUi';
+import { hideDialogue, hideFloat, hideOverlay, moveFloat, showFloat, showOverlay } from '../systems/DomUi';
 import { MapRenderer } from '../gfx/MapRenderer';
 import { backdropImage, horizonImage, HORIZON_H } from '../gfx/Backdrop';
 import { nearestOpenPoint } from '../core/space';
@@ -94,11 +94,12 @@ import type {
 import { FONT_UI } from '../gfx/TextStyle';
 import { markPixel } from '../gfx/PixelArt';
 
-/** 地图物件挂的附加显示对象：光晕/箱盖是矩形，NPC 脚下的影子是椭圆 */
+/** 地图物件挂的附加显示对象：光晕/箱盖是矩形，NPC 脚下的影子是椭圆，箱子头顶的指引标是三角 */
 type WorldExtra =
   | Phaser.GameObjects.Rectangle
   | Phaser.GameObjects.Image
-  | Phaser.GameObjects.Ellipse;
+  | Phaser.GameObjects.Ellipse
+  | Phaser.GameObjects.Triangle;
 
 interface LevelInit {
   actId: string;
@@ -253,6 +254,8 @@ export class LevelScene extends Phaser.Scene {
   private transitioning = false;
   private enemyLevel = 1;
   private worldBuilt = false;
+  /** 手动跟随的参数；null = 本幕不需要跟随（过场/经营） */
+  private camFollow: { lerp: number } | null = null;
   private hudTimer = 0;
 
   /* 护送模式 */
@@ -330,6 +333,10 @@ export class LevelScene extends Phaser.Scene {
    * 且只在本场景首次进入时下载一次（纹理管理器全局缓存）。
    */
   preload(): void {
+    // 太平天国篇章的 36 张 16×16 瓦片拼版（128×80，8 列）。
+    // 必须放 preload：buildWorld 里 new MapRenderer() 是同步烘地面纹理的，
+    // 等构造时再发起异步加载就已经画完了。缺图时 MapRenderer 自动回退程序化材质。
+    if (!this.textures.exists(TP_SHEET_TEX)) this.load.image(TP_SHEET_TEX, ART.tpSheet);
     ART.shipBossFrames.forEach((path, i) => {
       const key = SHIP_TEX[i] as string;
       if (!this.textures.exists(key)) this.load.image(key, path);
@@ -412,6 +419,7 @@ export class LevelScene extends Phaser.Scene {
     // 避免后续访问已销毁的精灵（同类 bug 已在 HubScene 上出现过）。
     this.map = null;
     this.player = null as unknown as Player;
+    this.camFollow = null;
     this.dialogue = null as unknown as DialogueBox;
     this.enemies = [];
     this.projectiles = [];
@@ -590,6 +598,14 @@ export class LevelScene extends Phaser.Scene {
     const data = this.registry.get('levelInit') as LevelInit;
     this.cfg = dataLoader.getBalance();
     this.save = getSave();
+
+    // DOM 层不吃 Phaser 的场景生命周期，进关卡第一件事是把上一屏没收干净的东西收掉：
+    // 长廊的副本面板 + 底部四入口（#dom-overlay）、标题页大字、没关掉的对白框。
+    // **必须放在第一个 await 之前**——手机上章节数据要下几百毫秒，这期间战役条已经画出来了，
+    // 长廊的面板还叠在上面，甲方手机截图里的「文字重叠」就是这么来的。
+    hideOverlay();
+    hideDialogue();
+    hideFloat();
     // 甲方「我方攻击减半」：倍率来自内容层，缺省 1（旧配置不会突然变弱）
     PLAYER_DMG = this.cfg.player_damage_mult ?? 1;
 
@@ -617,6 +633,14 @@ export class LevelScene extends Phaser.Scene {
 
     this.dialogue = new DialogueBox(this, this.cfg.ui.dialog_speed, this.cfg.ui.portraits ?? {});
     this.scene.launch('UI');
+
+    // 离开关卡时同样得自己收 DOM：暂停菜单「回主菜单」经常是在对白没播完时走的，
+    // 不收就会把整个对白框（含立绘）留在长廊/标题上，和场景里的字叠成一片。
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      hideDialogue();
+      hideFloat();
+      hideOverlay();
+    });
 
     this.input.on('pointerdown', () => this.onAdvanceInput());
 
@@ -1588,8 +1612,22 @@ export class LevelScene extends Phaser.Scene {
     // 波次强化的「火线」只加快弓；其他武器保持 config.json 里的原始射速
     this.player.setHasteHook(() => (this.player.weapon.id === 'wp_bow' ? hasteMult(this.upgrades) : 1));
 
-    this.cameras.main.setBounds(0, 0, this.map.pixelWidth, this.map.pixelHeight);
-    this.cameras.main.startFollow(this.player.rig, true, 0.14, 0.14);
+    // 故意**不用** `setBounds`：Phaser 的 `clampX` 是
+    //   bx = bounds.x + (displayWidth - width) / 2
+    // 其中 displayWidth 是逻辑单位（480）、width 是后缓冲像素（960），zoom≠1 时两者混算，
+    // 结果 scrollX 会被永久钉在 -240/-135，整张地图偏右下半个屏幕（实测截图就是这样）。
+    // `useBounds` 默认 false，不调 setBounds 就不会触发那套钳制；
+    // 本项目的战场正好一屏，边界钳制由 cameraScrollTarget 用纯逻辑坐标做。
+    this.cameras.main.setScroll(0, 0);
+    // 摄像机自己算跟随，不用 `startFollow`。
+    // 原因：开了 RENDER_SCALE 之后 `Camera.follow` 的公式是
+    //   scrollX = 目标.x - followOffset.x - originX
+    // 其中 originX 是**后缓冲像素**（origin 0.5 → 480），而 scroll/目标坐标都是逻辑单位，
+    // 两套单位在 zoom 之后混在一起，实测 scroll 会变成 -240/-135 这种「差半屏」的值，
+    // 画面整体被推到右下四分之一。手动写就没有这层歧义：一律用逻辑坐标。
+    this.cameras.main.stopFollow();
+    this.camFollow = { lerp: 0.14 };
+    this.snapCameraToPlayer();
     this.worldBuilt = true;
     void this.worldBuilt;
 
@@ -1597,6 +1635,40 @@ export class LevelScene extends Phaser.Scene {
     for (const obj of def.objects) {
       this.spawnWorldObject(obj);
     }
+  }
+
+  /**
+   * 把镜头对准玩家（逻辑坐标）。
+   * 可视范围恒为 480×270 —— 后缓冲是它的 R 倍，zoom 也是 R，两者抵消，
+   * 所以这里完全不出现 RENDER_SCALE。
+   */
+  private cameraScrollTarget(): { x: number; y: number } {
+    const cam = this.cameras.main;
+    const z = cam.zoom > 0 ? cam.zoom : 1;
+    const w = cam.width / z; // 逻辑可视宽
+    const h = cam.height / z;
+    const maxX = Math.max(0, (this.map?.pixelWidth ?? VIEW_W) - w);
+    const maxY = Math.max(0, (this.map?.pixelHeight ?? VIEW_H) - h);
+    return {
+      x: Phaser.Math.Clamp(this.player.x - w / 2, 0, maxX),
+      y: Phaser.Math.Clamp(this.player.y - h / 2, 0, maxY),
+    };
+  }
+
+  private snapCameraToPlayer(): void {
+    if (!this.player) return;
+    const t = this.cameraScrollTarget();
+    this.cameras.main.setScroll(t.x, t.y);
+  }
+
+  /** 每帧的平滑跟随，手感沿用原来 startFollow(lerp=0.14) 的松紧度 */
+  private updateCameraFollow(): void {
+    if (!this.camFollow || !this.player || !this.player.alive) return;
+    const cam = this.cameras.main;
+    const t = this.cameraScrollTarget();
+    const k = this.camFollow.lerp;
+    cam.scrollX += (t.x - cam.scrollX) * k;
+    cam.scrollY += (t.y - cam.scrollY) * k;
   }
 
   private bestWeapon(): string {
@@ -1685,12 +1757,28 @@ export class LevelScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut',
       });
-      const label = this.add
-        .text(x, y - 18, obj.label, { fontFamily: FONT_UI, fontSize: '7px', color: '#F0C419' })
+      // 「找不到第 N 箱」的正面解法：每箱头顶一颗常驻金色标记，上下浮动 + 呼吸。
+      // 以前只有走近了才显字（label setVisible(false)），480×256 的地图摊在手机上，
+      // 远处那 20×20 的箱子跟沙地同色，玩家根本不会往角落走。
+      const beacon = this.add
+        .triangle(x, y - 17, 0, 7, 4.5, 0, 9, 7, PALETTE.star)
         .setOrigin(0.5)
-        .setDepth(DEPTH.deco + 3)
+        .setDepth(DEPTH.deco + 4);
+      this.tweens.add({
+        targets: beacon,
+        y: y - 21,
+        alpha: 0.45,
+        duration: 620,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+      const label = this.add
+        .text(x, y - 28, obj.label, { fontFamily: FONT_UI, fontSize: '7px', color: '#F0C419' })
+        .setOrigin(0.5)
+        .setDepth(DEPTH.deco + 5)
         .setVisible(false);
-      this.worldObjects.push({ def: obj, rect, label, extra: lid ? [glow, lid] : [glow] });
+      this.worldObjects.push({ def: obj, rect, label, extra: lid ? [glow, lid, beacon] : [glow, beacon] });
       return;
     }
 
@@ -1906,6 +1994,9 @@ export class LevelScene extends Phaser.Scene {
     emitObjective(
       `搬运鸦片箱并投入销烟池　${this.cratesDelivered}/${this.crateTarget}`,
     );
+    // 教一下这个符号：甲方反馈「第八个鸦片找不到」，根因是箱子在手机上和沙地同色、
+    // 又只有走近才显字。现在每箱头顶有常驻金色标记，但符号得先告诉玩家一次。
+    emitToast('箱子都搬完了才算完 —— 盯着场上的金色标记', 2400);
     this.setupNpcTalk();
   }
 
@@ -2317,7 +2408,9 @@ export class LevelScene extends Phaser.Scene {
   /* ==================== 模式：战斗 ==================== */
 
   private setupCombat(): void {
-    emitObjective('守住威远炮台');
+    // 第一幕终战在虎门威远炮台，第二幕终战在天京城墙：以前两幕共用一句硬编码文案，
+    // 太平天国城墙夜战会显示「守住威远炮台」。副本不进这个分支判断（this.act 未赋值）。
+    emitObjective(this.act?.id === 'ch00_act2' ? '守住天京城墙' : '守住威远炮台');
     this.waveIndex = 0;
     this.wavePending = true;
     // 有开场情境卡时，第一波要等玩家点掉卡片再上——否则「第 1 波敌军来袭」
@@ -3879,6 +3972,9 @@ export class LevelScene extends Phaser.Scene {
 
   override update(time: number, delta: number): void {
     this.updateWorld(time, delta);
+    // 镜头跟随（逻辑坐标，见 cameraScrollTarget 的注释）。放在 updateWorld 之后：
+    // 它返回早（过场/经营/切换中）时这里自己会因 camFollow 为 null 而跳过。
+    this.updateCameraFollow();
     // 「本帧按下」标志必须等本场景消费完再清。以前这一步在 UIScene.update 里做，
     // 而触摸事件是在两个场景的 update 之间送达的，于是单次点击会在被读到之前就被清掉
     // —— 表现就是「按住摇杆再按攻能打出伤害，单点攻毫无反应」。

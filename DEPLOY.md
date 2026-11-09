@@ -57,3 +57,25 @@ python tools/deploy_ecs.py 39.103.58.244
 - 所有 DOM 覆盖层必须 `pointer-events:none`，否则吃掉 canvas 点击。
 - 切场景时每个新场景 `create()` 开头要调 `hideOverlay()`，否则上一页 DOM 文字残留。
 - Phaser 引擎优先从本地 `/game/phaser.min.js` 加载（北京机房快），CDN 兜底。
+
+## 发布前检查清单（每次发版照着走）
+
+- [ ] `pnpm exec tsc --noEmit` 0 错
+- [ ] `pnpm test` 全绿（当前 14 文件 / 263 条）
+- [ ] `pnpm build` 通过，确认 `dist/` 里带了本次新增的静态资源
+- [ ] 改动涉及渲染 / UI 时，用 CDP 探针实拍并逐张看截图（断言全绿不等于画面没问题）
+- [ ] `_stage` 打包成功（`has_index=True`、`backslash_names=0`）
+- [ ] 部署后打开首页与游戏页，抽查一个新增资源 URL 返回 200
+- [ ] Git 提交不含 `tools/_stage/`、`dist/`、`tsc_out.txt`、`_fix_json.py`、`_t.json` 与临时探针截图
+
+## 发布记录
+
+| 日期 | 发版内容 | 验证 | 线上 |
+| --- | --- | --- | --- |
+| 2026-11-09 | 太平天国篇章瓦片地图接入：三张 30×16 地图（金田村 / 天京城 / 天京城墙夜战）替换第二幕三个节点；`tp_act2` 图集的 36 张 16×16 PNG 在 `MapRenderer` 生效，旧图程序化材质原样保留；修正 1864 战场串用第一幕「守住威远炮台」的目标文案；规格书升 v1.1 | `tsc` 0 错；`vitest` 14 文件 / 263 条全绿；`vite build` 通过；CDP 实拍三张地图，`tileset=tp_act2`、图集已加载、控制台零异常 | http://39.103.58.244/game/ |
+
+**回退**：把 `game/public/data/nodes/nodes_ch00.json` 里 `nd_1851_jintian_escort` /
+`nd_1853_tianjing_manage` / `nd_1864_tianjing_fall` 三处 `map_ref`，以及
+`game/public/data/acts/ch00_act2.json` 的 `map_refs`，改回 `map_ch00_act2a` / `map_ch00_act2b`，
+重新 build + 部署即可；渲染器的 `tp_act2` 开关自然不触发，不用改代码。
+细节见 `design/12_taiping_tilemap_spec.md` 第 8.4 节。

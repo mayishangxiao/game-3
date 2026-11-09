@@ -9,7 +9,7 @@ import { InputSystem } from '../systems/InputSystem';
 import { EV, bus, getCannonVisible, getControlsVisible, getHudVisible, getSceneLabel, setControlsVisible, type HudPayload, type SceneLabelPayload, type ToastPayload } from '../core/EventBus';
 import { DYNASTY_MAX } from '../core/cannon';
 import { FONT_UI } from '../gfx/TextStyle';
-import { setHudDynasty, setHudLevel, setHudObjective, setHudScene, setHudVisible, setHudWeapon, showToast } from '../systems/DomUi';
+import { hideFloat, hideOverlay, setHudDynasty, setHudLevel, setHudObjective, setHudScene, setHudVisible, setHudWeapon, showOverlay, showToast } from '../systems/DomUi';
 
 const BAR_X = 6;
 const BAR_W = 84;
@@ -52,7 +52,8 @@ export class UIScene extends Phaser.Scene {
   private dynBack!: Phaser.GameObjects.Rectangle;
   /** 右上角「暂停」：甲方要求能随时停下来并回主菜单 */
   private pauseBtn!: Phaser.GameObjects.Rectangle;
-  private pauseText!: Phaser.GameObjects.Text;
+  // canvas 版的「暂停」文字已删除：文字统一走 DOM（#dom-pause-btn）。留着那份隐藏 Text
+  // 会被 setHudShown(true) 重新点亮，和 DOM 的「暂停」叠成「暂停暂停」。
   private pauseOpen = false;
   private pauseLayer: Phaser.GameObjects.GameObject[] = [];
   /** 暂停前摇杆是不是露着的，恢复时按这个还原 */
@@ -207,16 +208,14 @@ export class UIScene extends Phaser.Scene {
       .setStrokeStyle(1, PALETTE.greyPlum)
       .setDepth(DEPTH.overlay - 1)
       .setInteractive({ useHandCursor: true });
-    this.pauseText = this.add
-      .text(VIEW_W - 26, 8, '暂停', {
-        fontFamily: FONT_UI,
-        fontSize: '9px',
-        color: '#F2EDE4',
-      })
-      .setOrigin(0.5)
-      .setDepth(DEPTH.overlay - 1);
     this.pauseBtn.on('pointerdown', () => this.openPause());
-    this.pauseText.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.openPause());
+
+    // 右上角「暂停」按钮文字走 DOM
+    const pauseDom = document.createElement('div');
+    pauseDom.id = 'dom-pause-btn';
+    pauseDom.style.cssText = 'position:absolute;right:14px;top:2px;color:#F2EDE4;font:11px sans-serif;pointer-events:none;line-height:16px;';
+    pauseDom.textContent = '暂停';
+    (document.querySelector('#dom-ui') as HTMLElement)?.appendChild(pauseDom);
 
     this.inputSystem = new InputSystem(this);
     // 中文文字全部搬到 DOM（DomUi）：canvas 上这些 Text 对象隐藏，只留血条/底槽等色块
@@ -373,12 +372,16 @@ export class UIScene extends Phaser.Scene {
       this.dynBack,
       // 开场卡/战败演出是全屏的，右上角「暂停」也要跟着收，否则会浮在卡片上
       this.pauseBtn,
-      this.pauseText,
+      // **pauseText 不在这里出现**：它的文字已经搬到 DOM（#dom-pause-btn），
+      // canvas 那份在 create 里 setVisible(false) 永久藏掉。一旦被 setHudShown(true)
+      // 点亮，就会和 DOM 的「暂停」叠成「暂停暂停」——甲方截图里的第二处重叠。
     ];
     for (const o of parts) {
       const vis = o as Phaser.GameObjects.Components.Visible | undefined;
       if (vis && typeof vis.setVisible === 'function') vis.setVisible(v);
     }
+    const pauseDom = document.getElementById('dom-pause-btn');
+    if (pauseDom) pauseDom.style.display = v ? 'block' : 'none';
     // 战败标记只跟「本次是否输过」走，不跟 HUD 开关一起无脑点亮（见 applyHud）
     // （canvas 上的「战败」小标签已搬到 DOM，这里不再 setVisible）
   }
@@ -396,6 +399,7 @@ export class UIScene extends Phaser.Scene {
     if (level && level.scene.isActive()) this.scene.pause('Level');
     setControlsVisible(false);
     this.setHudShown(false);
+    hideFloat(); // 暂停时藏掉 NPC 头顶浮动标签
 
     const cx = VIEW_W / 2;
     const cy = VIEW_H / 2;
@@ -411,18 +415,6 @@ export class UIScene extends Phaser.Scene {
         .setStrokeStyle(1, PALETTE.star)
         .setDepth(DEPTH.overlay + 2),
     );
-    push(
-      this.add
-        .text(cx, cy - 40, '暂　停', { fontFamily: FONT_UI, fontSize: '18px', color: '#F0C419' })
-        .setOrigin(0.5)
-        .setDepth(DEPTH.overlay + 3),
-    );
-    push(
-      this.add
-        .text(cx, cy - 20, '战斗进度已冻结', { fontFamily: FONT_UI, fontSize: '8px', color: '#C2BCD1' })
-        .setOrigin(0.5)
-        .setDepth(DEPTH.overlay + 3),
-    );
 
     const buttons: Array<{ label: string; y: number; onTap: () => void }> = [
       { label: '继　续', y: cy + 6, onTap: () => this.closePause() },
@@ -434,15 +426,16 @@ export class UIScene extends Phaser.Scene {
         .setStrokeStyle(1, PALETTE.greyPlum)
         .setDepth(DEPTH.overlay + 3)
         .setInteractive({ useHandCursor: true });
-      const label = this.add
-        .text(cx, b.y, b.label, { fontFamily: FONT_UI, fontSize: '11px', color: '#F2EDE4' })
-        .setOrigin(0.5)
-        .setDepth(DEPTH.overlay + 4);
       box.on('pointerdown', () => b.onTap());
-      label.setInteractive({ useHandCursor: true }).on('pointerdown', () => b.onTap());
       push(box);
-      push(label);
     }
+
+    showOverlay(
+      `<div style="position:absolute;left:0;top:${cy - 52}px;width:100%;text-align:center;font-size:22px;color:#F0C419;">暂　停</div>
+       <div style="position:absolute;left:0;top:${cy - 24}px;width:100%;text-align:center;font-size:11px;color:#C2BCD1;">战斗进度已冻结</div>
+       <div style="position:absolute;left:0;top:${cy - 5}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">继　续</div>
+       <div style="position:absolute;left:0;top:${cy + 23}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">返回主菜单</div>`,
+    );
   }
 
   private closePause(): void {
@@ -450,6 +443,7 @@ export class UIScene extends Phaser.Scene {
     this.pauseOpen = false;
     for (const o of this.pauseLayer) o.destroy();
     this.pauseLayer = [];
+    hideOverlay();
     const level = this.scene.get('Level');
     if (level && level.scene.isPaused()) this.scene.resume('Level');
     this.setHudShown(true);
@@ -460,6 +454,7 @@ export class UIScene extends Phaser.Scene {
     this.pauseOpen = false;
     for (const o of this.pauseLayer) o.destroy();
     this.pauseLayer = [];
+    hideOverlay();
     const level = this.scene.get('Level');
     if (level && (level.scene.isActive() || level.scene.isPaused())) this.scene.stop('Level');
     setControlsVisible(true);

@@ -646,6 +646,11 @@ describe('地图可达性（防止关卡走不通）', () => {
   it('可交互物不能摆在虚拟按键底下（手机上会被按钮吞掉，玩家找不到）', () => {
     // 单屏地图才成立：地图不比视口大时相机不滚动，世界坐标 == 屏幕坐标。
     // 多屏地图要滚动，物件被按钮盖住只是某一瞬间的状态，不在本测试范围内。
+    //
+    // 鸦片箱（pickup）额外要留 10px **视觉**余量：按钮是半透明圆脸，半径 + 命中pad
+    // 只是「点得到」，贴着边摆照样和按钮糊成一团。甲方两次反馈
+    // 「第八个鸦片找不到」，第二次就是因为箱子离「攻」键只剩 2px。
+    const PICKUP_VISUAL_MARGIN = 10;
     const zones = Object.entries(CONTROL_LAYOUT) as [string, { x: number; y: number; r: number }][];
     // 静态布景（`kind:'prop'` 且 payload 是 Sunny Land 道具名，见 SUNNY_PROPS）不算可交互物：
     // 它只画不登记（`LevelScene.spawnSunnyProp`），走近不会弹「搬起 / 投入」，压到摇杆底下
@@ -659,12 +664,13 @@ describe('地图可达性（防止关卡走不通）', () => {
         if (isScenery(obj)) continue;
         const px = (obj.x + 0.5) * TILE;
         const py = (obj.y + 0.5) * TILE;
+        const margin = CONTROL_HIT_PAD + (obj.kind === 'pickup' ? PICKUP_VISUAL_MARGIN : 0);
         for (const [name, z] of zones) {
           const dist = Math.hypot(px - z.x, py - z.y);
           expect(
             dist,
-            `${m.id} 的可交互物 ${obj.id}（${obj.kind}）落在「${name}」按键范围内（距离 ${dist.toFixed(1)} < ${z.r + CONTROL_HIT_PAD}），手机上会被按钮压住看不见`,
-          ).toBeGreaterThanOrEqual(z.r + CONTROL_HIT_PAD);
+            `${m.id} 的可交互物 ${obj.id}（${obj.kind}）落在「${name}」按键范围内（距离 ${dist.toFixed(1)} < ${z.r + margin}），手机上会被按钮压住看不见`,
+          ).toBeGreaterThanOrEqual(z.r + margin);
         }
         checked += 1;
       }

@@ -7,6 +7,84 @@
 export const VIEW_W = 480;
 export const VIEW_H = 270;
 
+/**
+ * 渲染超采样倍数 —— 后缓冲实际是 `GAME_W × GAME_H`，不是 480×270。
+ *
+ * 为什么必须这么做（实测，不是推测）：
+ *   Phaser 3.90 的 `ScaleManager` 直接把 `canvas.width` 设成 config 里的宽高
+ *   （`phaser.js` 里没有任何 `resolution` / `autoDensity` 处理），
+ *   `scale.zoom` 只改 CSS 显示尺寸，**不会改后缓冲**。
+ *   于是在 dpr=3 的手机上，画布永远只有 480×270 个物理像素，浏览器再把它拉到
+ *   2079×1170 铺满屏幕——放大 4.33 倍，9px 的中文必然糊成一团。
+ *   `TextStyle.TEXT_RESOLUTION` 的 3 倍栅格因此完全白费：字是高清的，
+ *   画到 480 宽的小画布上就被压没了。
+ *
+ * 做法：把后缓冲放大 R 倍，然后**每个场景的摄像机 `setZoom(R)`**。
+ * 场景内部的逻辑坐标仍然是 480×270（所有 Text/Graphics 一行不用改），
+ * 只是 1 个逻辑像素 = R 个后缓冲像素，字最终落屏前只被缩 1.x 倍而不是 4.x 倍。
+ *
+ * R 取「屏幕上一个逻辑像素实际占几个物理像素」并**四舍五入**，再被两道闸夹住：
+ *   1) 硬上限 5（字已经和物理像素基本一一对应，再高只是浪费）；
+ *   2) 后缓冲总像素预算 `MAX_BUFFER_PIXELS`，防止平板/大屏把填充率打爆。
+ * 手机横屏 844×390 @dpr3 → 390*3/270 = 4.33 → R=4（1920×1080，约 2.07M 像素）；
+ * 桌面 1280×720 @dpr1 → 720/270 = 2.67 → 3（1440×810）；
+ * 低端机/小窗 → 1（等于不超采样，绝不比现在更差）。
+ * 只在前端算，node 里的测试环境拿不到 window，回落到 1。
+ *
+ * **为什么是四舍五入而不是上取整（实测，两次翻车）**：
+ *  - 向下取整不行：R 小于「设备像素/逻辑像素」时，浏览器要把后缓冲**放大**铺屏，
+ *    整屏（包括已经按高清栅格画好的中文）一起发虚。之前封顶 3 就是死在这一步——
+ *    手机真实需要 4.33，留了 1.44 倍放大，甲方说「文字不清晰」。
+ *  - 向上取整也不行：`ceil(4.33)=5` → 2400×1350 = 3.24M 像素，比屏幕本身还大，
+ *    同一台机器实测战斗帧率 51 → 29。取 4 只留 1.08 倍放大，肉眼看不出，
+ *    像素却少画三分之一。
+ */
+
+/** 后缓冲像素预算：超过这个数就降 R（低端 GPU 填充率优先） */
+/**
+ * 后缓冲像素预算。超采样是**平方级**代价：R 翻倍 = 要画的像素翻四倍，
+ * 手机 GPU 的填充率和显存都吃这一项，所以按总面积倒推一个最大倍数。
+ * 2.2 MP ≈ 1920×1080，正好覆盖 iPhone 15 Pro 横屏的物理像素（2080×1170）。
+ */
+const MAX_BUFFER_PIXELS = 2_200_000;
+
+function pickRenderScale(): number {
+  if (typeof window === 'undefined') return 1;
+  const dpr = window.devicePixelRatio || 1;
+  const vw = window.innerWidth || VIEW_W;
+  const vh = window.innerHeight || VIEW_H;
+  // FIT 模式下画布按比例撑满视口，取宽高比更受限的那一边
+  const cssH = Math.min(vh, (vw * VIEW_H) / VIEW_W);
+  const need = (cssH * dpr) / VIEW_H;
+  // 用 round 而不是 ceil（实测）：iPhone 15 Pro 横屏 need=4.78，
+  // `ceil` 给 5 → 后缓冲 2400×1350 = 324 万像素，比屏幕本身还大，白白多画三分之一，
+  // 同一台机器上战斗帧率从 51 掉到 29。
+  // `round` 给 4 → 1920×1080 = 207 万，浏览器只把画布放大 1.08 倍，肉眼已看不出糊。
+  return Math.max(1, Math.min(5, Math.round(need), Math.floor(Math.sqrt(MAX_BUFFER_PIXELS / (VIEW_W * VIEW_H)))));
+}
+
+export let RENDER_SCALE = pickRenderScale();
+
+/** 后缓冲尺寸（= 摄像机的视口尺寸）。注意：游戏逻辑坐标仍然是 VIEW_W × VIEW_H */
+export let GAME_W = VIEW_W * RENDER_SCALE;
+export let GAME_H = VIEW_H * RENDER_SCALE;
+
+/**
+ * 视口变了之后重算超采样倍数。返回 true 表示真的变了，调用方要按新的
+ * `GAME_W/GAME_H` 调整后缓冲并给所有摄像机重新 setZoom。
+ * 这三个是 `export let`（ESM 活绑定）：`boot.ts` / `InputSystem` / `OrientationGate` /
+ * `DefeatCinematic` 运行时读到的都是最新值，不用各自再算一遍。
+ */
+export function refreshRenderScale(): boolean {
+  const next = pickRenderScale();
+  if (next === RENDER_SCALE) return false;
+  RENDER_SCALE = next;
+  GAME_W = VIEW_W * next;
+  GAME_H = VIEW_H * next;
+  return true;
+}
+
+
 /** 战场区（30 × 16 瓦片），底部 14px 归 HUD */
 export const FIELD_H = 256;
 export const HUD_H = VIEW_H - FIELD_H;
@@ -202,7 +280,19 @@ export const ART = {
   crowd: `${ART_ROOT}/crowd/`,
   /** Sunny Land 场景道具目录（CC0 / Pixel Frog），文件名见 `SUNNY_PROPS` */
   sunnyProps: `${ART_ROOT}/props/`,
+  /**
+   * 太平天国篇章瓦片图集：8 列 × 5 行，每格 16×16，id 0 为透明。
+   * `MapRenderer` 在 `tileset === TP_TILESET_ID` 时按 `sheet_cell` 取帧；
+   * 图没加载到位就自动回退到 `tile_colors` 的程序化材质，不会黑屏。
+   * 详见 `design/12_taiping_tilemap_spec.md` 第 8 节。
+   */
+  tpSheet: `${ART_ROOT}/tiles/tp/tp_act2_sheet.png`,
 } as const;
+
+/** 太平天国图集的运行时开关常量（纯字符串/数字，core 层不依赖 Phaser） */
+export const TP_TILESET_ID = 'tp_act2';
+export const TP_SHEET_TEX = 'tp_act2_sheet';
+export const TP_SHEET_COLS = 8;
 
 /**
  * Sunny Land（CC0 1.0 / Pixel Frog）的场景道具：木箱、石墩、门、灌木、枯骨、路牌…

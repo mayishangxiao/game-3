@@ -48,11 +48,15 @@ node tools/serve.mjs dist 4173        # 极简静态服务器，无依赖；手�
 | `_cdp/props-probe.mjs` | **场景布景专项**：`kind:'prop'` 的 Sunny Land 道具只画不登记（不进 `worldObjects`），单元测试只能证明「文件在、尺寸对」，证明不了「这一格真的摆了块路障」。这个探针逐图开真实关卡（第一幕战斗 / 第二幕两节点 / 副本 dg01），点掉开场卡片与月度分配面板，把镜头挪到布景带，断言「每件都有 `sunny_*` 贴图、`drawn:true`、坐标不越界」，并逐图截图。端口 9411。用法同 `cdp-e2e.mjs`，产物在 `<outDir>/props.json` + `p1…p6*.png` |
 | `_cdp/text-probe.mjs` | **文字清晰度 + 半血剧情杀专项**：① 报渲染后端实况（`cssW/bufW/dpr`、canvas 的 `image-rendering`、纹理 `scaleMode`）；② 读开场卡里的「战力对比」四段文本是否都在（`/战力对比/`、`/^我$/`、`/^敌$/`、`/^差距/`）；③ 直接调 `lv.spawnBossEntities(en_boss_steamfrigate)` 把军舰摆出来、打掉一半血，按 `lv.finalStrikeStage` 的阶段推进（`warn`→`hit`→`defeat`）截图，而不是 sleep 墙钟——无头浏览器里 sleep 会拍空帧；④ 断言战败链真的接上了（`defeated:true`、`mode:'cutscene'`、`hp:0`）。端口 9416，产物 `t1-banner…t5-defeat.png` + `text-probe.json`。**注意 `pixelFilters=false` 是预期的**：无头 Edge 走 Canvas 渲染器，而 Phaser 的 Canvas 后端不实现纹理滤镜 |
 | `_cdp/act1-shot.mjs` | **第一幕人工评审**：把 act1a（销烟池）与 act1b（威远炮台）各拍「出生点」与「平移后」两张，用来肉眼确认「除边界外无空气墙、布景不浮空、观众已去掉」。没有断言，只是截图工具。端口 9413。闸门清场逻辑抄自 `_cdp/parts.mjs` 的 `settleIntro`（DOM 遮罩 → `tapCard()` → `dialogue.advance()`，循环到连续 6 帧全静） |
+| `textaudit.mjs` | **文字清晰度逐屏截图**（端口 9471）。用法 `node tools/textaudit.mjs <edgePath> <baseUrl> <outDir>`。用 `Emulation.setDeviceMetricsOverride(844×390, dpr=3)` 模拟 iPhone 横屏，先打印 `bufW/bufH/cssW/cssH/dpr`（这四个数就能算出「一个逻辑像素落几个物理像素」，见 `core/constants.ts` 的 `pickRenderScale`），再逐屏各拍**两张**：`NN-xxx.png` 含 DOM 层、`NN-xxx-canvas.png` 把 `#dom-ui` 藏掉只看 canvas。走过的屏：Title / Hub / 探索 / 战斗 / Equipment / Quiz / Codex / Graph。跑完读 `<outDir>/audit.json`。**为什么要成对拍**：DOM 层是浏览器原生排版，天然清晰，只看带 DOM 的截图会误判「字已经清楚了」——canvas 到底糊不糊必须把 DOM 藏起来单独看（这个坑真踩过） |
+| `_cdp/live.mjs` | **线上最小自检**（端口 9461）：只做三件事——导航到 `baseUrl`、等 `window.__dshGame` 出现并计时（`bootMs`）、把 `localStorage` 是否可用 / `isSecureContext` / canvas 后缓冲尺寸 / `Phaser.VERSION` / `#tap-gate` 状态打出来。产物 `<outDir>/live.json`。用法同 `cdp-e2e.mjs`。用途：线上「打不开」时先跑它分清是**页面没加载**（`url` 会是 `chrome-error://chromewebdata/`）还是**游戏起不来**（`hasGame:false` 但 url 正常） |
+| `patch_probe_flags.py` | 给需要打线上裸 IP 的探针（`_cdp/salvo.mjs`、`_cdp/touch.mjs`、`cdp-e2e.mjs`、`mobile-probe.mjs`）统一插入 `--disable-features=HttpsUpgrades,HttpsFirstBalancedMode,HttpsFirstModeV2ForDesktop`。幂等，已有就跳过。**为什么必须加**：线上是 `http://` + 裸 IP，Chromium 的 HTTPS-First 会把导航升级成 `https://IP`，连不上直接停在错误页，探针表现为 `等待超时: __dshGame` 或 `SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.`——看着像游戏坏了，其实什么都没加载。脚本 stdout 只打 ASCII：本机控制台是 GBK，打 `✓` 会 `UnicodeEncodeError` 把脚本打断在半路（真断过一次，只补上第一个文件） |
 
 **E2E 脚本写作要点**（都是踩过坑才写下来的）：
 
 - 端口固定 `9341`；`cdp-e2e.mjs` 只用一个端口，因此不存在并行抢端口的问题——但也不要在它跑到一半时手动起第二个 Edge 调试实例。
 - 换场景必须用脚本里的 `gotoScene(key, data)`：先停掉其它场景再 start。`game.scene.start()` 是全局场景管理器，**不会停掉调用者**，直接用会出现两个场景叠着渲染（曾导致两张截图字节完全相同）。
+- **`gotoScene` 的已知伪影**：它绕过场景自己的收尾逻辑，而 DOM 层（`#dom-title` / `#dom-dialogue` / `#dom-float`）不归 Phaser 场景生命周期管，于是截图里会残留上一屏的标题大字「党史像素 RPG / 序章·觉醒年代」压在战场上。看到这种叠字**先别当 bug 报**——`TitleScene.startGame()` 里是有 `hideTitle()` 的，真人走正常流程不会看到。要干净的图就在拍之前手动隐藏这些 div（`_cdp/textprobe.mjs` 就是这么做的）。
 - 场景重启后必须读**新实例**的字段。曾因此漏掉一个真 bug：`LevelScene.create()` 复用同一实例，`this.dungeon` 残留会让下一次进入正片时重开副本——现在 `create()` 里显式 `this.dungeon = null`。
 - 找 UI 文本要走**递归遍历**（`hub.list` 套 `Container.list`），只看 `scene.children.list` 会漏掉容器里的标签。
 - TS 的 `private` 只是编译期约定，运行时能直接调用 `lvl.startDungeon()`、`sc.equipSelected()`，E2E 大量依赖这一点。
@@ -75,6 +79,8 @@ node tools/serve.mjs dist 4173        # 极简静态服务器，无依赖；手�
 | `gen_maps.py` | 生成第一幕两张地图（30×16 瓦片） | 手写 480 个格号必错，布局改动改脚本再跑 |
 | `gen_maps_act2.py` | 生成第二幕两张地图（金田村山地 / 天京城） | 同上 |
 | `gen_maps_dungeon.py` | 生成三个副本地图（租界暗巷 / 城外匪寨 / 沪上码头） | 靠墙体做出「窄」的手感 |
+| `gen_taiping_tilemap.py` | 太平天国篇章瓦片地图包：36 张 16×16 PNG + 8 列拼版 + `tileset.json` + 三张 `map_ch00_tp_*.json` + 四层编辑源 + 12 张预览 + `design/taiping_tilemap_preview.html` | **纯标准库**（自写 PNG 编码，无需 Pillow）；与 `gen_maps*.py` 互不覆盖，只写 `map_ch00_tp_*`；每次运行自检边界 / 可达性 / 按键避让 / 布景 payload / 四层折叠一致性。规格见 `design/12_taiping_tilemap_spec.md` |
+| `fix_map_extras.py` | 地图手工增项**复位器**：给两张战场图补回 `battle_scars: true`；并按甲方两条删除令守住第一幕——不许有 `sky_rows`（远景实心带＝空气墙）、不许有围观百姓 `door_N`（m01249「把第一幕的观众也全去掉」），谁加回来就清掉 | **重跑任何 `gen_maps*.py` 之后跑一次**（2026-11-05 重新生成把 `battle_scars` 抹掉过）。可重复执行；末尾用与 `tests/art.test.ts` 相同的算法复核「首个整行可走以下不得有内部实心格」 |
 | `add_act2_data.py` | 向已有 JSON 追加第二幕的节点/事件/知识卡/对话/敌人/装备，并新建幕定义、更新章索引 | **读-改-写**，避免手写大段 JSON 出错 |
 | `add_dungeon_data.py` | 追加副本所需的敌人、装备、副本定义 | 同上 |
 | `add_demo_data.py` | 演示版数据：`config.json` 减小闪避距离（200→64）+ 写入 `skills.humen_cannon`；新增精英「郭富准将」；改写虎门战斗节点的三波敌军（第三波含郭富）+ 战败继续/国运扣减/战败与条约文案 | **读-改-写**；可重复执行（郭富会先被剔除再插回） |
