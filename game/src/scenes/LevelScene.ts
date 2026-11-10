@@ -63,16 +63,19 @@ import { CharacterRig } from '../gfx/CharacterRig';
 import { Player } from '../entities/Player';
 import { Enemy } from '../entities/Enemy';
 import {
+  MANAGE_LAYOUT,
   MANAGE_MONTHS,
   MONTHLY_POINTS,
   TRACK_MAX,
   allocTotal,
   createManageState,
   finalVerdict,
+  managementTextLayout,
   settleMonth,
   validateAlloc,
   type ManageState,
   type ManageTrack,
+  type TextBox,
 } from '../core/management';
 import { addKnowledge, addToBag, markNodeDone } from '../core/SaveManager';
 import {
@@ -2735,7 +2738,9 @@ export class LevelScene extends Phaser.Scene {
     this.manage = createManageState();
     this.manageAlloc = { food: 2, troops: 2, morale: 2 };
     this.manageFocus = 'food';
-    emitObjective('天京经营　分配粮草、兵员、民心');
+    // HUD 目标条固定在 top:42%（逻辑 y≈113），正好横压在第三行「民心」卡片上；
+    // 面板自己已有「天京经营　第 N / 8 月」标题，这里收掉目标条即可，不再重复写一行。
+    emitObjective('');
     this.renderManagement();
     this.bindManageKeys();
   }
@@ -2805,10 +2810,13 @@ export class LevelScene extends Phaser.Scene {
 
     const st = this.manage;
     const last = st.history[st.history.length - 1];
+    // canvas 图元与 DOM 文字层共用同一套坐标，避免竖屏旋转后「字配歪了」。
+    const L = MANAGE_LAYOUT;
+    const T = managementTextLayout();
 
     c.add(
       this.add
-        .rectangle(200, 132, 360, 230, PALETTE.ink, 0.95)
+        .rectangle(L.panel.cx, L.panel.cy, L.panel.w, L.panel.h, PALETTE.ink, 0.95)
         .setStrokeStyle(1, PALETTE.greyPlum)
         .setScrollFactor(0),
     );
@@ -2820,11 +2828,11 @@ export class LevelScene extends Phaser.Scene {
     ];
 
     rows.forEach((row, i) => {
-      const y = 66 + i * 34;
+      const y = L.row.y0 + i * L.row.step;
       const focused = this.manageFocus === row.key;
       c.add(
         this.add
-          .rectangle(200, y, 332, 30, focused ? PALETTE.plumMid : PALETTE.plumDark, focused ? 1 : 0.85)
+          .rectangle(L.panel.cx, y, L.row.w, L.row.h, focused ? PALETTE.plumMid : PALETTE.plumDark, focused ? 1 : 0.85)
           .setStrokeStyle(1, focused ? PALETTE.star : PALETTE.ink)
           .setScrollFactor(0),
       );
@@ -2834,15 +2842,15 @@ export class LevelScene extends Phaser.Scene {
         const filled = k < this.manageAlloc[row.key];
         c.add(
           this.add
-            .rectangle(206 + k * 16, y, 12, 12, filled ? PALETTE.star : PALETTE.plumDark)
+            .rectangle(L.pips.x0 + k * L.pips.step, y, L.pips.size, L.pips.size, filled ? PALETTE.star : PALETTE.plumDark)
             .setStrokeStyle(1, PALETTE.ink)
             .setScrollFactor(0),
         );
       }
 
-      const mkBtn = (x: number, delta: number) => {
+      const mkBtn = (cx: number, delta: number) => {
         const r = this.add
-          .rectangle(x, y, 20, 20, PALETTE.redDark, 0.95)
+          .rectangle(cx, y, L.btnW, L.btnH, PALETTE.redDark, 0.95)
           .setStrokeStyle(1, PALETTE.ink)
           .setScrollFactor(0)
           .setInteractive({ useHandCursor: true });
@@ -2853,56 +2861,84 @@ export class LevelScene extends Phaser.Scene {
         r.on('pointerdown', act);
         c.add(r);
       };
-      mkBtn(300, -1);
-      mkBtn(326, 1);
+      mkBtn(L.minusX, -1);
+      mkBtn(L.plusX, 1);
     });
 
-    // ── 文字走 DOM overlay
+    // ── 文字走 DOM overlay：盒子坐标全部来自 managementTextLayout()，与 canvas 图元同心
     const remaining = MONTHLY_POINTS - allocTotal(this.manageAlloc);
     const monthCost =
       st.history.length + 1 <= MANAGE_MONTHS ? 2 + Math.floor((Math.min(st.month, MANAGE_MONTHS) - 1) / 3) : 0;
+    const box = (b: TextBox, css: string, content: string) =>
+      `<div style="position:absolute;left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px;${css}">${content}</div>`;
+    const flex = 'display:flex;align-items:center;';
+    const flexCenter = `${flex}justify-content:center;`;
+
     const rowHtml = rows
       .map((row, i) => {
-        const y = 66 + i * 34;
+        const b = T.rows[i];
         const low = st.stock[row.key] < 2;
-        return `<div style="position:absolute;left:48px;top:${y - 9}px;font-size:14px;">${row.name}</div>
-          <div style="position:absolute;left:96px;top:${y - 9}px;font-size:13px;color:${low ? '#E85C4A' : '#C2BCD1'};">库存 ${st.stock[row.key]}</div>
-          <div style="position:absolute;left:300px;top:${y - 10}px;font-size:16px;text-align:center;color:#F2EDE4;">−</div>
-          <div style="position:absolute;left:326px;top:${y - 10}px;font-size:16px;text-align:center;color:#F2EDE4;">＋</div>`;
+        return (
+          box(b.name, `${flex}font-size:14px;`, row.name) +
+          box(b.stock, `${flex}font-size:13px;color:${low ? '#E85C4A' : '#C2BCD1'};`, `库存 ${st.stock[row.key]}`) +
+          box(b.minus, `${flexCenter}font-size:16px;color:#F2EDE4;`, '−') +
+          box(b.plus, `${flexCenter}font-size:16px;color:#F2EDE4;`, '＋')
+        );
       })
       .join('');
 
     let bottomHtml = '';
     if (last && !st.done) {
       const text = last.events.length > 0 ? last.events.join('；') : '本月无事。';
-      bottomHtml = `<div style="position:absolute;left:34px;top:172px;width:330px;font-size:12px;color:${last.golden ? '#7EC08A' : '#F2A08C'};">上月结算：${text}</div>`;
+      bottomHtml = box(
+        T.report,
+        `font-size:12px;line-height:1.35;color:${last.golden ? '#7EC08A' : '#F2A08C'};`,
+        `上月结算：${text}`,
+      );
     }
     if (st.done) {
       const v = finalVerdict(st);
-      bottomHtml = `<div style="position:absolute;left:34px;top:196px;width:330px;font-size:12px;color:#F2EDE4;">${v.title}。${v.body}</div>`;
+      bottomHtml = box(T.verdict, 'font-size:12px;line-height:1.35;color:#F2EDE4;', `${v.title}。${v.body}`);
     }
 
     const ok = validateAlloc(this.manageAlloc).ok;
     const btnLabel = st.done ? '记下这段历史' : ok ? '确认本月分配' : '点数没分完';
 
     showOverlay(
-      `<div style="position:absolute;left:34px;top:18px;font-size:13px;color:#C2BCD1;">天京经营　第 ${Math.min(st.month, MANAGE_MONTHS)} / ${MANAGE_MONTHS} 月</div>
-       <div style="position:absolute;right:46px;top:18px;font-size:13px;color:#F0C419;text-align:right;">可分配 ${remaining} 点　本月消耗 ${monthCost}</div>
-       <div style="position:absolute;left:34px;top:36px;font-size:11px;color:#6B6489;">粮草、兵员、民心三事，怎么分都不够——这就是要你亲手体会的事。</div>
-       ${rowHtml}
-       ${bottomHtml}
-       <div style="position:absolute;left:200px;top:236px;width:120px;text-align:center;font-size:13px;color:${st.done || ok ? '#F2EDE4' : '#6B6489'};">${btnLabel}</div>`,
+      box(T.title, `${flex}font-size:13px;color:#C2BCD1;`, `天京经营　第 ${Math.min(st.month, MANAGE_MONTHS)} / ${MANAGE_MONTHS} 月`) +
+        box(
+          T.budget,
+          `${flex}justify-content:flex-end;white-space:nowrap;font-size:12px;color:#F0C419;`,
+          `可分配 ${remaining} 点 · 消耗 ${monthCost}`,
+        ) +
+        box(
+          T.hint,
+          `${flex}white-space:nowrap;overflow:hidden;font-size:10px;letter-spacing:-0.2px;color:#6B6489;`,
+          '粮草、兵员、民心三事，怎么分都不够——这就是要你亲手体会的事。',
+        ) +
+        rowHtml +
+        bottomHtml +
+        box(T.confirmLabel, `${flexCenter}font-size:13px;color:${st.done || ok ? '#F2EDE4' : '#6B6489'};`, btnLabel),
     );
 
     if (st.done) {
-      this.makeManageButton(c, 200, 232, 120, 22, '', () => {
+      this.makeManageButton(c, L.confirm.cx, L.confirm.cy, L.confirm.w, L.confirm.h, '', () => {
         this.manageUI?.destroy();
         this.manageUI = null;
         hideOverlay();
         this.completeNode();
       });
     } else {
-      this.makeManageButton(c, 200, 232, 120, 22, '', () => this.commitAllocation(), ok);
+      this.makeManageButton(
+        c,
+        L.confirm.cx,
+        L.confirm.cy,
+        L.confirm.w,
+        L.confirm.h,
+        '',
+        () => this.commitAllocation(),
+        ok,
+      );
     }
   }
 

@@ -315,7 +315,74 @@ async function main() {
     assert(!zeroToast, 'no duplicate escort toast (0/0 survivors)');
     assert(managementSamples.length >= 30, 'management panel holds for >= 3s of samples');
     assert(/天京经营/.test(last.overlay), 'management overlay text is visible');
+    // 实拍前把开场对白框收起来（玩家点掉对白后的实际画面）。只改 DOM 显示，
+    // 不推进 dialogue 状态，免得 advance() 触发节点剧情影响本节断言。
+    await evaluate(
+      "(function(){var d=document.querySelector('#dom-dialogue'); if(d){d.style.display='none';} return 'ok';})()",
+    );
     await shot('management-final.png');
+
+    // ── v1.6.3：DOM 文字层几何断言（竖屏甲方截图「字配歪了」）
+    // overlay 里的文字盒用 480×270 逻辑坐标绝对定位；canvas 图元也用同一套坐标。
+    // 旧版确认按钮文字 left:200（中心 260），红色按钮中心却是 200，整行字偏出 60px。
+    const layout = await evaluate(`
+      (function () {
+        var ov = document.querySelector('#dom-overlay');
+        if (!ov) return null;
+        var boxes = Array.prototype.slice.call(ov.children).map(function (el) {
+          var s = el.style;
+          return {
+            text: (el.textContent || '').trim().slice(0, 24),
+            left: parseFloat(s.left) || 0,
+            top: parseFloat(s.top) || 0,
+            width: parseFloat(s.width) || 0,
+            height: parseFloat(s.height) || 0,
+            right: s.right || ''
+          };
+        });
+        var hud = document.querySelector('#dom-hud-objective');
+        return {
+          boxes: boxes,
+          confirm: boxes.find(function (b) { return b.text === '确认本月分配'; }) || null,
+          hudObjectiveHidden: !hud || hud.style.display === 'none' || !(hud.textContent || '').trim()
+        };
+      })()
+    `);
+    report.layout = layout;
+    assert(!!layout, 'overlay DOM text boxes are readable');
+    if (layout) {
+      assert(!layout.boxes.some((b) => b.right), 'no right-anchored box escaping the panel');
+      assert(layout.boxes.every((b) => b.left + b.width <= 380), 'every text box stays inside panel right edge');
+      assert(layout.boxes.every((b) => b.top + b.height <= 270), 'every text box stays inside the 480x270 canvas');
+      assert(!!layout.confirm, 'confirm label is present in overlay');
+      if (layout.confirm) {
+        assert(layout.confirm.left === 140, 'confirm label starts at the button left edge (old: 200)');
+        assert(layout.confirm.left + layout.confirm.width / 2 === 200, 'confirm label centred on red button');
+        assert(layout.confirm.top + layout.confirm.height / 2 === 232, 'confirm label vertically centred');
+      }
+      assert(layout.hudObjectiveHidden, 'HUD objective bar no longer covers the third row');
+    }
+
+    // 竖屏旋转实拍：切到手机竖屏视口，让 OrientationGate 把整个画面转 90°。
+    // 只出图不做硬断言（headless 的 screen.orientation 行为与真机不完全一致）。
+    try {
+      await send('Emulation.setDeviceMetricsOverride', {
+        width: 480,
+        height: 1068,
+        deviceScaleFactor: 1,
+        mobile: true,
+      });
+      // Phaser 的 ScaleManager 靠 resize 重算 canvas；headless 里补发一次，
+      // 让旋转后的画面尽量铺满竖屏（真机由 orientationchange 自动触发）。
+      await evaluate("window.dispatchEvent(new Event('resize')), 'ok'");
+      await sleep(1200);
+      await evaluate("window.dispatchEvent(new Event('resize')), 'ok'");
+      await sleep(600);
+      await shot('management-portrait.png');
+      report.portraitShot = true;
+    } catch (e) {
+      report.portraitShot = String(e?.message ?? e).slice(0, 160);
+    }
   } catch (e) {
     errors.push('FATAL: ' + String(e?.stack ?? e).slice(0, 600));
   } finally {

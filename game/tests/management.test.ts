@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  MANAGE_LAYOUT,
   MANAGE_MONTHS,
   MONTHLY_POINTS,
   TRACK_MAX,
@@ -15,6 +16,7 @@ import {
   createManageState,
   decayFor,
   finalVerdict,
+  managementTextLayout,
   remainingPoints,
   settleMonth,
   simulate,
@@ -218,5 +220,63 @@ describe('结算评语', () => {
       expect(allocTotal(h.alloc)).toBe(MONTHLY_POINTS);
       expect(h.decay).toBeGreaterThanOrEqual(2);
     }
+  });
+});
+
+/**
+ * 面板文字层几何（v1.6.3，甲方截图「字配歪了」）。
+ * 这里锁的是「DOM 文字盒与 canvas 图元同心、不越出面板」，
+ * 光靠肉眼在横屏看不出来，竖屏整体旋转 90° 后偏移会被放大。
+ */
+describe('经营面板文字与图元同心', () => {
+  const L = MANAGE_LAYOUT;
+  const T = managementTextLayout();
+  const panelLeft = L.panel.cx - L.panel.w / 2;
+  const panelRight = L.panel.cx + L.panel.w / 2;
+  const panelBottom = L.panel.cy + L.panel.h / 2;
+
+  it('确认按钮文字与红色按钮矩形同心（旧版整体偏右 60px）', () => {
+    expect(T.confirmLabel.left + T.confirmLabel.width / 2).toBe(L.confirm.cx);
+    expect(T.confirmLabel.top + T.confirmLabel.height / 2).toBe(L.confirm.cy);
+    expect(T.confirmLabel.width).toBe(L.confirm.w);
+    expect(T.confirmLabel.height).toBe(L.confirm.h);
+    expect(T.confirmLabel.left).toBe(140);
+  });
+
+  it('加减号文字盒与按钮矩形同心，三行都对齐', () => {
+    T.rows.forEach((r, i) => {
+      const y = L.row.y0 + i * L.row.step;
+      expect(r.minus.left + r.minus.width / 2).toBe(L.minusX);
+      expect(r.minus.top + r.minus.height / 2).toBe(y);
+      expect(r.plus.left + r.plus.width / 2).toBe(L.plusX);
+      expect(r.plus.top + r.plus.height / 2).toBe(y);
+      expect(r.name.top + r.name.height / 2).toBe(y);
+      expect(r.stock.top + r.stock.height / 2).toBe(y);
+    });
+  });
+
+  it('所有文字盒都落在面板内，不再顶出右边界', () => {
+    const boxes = [
+      T.title,
+      T.budget,
+      T.hint,
+      T.report,
+      T.verdict,
+      T.confirmLabel,
+      ...T.rows.flatMap((r) => [r.name, r.stock, r.minus, r.plus]),
+    ];
+    for (const b of boxes) {
+      expect(b.left).toBeGreaterThanOrEqual(panelLeft);
+      expect(b.left + b.width).toBeLessThanOrEqual(panelRight);
+      expect(b.top).toBeGreaterThanOrEqual(0);
+      expect(b.top + b.height).toBeLessThanOrEqual(panelBottom);
+    }
+  });
+
+  it('标题与预算不抢位，提示行不压第一行卡片，结算不压确认按钮', () => {
+    expect(T.title.left + T.title.width).toBeLessThanOrEqual(T.budget.left);
+    expect(T.hint.top + T.hint.height).toBeLessThanOrEqual(L.row.y0 - L.row.h / 2);
+    expect(T.report.top + T.report.height).toBeLessThanOrEqual(T.confirmLabel.top);
+    expect(T.verdict.top + T.verdict.height).toBeLessThanOrEqual(T.confirmLabel.top);
   });
 });

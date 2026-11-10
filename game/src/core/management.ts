@@ -182,3 +182,75 @@ export function finalVerdict(state: ManageState): ManageVerdict {
     finalSum,
   };
 }
+
+/* ==================== 面板几何（v1.6.3） ==================== */
+/**
+ * 经营面板在 480×270 逻辑画布里的**唯一坐标源**。
+ *
+ * canvas 图元（Phaser rectangle）与 DOM 文字层（showOverlay 的绝对定位 div）
+ * 以前各写各的魔数：确认按钮矩形中心是 x=200，文字层却写 left:200;width:120
+ * （中心 260），整行字偏出 60px；右上预算条用 right:46 顶出了面板右边界；
+ * 加减号文字没给宽度，text-align:center 对 shrink-to-fit 的盒子等于没写。
+ * 手机竖屏把画面整体旋转 90° 后，这些偏移被放大成「字配歪了」。
+ * 两边共用这里的数字，配合 managementTextLayout() 的同心文字盒即可杜绝。
+ */
+export const MANAGE_LAYOUT = {
+  /** 面板矩形：中心 + 尺寸 → x 20..380, y 17..247 */
+  panel: { cx: 200, cy: 132, w: 360, h: 230 },
+  /** 三行卡片：首行中心 y、行距、行矩形尺寸 */
+  row: { y0: 66, step: 34, w: 332, h: 30 },
+  /** 行内名称 / 库存文字的 left */
+  nameX: 48,
+  stockX: 96,
+  /** 4 个分配点格子 */
+  pips: { x0: 206, step: 16, size: 12 },
+  /** 减 / 加按钮中心 x 与尺寸 */
+  minusX: 300,
+  plusX: 326,
+  btnW: 20,
+  btnH: 22,
+  /** 确认按钮：中心 + 尺寸 → x 140..260, y 221..243 */
+  confirm: { cx: 200, cy: 232, w: 120, h: 22 },
+} as const;
+
+export interface TextBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** DOM 文字盒：全部落在面板内，且与同名的 canvas 图元同心。 */
+export function managementTextLayout() {
+  const L = MANAGE_LAYOUT;
+  const pad = 14;
+  const innerLeft = L.panel.cx - L.panel.w / 2 + pad; // 34
+  const innerRight = L.panel.cx + L.panel.w / 2 - pad; // 366
+  const innerW = innerRight - innerLeft; // 332
+  const rowY = (i: number) => L.row.y0 + i * L.row.step;
+  const centered = (cx: number, w: number, cy: number, h: number): TextBox => ({
+    left: cx - w / 2,
+    top: cy - h / 2,
+    width: w,
+    height: h,
+  });
+  return {
+    innerLeft,
+    innerRight,
+    innerW,
+    title: { left: innerLeft, top: 16, width: 170, height: 18 },
+    budget: { left: innerRight - 156, top: 16, width: 156, height: 18 },
+    // 提示行必须在第一行卡片（顶边 51）之上收住，且用 nowrap + 窄字号保证整句不越界
+    hint: { left: innerLeft, top: 35, width: innerW, height: 15 },
+    rows: [0, 1, 2].map((i) => ({
+      name: { left: L.nameX, top: rowY(i) - L.row.h / 2, width: 44, height: L.row.h },
+      stock: { left: L.stockX, top: rowY(i) - L.row.h / 2, width: 96, height: L.row.h },
+      minus: centered(L.minusX, L.btnW, rowY(i), L.btnH),
+      plus: centered(L.plusX, L.btnW, rowY(i), L.btnH),
+    })),
+    // 结算 / 结语统一占 172..212，按钮顶边 221，互不压字
+    report: { left: innerLeft, top: 172, width: innerW - 2, height: 40 },
+    verdict: { left: innerLeft, top: 172, width: innerW - 2, height: 40 },
+    confirmLabel: centered(L.confirm.cx, L.confirm.w, L.confirm.cy, L.confirm.h),
+  };
+}
