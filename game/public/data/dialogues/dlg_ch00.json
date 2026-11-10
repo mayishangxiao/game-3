@@ -5,6 +5,10 @@
       "speaker": "narrator",
       "lines": [
         {
+          "text": "从这片海滩起：\n先听林大人吩咐，再搬箱入池；\n末了守炮台，走到江边才收场。",
+          "emotion": "neutral"
+        },
+        {
           "text": "道光十九年六月，虎门海滩。\n钦差大臣林则徐到了广东。",
           "emotion": "neutral"
         },
@@ -142,6 +146,10 @@
       "id": "dlg_ch00_act2_intro",
       "speaker": "li_xiucheng",
       "lines": [
+        {
+          "text": "先随我杀出金田：\n且战且走，护住身边的人；\n往后不止刀兵，须一一走过。",
+          "emotion": "neutral"
+        },
         {
           "text": "我是李秀成。\n从金田村出来的那一天，\n我们只有两万人。",
           "emotion": "neutral"
