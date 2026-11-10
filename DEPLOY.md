@@ -66,6 +66,7 @@ python tools/deploy_ecs.py 39.103.58.244
 - [ ] 改动涉及渲染 / UI 时，用 CDP 探针实拍并逐张看截图（断言全绿不等于画面没问题）
 - [ ] 改动涉及死亡 / 复活 / 关卡物件时，跑 `node tools/_cdp/tp-defeat.mjs <edgePath> http://127.0.0.1:4173 tools/_cdp/tp`，确认 `defeat.json` 里 `after.alive / rigDead / tintFill / visiblePickups` 全部达标
 - [ ] 改动涉及远景背景时，跑 `node tools/_cdp/tp-maps.mjs ...`，确认只有城破之战 `horizonTex=['art_bg_strip_tianjing_fall']`、虎门对照组为空，并逐张看 HUD 白字清晰度
+- [ ] 改动涉及远景背景**像素**时，重跑 `python tools/gen_tianjing_fall_bg.py`，自检的「HUD 区亮度 / 可见区平均亮度 / 结构边缘 / 上半部冷色占比 / 墙顶轮廓成形率」必须全过；可见区亮度不得比上一版明显升高（会抢前景），并做一次引擎可见区（源图 x=90..390 / y=0..40，1.6 倍）前后放大对照
 - [ ] `_stage` 打包成功（`has_index=True`、`backslash_names=0`）
 - [ ] 部署后打开首页与游戏页，抽查一个新增资源 URL 返回 200
 - [ ] Git 提交不含 `tools/_stage/`、`dist/`、`tsc_out.txt`、`_fix_json.py`、`_t.json` 与临时探针截图
@@ -77,6 +78,8 @@ python tools/deploy_ecs.py 39.103.58.244
 | 2026-11-09 | 太平天国篇章瓦片地图接入：三张 30×16 地图（金田村 / 天京城 / 天京城墙夜战）替换第二幕三个节点；`tp_act2` 图集的 36 张 16×16 PNG 在 `MapRenderer` 生效，旧图程序化材质原样保留；修正 1864 战场串用第一幕「守住威远炮台」的目标文案；规格书升 v1.1 | `tsc` 0 错；`vitest` 14 文件 / 263 条全绿；`vite build` 通过；CDP 实拍三张地图，`tileset=tp_act2`、图集已加载、控制台零异常 | http://39.103.58.244/game/ |
 | 2026-11-09 | **v1.2 热修**（真机截图反馈）：剧情关战败改为「战败 / 再试一次 / 返回长廊」面板，不再 900ms 后自动原地复活；`CharacterRig.revive()` + `Player.resetForNode()` 完整复位死亡状态（清 `dead` / 闪白 tint / 倒地 tween）并回到地图出生点，副本重来走同一路径；清除三张太平天国地图误放的第一幕 `pickup/crate` 鸦片箱共 7 个（改静态布景）、木箱装饰瓦片不再摆放、沙袋工事改横向矮墙；新增 `tests/data.test.ts` 防串幕断言与 `_cdp/tp-defeat.mjs` 回归探针；规格书升 v1.2 | `tsc` 0 错；`vitest` 14 文件 / **264 条**全绿；`vite build` 通过；CDP 实拍：面板四文本齐全，点重试后 `alive=true / hp=100 / rigDead=false / tintFill=false / angle=0`、坐标回到出生点，三图 `visiblePickups=0`，控制台零异常 | http://39.103.58.244/game/ |
 | 2026-11-09 | **v1.3 背景替换**：1864 天京城破之战的远景条换成「火光四起 / 战火映照 / 浓烟弥漫」的战争夜景 `bg_strip_tianjing_fall.png`（480×64、24 色盘、顶部 HUD 区压暗）；新增 `gen_tianjing_fall_bg.py` 可复现生成，`horizonImage` 加 `'cityfall'` 分支、只在 `tp_act2 + sky_rows>0` 启用；原 `bg_strip_dusk.png`、虎门开场卡片底图、页面布局 / 文案 / 前景元素 / 其它素材全部未动；规格书升 v1.3 | `tsc` 0 错；`vitest` 14 文件 / **265 条**全绿（新增背景回归断言）；`vite build` 通过；CDP 实拍：城破之战 `horizonTex=['art_bg_strip_tianjing_fall']`、HUD 白字清晰、角色与地面无遮挡，虎门等关卡 `horizonTex=[]` 未受影响，控制台零异常 | http://39.103.58.244/game/ |
+
+| 2026-11-10 | **v1.4 背景清晰度修正**：针对「城破之战背景过于模糊」，重写 `gen_tianjing_fall_bg.py` 的像素处理（纵向映射把城墙/城楼移进可视区、保边采样、边缘保持平滑 + unsharp、24 色盘分档量化、自适应抖动、1px 硬边结构层描回墙顶/垛口/飞檐/门洞、火光映照与高亮档收敛），重新生成 `bg_strip_tianjing_fall.png`。**仅**改这 2 个文件；布局、配色、文案、前景、其它背景图、渲染代码一行未动；规格书升 v1.4（8.7 节） | `tsc` 0 错；`vitest` 14 文件 / **265 条**全绿；`vite build` 通过且 `dist` 资源与源字节一致；生成器自检：顶部 9 行亮度 12.6（旧 20.7）、HUD 区 17 行 20.1、可见区亮度 55.1（旧 54.6，不抢前景）、结构边缘 8.93（旧 8.47）、上半部冷色 90.7%、墙顶轮廓成形率 83.1%，重复生成字节一致；引擎可见区（x=90..390 / y=0..40，1.6 倍）前后放大对照确认轮廓更清楚；线上 PNG 返回 200 且与本地字节一致，默认 `bg_strip_dusk.png` 未变。**CDP 实拍未执行**：无头浏览器访问外网被 `net::ERR_BLOCKED_BY_CLIENT` 拦截（本地预览服务按用户取消未重启），非页面故障；本次渲染链路未改，v1.3 的实拍结论继续有效 | http://39.103.58.244/game/ |
 
 **回退**：把 `game/public/data/nodes/nodes_ch00.json` 里 `nd_1851_jintian_escort` /
 `nd_1853_tianjing_manage` / `nd_1864_tianjing_fall` 三处 `map_ref`，以及

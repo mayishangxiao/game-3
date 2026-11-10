@@ -105,7 +105,7 @@
 | `fx/cannon_blast/`（48 帧） | 甲方提供的 GIF | 甲方提供 | `tools/import_fx.py` 拆帧：统一 0.478 倍缩放 + 逐帧包围盒居中 |
 | `crowd/door_*.png`（5 个） | 甲方提供的条带 | 甲方提供 | `tools/import_crowd.py` 按像素网格还原回 6×12 |
 | `bg/bg_sea_red.png`、`bg_strip_*`（不含 `tianjing_fall`） | 甲方提供的全景 | 甲方提供 | 用 `tools/gen_strips.py` 裁远景条并对齐海平线 |
-| `bg/bg_strip_tianjing_fall.png` | AI 生成的「1864 天京城破之夜」战争夜景，源图 `tools/_art_in/tianjing_fall_src.png` | 项目所有 | `tools/gen_tianjing_fall_bg.py` 像素化、锁 24 色盘、压暗顶部 HUD 区；**仅** `map_ch00_tp_battlefield` 使用；`bg_strip_dusk.png` 原样保留为默认分支与缺图回退 |
+| `bg/bg_strip_tianjing_fall.png` | AI 生成的「1864 天京城破之夜」战争夜景，源图 `tools/_art_in/tianjing_fall_src.png` | 项目所有 | `tools/gen_tianjing_fall_bg.py` 像素化、锁 24 色盘、压暗顶部 HUD 区；v1.4 重做清晰度（保边采样 / 局部对比增强 / 分档量化 / 1px 硬边轮廓），可见区亮度维持原值；**仅** `map_ch00_tp_battlefield` 使用；`bg_strip_dusk.png` 原样保留为默认分支与缺图回退 |
 | `units/`、`tiles/`、`scars/`、`ship/` | 项目内自绘 / 生成脚本 | 项目所有 | 生成脚本见 `tools/gen_units.py`、`gen_maps.py`、`prep_art_assets.py` |
 
 ## 6.3 角色与敌人（✅ 8 个单位）
