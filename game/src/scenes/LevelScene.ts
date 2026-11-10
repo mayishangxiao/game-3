@@ -44,6 +44,7 @@ import { hideDialogue, hideFloat, hideOverlay, hideToast, moveFloat, showFloat, 
 import { MapRenderer } from '../gfx/MapRenderer';
 import { backdropImage, horizonImage, HORIZON_H } from '../gfx/Backdrop';
 import { isFootBlocked, nearestOpenPoint } from '../core/space';
+import { canCompleteEscort } from '../core/escort';
 import {
   applyUpgrade,
   bonusPierce,
@@ -263,15 +264,16 @@ export class LevelScene extends Phaser.Scene {
    */
   private pendingUpgrade = true;
   private nodeBusy = false;
-  /**
-   * 节点切换期间为 true。
-   * startNode 里有 await（加载地图），而 Phaser 的 update 在这期间照常运行；
-   * 若不屏蔽，update 会拿着「上一幕的模式 + 上一幕的玩家坐标」再跑一遍完成判定，
-   * 导致节点被连续跳过（经营模块曾因此整幕被跳过）。
-   */
   /** 城破演出（m06955）。演出结束自己销毁；重进关卡必须复位，否则镜头与 HUD 会卡在演出状态。 */
   private breachCinema: DefeatCinematic | null = null;
+  /**
+   * 节点切换期间为 true：startNode 里有 await（加载地图），Phaser 的 update 在这期间
+   * 照常运行。不屏蔽的话，update 会拿着「上一幕的模式 + 上一幕的玩家坐标」再跑一遍
+   * 完成判定，导致节点被连续跳过（天京经营幕曾因此整幕被跳掉）。
+   * 由 startNode 的 try/finally 全程托管；nodeStartSeq 防止重入时旧的 finally 提前解锁。
+   */
   private transitioning = false;
+  private nodeStartSeq = 0;
   private enemyLevel = 1;
   private worldBuilt = false;
   /** 手动跟随的参数；null = 本幕不需要跟随（过场/经营） */
@@ -284,6 +286,8 @@ export class LevelScene extends Phaser.Scene {
   private escortGoalMarker: Phaser.GameObjects.Rectangle | null = null;
   private escortStage = 0;
   private escortSurvivors = 0;
+  /** 本幕初始护送人数：结算时战士可能已被 clearAllies 收走，不能拿 allies.length 当分母 */
+  private escortTotal = 0;
 
   /* 经营模式 */
   private manage: ManageState | null = null;
@@ -1596,8 +1600,32 @@ export class LevelScene extends Phaser.Scene {
 
   /* ==================== 节点调度 ==================== */
 
+  /**
+   * 切节点门禁：整段 async 流程（含 `await buildWorld`）都要把世界逻辑冻住。
+   *
+   * 旧版 startNode 在换图让出的那一帧里，mode 还是上一幕、玩家还在上一幕坐标，
+   * 而 nodeBusy 已被提前置回 false —— 护送幕的「抵达终点」判定于是二次命中
+   * completeNode()，把刚要进场的天京经营节点标记完成并排队跳到内讧幕。
+   * 玩家看到的就是经营面板闪一下就没了（甲方截图，面板只活了约 500ms）。
+   */
   private async startNode(index: number): Promise<void> {
+    const ticket = ++this.nodeStartSeq;
+    this.transitioning = true;
+    this.nodeBusy = true;
     this.closeWeaponBag('auto');
+    try {
+      await this.startNodeInner(index);
+    } finally {
+      // 只有最后一次调用有权解锁：并发/重试时旧流程的 finally 不能提前放开门禁
+      if (ticket === this.nodeStartSeq) {
+        this.transitioning = false;
+        // 中途抛错也不能把节点永久锁死（历史上 transitioning 卡住会让波次停摆）
+        if (this.nodeBusy) this.nodeBusy = false;
+      }
+    }
+  }
+
+  private async startNodeInner(index: number): Promise<void> {
     const nodeId = this.act.nodes[index];
     const node = this.bundle.nodes.find((n) => n.id === nodeId);
     if (!node) {
@@ -1606,6 +1634,9 @@ export class LevelScene extends Phaser.Scene {
     }
     this.node = node;
     this.nodeIndex = index;
+    // 换图是 await：模式必须在这个异步窗口之前切过去，否则让出的一帧里
+    // updateWorld 仍会按上一幕的模式跑完成判定（护送 → 经营串幕的根因）。
+    this.mode = ((node.params.mode as Mode) ?? 'explore') as Mode;
     // 左上角战役条：幕名 · 这一场 + 年份（老师评审时要一眼看出打的是哪一段史实）
     emitSceneLabel({
       act: this.act.name,
@@ -1616,7 +1647,8 @@ export class LevelScene extends Phaser.Scene {
         ? { time: node.banner.time, place: node.banner.place, enemy: node.banner.enemy }
         : {}),
     });
-    this.nodeBusy = false;
+    // nodeBusy 保持 true 直到本节点完全就绪（函数末尾统一放开）。
+    // 旧版在这里提前置 false，正好把 async 换图窗口暴露给上一幕的完成判定。
     this.wavePending = false;
     this.waveIndex = -1;
     this.bossSpawned = false;
@@ -1640,7 +1672,6 @@ export class LevelScene extends Phaser.Scene {
       await this.buildWorld(mapRef);
     }
 
-    this.mode = ((node.params.mode as Mode) ?? 'explore') as Mode;
     this.carrying = false;
     this.cratesDelivered = 0;
     this.crateTarget = Number(node.params.crate_target ?? 8);
@@ -2568,6 +2599,7 @@ export class LevelScene extends Phaser.Scene {
     this.escortGoalX = this.map.pixelWidth - 48;
     this.escortStage = 0;
     this.escortSurvivors = count;
+    this.escortTotal = count;
 
     // 终点标记
     this.escortGoalMarker = this.add
@@ -2628,7 +2660,7 @@ export class LevelScene extends Phaser.Scene {
     const aliveCount = this.allies.filter((a) => a.alive).length;
     if (aliveCount !== this.escortSurvivors) {
       this.escortSurvivors = aliveCount;
-      const total = this.allies.length;
+      const total = this.escortTotal || this.allies.length;
       emitObjective(`护送太平军战士　${aliveCount}/${total}`);
     }
   }
@@ -2689,6 +2721,10 @@ export class LevelScene extends Phaser.Scene {
   private clearAllies(): void {
     this.allies.forEach((a) => a.rig.destroy());
     this.allies = [];
+    // 终点与人数一起作废：切节点后的残留值不能再让旧护送判定命中
+    this.escortGoalX = 0;
+    this.escortTotal = 0;
+    this.escortSurvivors = 0;
     this.escortGoalMarker?.destroy();
     this.escortGoalMarker = null;
   }
@@ -4789,8 +4825,20 @@ export class LevelScene extends Phaser.Scene {
     if (this.mode === 'escort') {
       this.updateAllies(delta);
       this.updateEscortProgress();
-      if (this.player.x >= this.escortGoalX && !this.nodeBusy) {
-        const total = this.allies.length;
+      // 门禁把「切换中 / 节点已换 / 战士已清空」挡在外面：旧版只判 x 与 nodeBusy，
+      // 切到天京经营的 async 窗口里会二次结算，把经营幕整幕跳过（见 core/escort.ts）。
+      if (
+        canCompleteEscort({
+          mode: this.mode,
+          nodeMode: this.node?.params.mode as string | undefined,
+          transitioning: this.transitioning,
+          nodeBusy: this.nodeBusy,
+          goalX: this.escortGoalX,
+          playerX: this.player.x,
+          allyCount: this.allies.length,
+        })
+      ) {
+        const total = this.escortTotal || this.allies.length;
         const alive = this.allies.filter((a) => a.alive).length;
         emitToast(`突围成功：护送出 ${alive}/${total} 名战士`, 2400);
         emitObjective(`突围成功　${alive}/${total}`);
