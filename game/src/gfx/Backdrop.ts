@@ -375,9 +375,11 @@ export function horizonTexture(scene: Phaser.Scene, key = 'bg_horizon'): string 
 /**
  * 远景条 Image（调用方自己塞进场景/容器）。
  *
- * `prefer` 决定用甲方哪一张实拍/手绘全景裁出来的条带：
+ * `prefer` 决定用哪一张远景条：
  *  - `'dusk'`（默认，m12276 那张黄昏双舰全景）：舰影更密、海平线更低，战斗关卡都用它；
- *  - `'night'`：早期那张夜色条，留给还在用旧素材的关卡。
+ *  - `'night'`：早期那张夜色条，留给还在用旧素材的关卡；
+ *  - `'cityfall'`：1864 天京陷落专用「火光 / 浓烟 / 城墙」条带，只给城破之战用，
+ *    缺图时依次回退 `'dusk'` → `'night'` → 程序化绘制，绝不影响其它关卡。
  * 两张都没有时才退回 `horizonTexture()` 的程序化绘制——所以美术没接也不会黑屏。
  *
  * `zoom` 是「把条带放大多少倍」：甲方全景里那几艘巨舰占 288×80，塞进 64px 的带子里
@@ -388,13 +390,16 @@ export function horizonTexture(scene: Phaser.Scene, key = 'bg_horizon'): string 
 export function horizonImage(
   scene: Phaser.Scene,
   depth: number,
-  prefer: 'dusk' | 'night' = 'dusk',
+  prefer: 'dusk' | 'night' | 'cityfall' = 'dusk',
   zoom = 1,
 ): Phaser.GameObjects.Image {
-  // 甲方给的远景条是 480×64（从全景 y=72..136 裁出来），
-  // 画到 `sky_rows`（4 行 = 64px）那条带上刚好对齐。
-  const order =
-    prefer === 'dusk' ? [BG_TEX.horizonDusk, BG_TEX.horizon] : [BG_TEX.horizon, BG_TEX.horizonDusk];
+  // 远景条统一 480×64，画到 `sky_rows`（4 行 = 64px）那条带上刚好对齐；
+  // 换图不改尺寸，`zoom` 的水平居中裁切与 `HORIZON_H * zoom` 淡出带才不会错位。
+  const order: readonly string[] = {
+    cityfall: [BG_TEX.horizonCityFall, BG_TEX.horizonDusk, BG_TEX.horizon],
+    dusk: [BG_TEX.horizonDusk, BG_TEX.horizon],
+    night: [BG_TEX.horizon, BG_TEX.horizonDusk],
+  }[prefer];
   for (const key of order) {
     if (scene.textures.exists(key)) {
       const img = markPixel(scene.add.image(0, 0, key).setOrigin(0, 0).setDepth(depth));

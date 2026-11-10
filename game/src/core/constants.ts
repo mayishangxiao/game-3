@@ -272,6 +272,13 @@ export const ART = {
   bgStripDusk: `${ART_ROOT}/bg/bg_strip_dusk.png`,
   /** 同一张全景的天空段（480×128），给开场情境卡当底图 */
   bgSkyDusk: `${ART_ROOT}/bg/bg_sky_dusk.png`,
+  /**
+   * 1864 天京陷落（城破之战）专用远景条：480×64，火光四起 / 战火映照 / 浓烟弥漫。
+   * 只在 `tileset === TP_TILESET_ID` 且 `sky_rows > 0` 的关卡启用（当前仅城破之战），
+   * 其余关卡仍走 `bgStripDusk` 默认分支。由 `tools/gen_tianjing_fall_bg.py` 从
+   * `tools/_art_in/tianjing_fall_src.png` 生成，锁 24 色盘、顶部压暗保 HUD 可读。
+   */
+  bgStripTianjingFall: `${ART_ROOT}/bg/bg_strip_tianjing_fall.png`,
   /** 地面残破贴花目录前缀（scar_00.png…scar_11.png，逐个按 0.5 缩放进地面纹理） */
   scars: `${ART_ROOT}/scars/`,
   /** 甲方给的炮火特效（金闪 → 爆开 → 火球 → 烟散）逐帧目录前缀，见 `FX_TEX` */
@@ -392,6 +399,8 @@ export const BG_TEX = {
   horizonAlt: 'art_bg_strip_red',
   /** 甲方 m12276 的黄昏全景：远景条 + 天空段，战斗关卡优先用它 */
   horizonDusk: 'art_bg_strip_dusk',
+  /** 1864 天京城破之战专用远景条；缺图时由 horizonImage 自动回退到 horizonDusk */
+  horizonCityFall: 'art_bg_strip_tianjing_fall',
   skyDusk: 'art_bg_sky_dusk',
 } as const;
 

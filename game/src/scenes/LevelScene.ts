@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CROWD_SCALE, CROWD_TEX, DEPTH, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CROWD_SCALE, CROWD_TEX, DEPTH, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -387,6 +387,11 @@ export class LevelScene extends Phaser.Scene {
       this.load.image(BG_TEX.horizonDusk, ART.bgStripDusk);
     }
     if (!this.textures.exists(BG_TEX.skyDusk)) this.load.image(BG_TEX.skyDusk, ART.bgSkyDusk);
+    // 1864 天京城破之战专用远景条（火光 / 浓烟 / 城墙）。只在 buildWorld 判定为
+    // tp_act2 + sky_rows 的关卡使用；其它战斗关卡继续加载并使用 horizonDusk。
+    if (!this.textures.exists(BG_TEX.horizonCityFall)) {
+      this.load.image(BG_TEX.horizonCityFall, ART.bgStripTianjingFall);
+    }
     // 地面残破贴花（弹坑 / 血泊 / 尸骸 / 碎砖），MapRenderer 把它们印进地面纹理
     SCAR_TEX.forEach((key, i) => {
       if (!this.textures.exists(key)) {
@@ -1647,7 +1652,12 @@ export class LevelScene extends Phaser.Scene {
       // 看着像背景没画好。顶边贴 0 让船身落在可见的下半段，桅杆被 UI 压住也不碍事，
       // 读起来反而像「远处的船被台沿挡住」，比整艘船悬在空地中间更合理。
       const ZOOM = 1.6;
-      horizonImage(this, DEPTH.ground - 1, 'dusk', ZOOM).setScrollFactor(0).setPosition(-(VIEW_W * (ZOOM - 1)) / 2, 0);
+      // 只替换 1864 天京城破之战这一张背景图：tp_act2 图集 + 有远景带才走
+      // 火光/浓烟条带；其它关卡（当前 sky_rows 均为 0）不叠远景条，仍走
+      // horizonImage 的 dusk 默认分支。布局/文案/前景与其它素材一律不动，
+      // 缺图时 horizonImage 自动回退 dusk，不会黑屏。
+      const horizonPrefer: 'cityfall' | 'dusk' = def.tileset === TP_TILESET_ID ? 'cityfall' : 'dusk';
+      horizonImage(this, DEPTH.ground - 1, horizonPrefer, ZOOM).setScrollFactor(0).setPosition(-(VIEW_W * (ZOOM - 1)) / 2, 0);
       // 海面与石台的交界：铺一层很淡的暗影，让「海在远处、台子在前」有纵深。
       // 没有这层的话，海平线与第一行地砖是一条刀刃般的硬线，看着像两张图上下拼接。
       // 注意**只压在海这一侧**（bandBottom 之上），不能越过 bandBottom：

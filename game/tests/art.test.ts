@@ -128,6 +128,27 @@ describe('正式美术资源', () => {
     expect(pngSize(ART.bgStripNight).height).toBe(HORIZON_ROWS * 16);
   });
 
+  it('1864 城破之战专用远景条存在，且只有它这一张 tp_act2 战场会换背景', () => {
+    expect(existsSync(join(PUBLIC, ART.bgStripTianjingFall))).toBe(true);
+    // 尺寸必须和旧条带完全一致：horizonImage 按 1.6 倍放大、水平居中裁切，
+    // LevelScene 又用 HORIZON_H * 1.6 算淡出带，尺寸一变就整条错位。
+    expect(pngSize(ART.bgStripTianjingFall)).toEqual({ width: 480, height: HORIZON_ROWS * 16 });
+    expect(ART.bgStripTianjingFall).not.toBe(ART.bgStripDusk);
+    // 原黄昏双舰条是 horizonImage 的默认分支与缺图回退，本次只新增、不覆盖
+    expect(existsSync(join(PUBLIC, ART.bgStripDusk))).toBe(true);
+    expect(pngSize(ART.bgStripDusk)).toEqual({ width: 480, height: 64 });
+
+    // buildWorld 的换图条件是 tileset === TP_TILESET_ID && sky_rows > 0；
+    // 锁死符合条件的地图只有城破之战一张，避免后续新图被误染成火光夜景。
+    const dir = join(PUBLIC, 'data', 'maps');
+    const eligible = readdirSync(dir)
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')) as { id: string; tileset?: string; sky_rows?: number })
+      .filter((m) => m.tileset === TP_TILESET_ID && (m.sky_rows ?? 0) > 0)
+      .map((m) => m.id);
+    expect(eligible).toEqual(['map_ch00_tp_battlefield']);
+  });
+
   it('12 张残破贴花都在，且是带透明的 PNG（贴图集被重新切过就会红）', () => {
     expect(SCAR_TEX.length).toBe(12);
     for (let i = 0; i < SCAR_TEX.length; i++) {

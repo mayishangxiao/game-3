@@ -1,4 +1,9 @@
-# 太平天国篇章 · 瓦片地图规格说明书 v1.2
+# 太平天国篇章 · 瓦片地图规格说明书 v1.3
+
+> **v1.3（2026-11-09）**：1864 天京城破之战的远景背景条换成「火光四起 / 战火映照 / 浓烟弥漫」的战争夜景，
+> 只作用于该场景；原黄昏双舰条保留为默认分支与缺图回退，虎门开场情境卡底图、页面布局、
+> 文案、前景元素与其它素材一律未动。
+> 详见 8.6 节，第 10 节对应已知限制已销项。
 
 > **v1.2（2026-11-09）**：按真机截图反馈修两处 —— ① 剧情关战败改为弹「战败 / 再试一次 / 返回长廊」面板，
 > 不再 900ms 后自动原地复活；`CharacterRig.revive()` / `Player.resetForNode()` 完整复位死亡状态
@@ -419,6 +424,39 @@ this.paintTile(ctx, x * TILE, y * TILE, hex);   // 旧图 placeholder 原样不�
 面板四个文本齐全；点「再试一次」后 `alive=true / hp=100 / rigDead=false /
 tintFill=false / angle=0`，坐标回到出生点 (56,152)，三张地图 `visiblePickups=0`，控制台零异常。
 
+### 8.6 v1.3：城破之战专用战争氛围远景条
+
+**替换对象**：`nd_1864_tianjing_fall` / `map_ch00_tp_battlefield` 顶部 `sky_rows=4` 那条背景带。
+原来是 `bg_strip_dusk.png`（黄昏海面 + 双舰剪影）；天京不靠海，语义不对（v1.1 第 10 节登记过）。
+新图 `public/art/bg/bg_strip_tianjing_fall.png` 以**火光四起、战火映照、浓烟弥漫**为主视觉：
+暗紫夜空、成片橙红火光、被火光染红的翻滚烟层、下沿连成一体的城墙剪影。
+
+**为什么是新增而不是覆盖**：远景条是 `horizonImage()` 的默认分支资产，直接覆盖
+`bg_strip_dusk.png` 会连甲方原稿一起丢掉，未来任何关卡开 `sky_rows` 都会被无声染成火光夜景。
+当前数据里**只有** `map_ch00_tp_battlefield` 开了 `sky_rows=4`，其余 9 张地图都是 `sky_rows=0`
+（`buildWorld` 根本不叠远景条），虎门开场情境卡另用 `bg_sky_dusk.png`。
+因此新增一张专用条带，并在 `LevelScene.buildWorld()` 加一个显式开关：
+
+| 位置 | 改动 |
+| --- | --- |
+| `constants.ts` | `ART.bgStripTianjingFall`、`BG_TEX.horizonCityFall` |
+| `LevelScene.preload()` | 预载新纹理（旧 `horizonDusk` / `skyDusk` 照常加载） |
+| `LevelScene.buildWorld()` | `tileset === TP_TILESET_ID && sky_rows > 0` 时 `prefer='cityfall'`，否则仍 `'dusk'` |
+| `Backdrop.horizonImage()` | 新增 `'cityfall'` 分支，按 `horizonCityFall → horizonDusk → horizon → 程序化` 依次回退 |
+
+`tests/art.test.ts` 锁死「符合换图条件的地图只有 `map_ch00_tp_battlefield` 一张」，
+并核对新旧条带都是 480×64、旧图仍在。
+
+**画面规格**（改图前先读 `tools/gen_tianjing_fall_bg.py` 的约束注释）：
+480×64 RGBA、24 色盘内、纯标准库可复现生成；源图 `tools/_art_in/tianjing_fall_src.png`
+（AI 生成的 1536×1024 城破夜景）经分段纵向映射、4×4 box 采样、Bayer 4×4 抖动、最近色量化。
+引擎把条带顶边贴 `y=0` 放大 1.6 倍、地砖从第 64 逻辑像素起盖住下半截，所以**可视区是原图 y=0..40 行**；
+主视觉放在 y=8..38，顶部 8 行与右上角「暂停」区专门压暗，保证战役条白字清晰、不遮挡主要内容。
+远景层深度 `DEPTH.ground - 1`，天然在角色、物件与 HUD 之下。
+
+**保持不变**：所有 `MapDef` 数据、文案、瓦片、贴花、物件、UI 布局、虚拟按键、其它背景图与开场卡片底图。
+回退只需删掉 `ART.bgStripTianjingFall` 对应文件或把 `buildWorld` 的 `prefer` 改回 `'dusk'`。
+
 ---
 
 ## 9. 生成、复现与验收
@@ -461,8 +499,11 @@ pnpm build
 | 项 | 现状 | 触发条件 |
 | --- | --- | --- |
 | 拼版列数两处手工同步 | `constants.ts → TP_SHEET_COLS = 8` 与 `tileset.json → columns` 必须一致；`tests/art.test.ts` 已在不一致时变红 | 改拼版列数时两边一起改 |
-| 战场远景沿用黄昏海战条 | `sky_rows=4` 由 `LevelScene` 固定叠 `bg_strip_dusk.png`（海面 + 舰影）；天京不靠海，语义偏弱，夜色下观感尚可，实拍已确认 | 有「城墙夜景」远景条美术时按幕替换 |
 | `foreground` 层不可用 | 会遮挡角色，且当前渲染器逐层覆盖 | 先改造 `drawGround` 为同 canvas 多遍合成 |
 | 无 autotile / 过渡角 | 变体瓦片手工摆位，岸线只有一种 | 场景扩到多屏或需要自动拼接时再补 47 格 blob 集 |
 | 单屏 30 × 16 | 与 `VIEW_W / FIELD_H` 绑定；多屏要重做相机与 HUD 避让 | 关卡需要滚动时立项 |
 | 第三幕以上 | 不在本期范围，不预埋字段 | 按 `design/00_front.md` 重新立项 |
+
+**已销项（v1.3）**：原「战场远景沿用黄昏海战条」已解决 —— 1864 城破之战改用专用
+`bg_strip_tianjing_fall.png`（火光 / 浓烟 / 城墙夜景）；`bg_strip_dusk.png` 原样保留为
+默认分支与缺图回退，其余地图当前 `sky_rows=0`、不叠远景条。实现与回退见 8.6 节。
