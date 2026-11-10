@@ -146,6 +146,20 @@ export function showToast(text: string, ms: number): void {
   }, ms);
 }
 
+/**
+ * 立刻收掉屏幕中央的 toast。
+ * 打开全屏面板前必须调：toast 是 DOM 层、比 canvas 面板更高，门禁拒绝时留下的
+ * 那一行「当前战斗状态不允许切换武器」会横压在面板列表上（实拍截图里出现过）。
+ */
+export function hideToast(): void {
+  ensure();
+  if (toastTimer) window.clearTimeout(toastTimer);
+  toastTimer = null;
+  if (!toast) return;
+  toast.textContent = '';
+  toast.style.display = 'none';
+}
+
 export function setHudVisible(v: boolean): void {
   ensure();
   const nodes = [hudPanel, hudObjective, hudLevel, hudWeapon, hudDynasty];

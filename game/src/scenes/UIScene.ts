@@ -6,7 +6,7 @@
 import Phaser from 'phaser';
 import { DEPTH, HUD_H, PALETTE, VIEW_H, VIEW_W } from '../core/constants';
 import { InputSystem } from '../systems/InputSystem';
-import { EV, bus, getCannonVisible, getControlsVisible, getHudVisible, getSceneLabel, setControlsVisible, type HudPayload, type SceneLabelPayload, type ToastPayload } from '../core/EventBus';
+import { EV, bus, emitOpenWeaponBag, getCannonVisible, getControlsVisible, getHudVisible, getSceneLabel, getWeaponBagVisible, setControlsVisible, type HudPayload, type SceneLabelPayload, type ToastPayload } from '../core/EventBus';
 import { DYNASTY_MAX } from '../core/cannon';
 import { FONT_UI } from '../gfx/TextStyle';
 import { hideFloat, hideOverlay, setHudDynasty, setHudLevel, setHudObjective, setHudScene, setHudVisible, setHudWeapon, showOverlay, showToast } from '../systems/DomUi';
@@ -52,12 +52,16 @@ export class UIScene extends Phaser.Scene {
   private dynBack!: Phaser.GameObjects.Rectangle;
   /** 右上角「暂停」：甲方要求能随时停下来并回主菜单 */
   private pauseBtn!: Phaser.GameObjects.Rectangle;
+  /** 右上角「背包」：战斗中打开换武器面板（LevelScene 负责门禁与冻结） */
+  private bagBtn!: Phaser.GameObjects.Rectangle;
   // canvas 版的「暂停」文字已删除：文字统一走 DOM（#dom-pause-btn）。留着那份隐藏 Text
   // 会被 setHudShown(true) 重新点亮，和 DOM 的「暂停」叠成「暂停暂停」。
   private pauseOpen = false;
   private pauseLayer: Phaser.GameObjects.GameObject[] = [];
   /** 暂停前摇杆是不是露着的，恢复时按这个还原 */
   private controlsBeforePause = true;
+  /** 战斗内换武器面板开着：两个顶部按钮一起收起，杜绝「暂停盖在背包上」 */
+  private bagOpenNow = false;
 
   constructor() {
     super('UI');
@@ -210,12 +214,30 @@ export class UIScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     this.pauseBtn.on('pointerdown', () => this.openPause());
 
+    // 「背包」贴在暂停左边，同样一块 canvas 命中区 + 一行 DOM 文字。
+    // 只在战斗关卡真正能换（门禁在 LevelScene），非战斗时点击会收到一条 toast。
+    this.bagBtn = this.add
+      .rectangle(VIEW_W - 52, 8, 40, 16, PALETTE.ink, 0.72)
+      .setOrigin(1, 0.5)
+      .setStrokeStyle(1, PALETTE.greyPlum)
+      .setDepth(DEPTH.overlay - 1)
+      .setInteractive({ useHandCursor: true });
+    this.bagBtn.on('pointerdown', () => emitOpenWeaponBag());
+
     // 右上角「暂停」按钮文字走 DOM
     const pauseDom = document.createElement('div');
     pauseDom.id = 'dom-pause-btn';
     pauseDom.style.cssText = 'position:absolute;right:14px;top:2px;color:#F2EDE4;font:11px sans-serif;pointer-events:none;line-height:16px;';
     pauseDom.textContent = '暂停';
     (document.querySelector('#dom-ui') as HTMLElement)?.appendChild(pauseDom);
+    // dom-ui 不随 Phaser 场景生命周期回收，重进关卡时别叠出第二个「背包」
+    if (!document.getElementById('dom-bag-btn')) {
+      const bagDom = document.createElement('div');
+      bagDom.id = 'dom-bag-btn';
+      bagDom.style.cssText = 'position:absolute;right:54px;top:2px;color:#F0C419;font:11px sans-serif;pointer-events:none;line-height:16px;';
+      bagDom.textContent = '背包';
+      (document.querySelector('#dom-ui') as HTMLElement)?.appendChild(bagDom);
+    }
 
     this.inputSystem = new InputSystem(this);
     // 中文文字全部搬到 DOM（DomUi）：canvas 上这些 Text 对象隐藏，只留血条/底槽等色块
@@ -233,6 +255,9 @@ export class UIScene extends Phaser.Scene {
     if (label) this.onSceneLabel(label);
     // 开场情境卡期间 HUD 整块收起，同样补一次（事件比 create() 早）
     this.setHudShown(getHudVisible());
+    // LevelScene 重进关卡时 UIScene 可能没重建：换武器面板的显示状态同样要补读
+    this.bagOpenNow = getWeaponBagVisible();
+    this.syncTopButtons();
 
     bus.on(EV.HUD, this.onHud, this);
     bus.on(EV.TOAST, this.onToast, this);
@@ -243,6 +268,7 @@ export class UIScene extends Phaser.Scene {
     bus.on(EV.SCENE_LABEL, this.onSceneLabel, this);
     bus.on(EV.HUD_VISIBLE, this.onHudVisible, this);
     bus.on(EV.CANNON_VISIBLE, this.onCannonVisible, this);
+    bus.on(EV.WEAPON_BAG_VISIBLE, this.onWeaponBagVisible, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       bus.off(EV.HUD, this.onHud, this);
@@ -254,6 +280,7 @@ export class UIScene extends Phaser.Scene {
       bus.off(EV.SCENE_LABEL, this.onSceneLabel, this);
       bus.off(EV.HUD_VISIBLE, this.onHudVisible, this);
       bus.off(EV.CANNON_VISIBLE, this.onCannonVisible, this);
+      bus.off(EV.WEAPON_BAG_VISIBLE, this.onWeaponBagVisible, this);
       this.inputSystem.destroy();
     });
   }
@@ -349,6 +376,27 @@ export class UIScene extends Phaser.Scene {
     this.inputSystem.setCannonShown(v);
   }
 
+  /** 换武器面板开合：与暂停互斥，两个顶部按钮同进同出 */
+  private onWeaponBagVisible(v: boolean): void {
+    this.bagOpenNow = v;
+    this.syncTopButtons();
+  }
+
+  /**
+   * 顶部两枚按钮的唯一显隐入口。
+   * HUD 整块收起（开场卡 / 暂停）或换武器面板打开时都要收，
+   * 否则全屏面板上会浮着一枚按得到的「暂停」，出现两层界面叠加。
+   */
+  private syncTopButtons(): void {
+    const show = this.hudShown && !this.bagOpenNow;
+    this.pauseBtn?.setVisible(show);
+    this.bagBtn?.setVisible(show);
+    const pauseDom = document.getElementById('dom-pause-btn');
+    if (pauseDom) pauseDom.style.display = show ? 'block' : 'none';
+    const bagDom = document.getElementById('dom-bag-btn');
+    if (bagDom) bagDom.style.display = show ? 'block' : 'none';
+  }
+
   /**
    * 整块 HUD 的显隐。
    * 开场情境卡是全屏的，左上角战役条与血条压上去会和卡片上的年份大字撞在一起
@@ -370,8 +418,8 @@ export class UIScene extends Phaser.Scene {
       this.hudStrip,
       this.expBack,
       this.dynBack,
-      // 开场卡/战败演出是全屏的，右上角「暂停」也要跟着收，否则会浮在卡片上
-      this.pauseBtn,
+      // **顶部两枚按钮不在这里出现**：它们由 syncTopButtons() 统一管，
+      // 要同时兼顾「HUD 整块收起」和「换武器面板打开」两个开关。
       // **pauseText 不在这里出现**：它的文字已经搬到 DOM（#dom-pause-btn），
       // canvas 那份在 create 里 setVisible(false) 永久藏掉。一旦被 setHudShown(true)
       // 点亮，就会和 DOM 的「暂停」叠成「暂停暂停」——甲方截图里的第二处重叠。
@@ -380,8 +428,7 @@ export class UIScene extends Phaser.Scene {
       const vis = o as Phaser.GameObjects.Components.Visible | undefined;
       if (vis && typeof vis.setVisible === 'function') vis.setVisible(v);
     }
-    const pauseDom = document.getElementById('dom-pause-btn');
-    if (pauseDom) pauseDom.style.display = v ? 'block' : 'none';
+    this.syncTopButtons();
     // 战败标记只跟「本次是否输过」走，不跟 HUD 开关一起无脑点亮（见 applyHud）
     // （canvas 上的「战败」小标签已搬到 DOM，这里不再 setVisible）
   }
@@ -391,7 +438,8 @@ export class UIScene extends Phaser.Scene {
    * ------------------------------------------------------------------ */
 
   private openPause(): void {
-    if (this.pauseOpen) return;
+    // 换武器面板已经把 Level 冻结了，再叠一层暂停会出现两个互相抢输入的全屏层
+    if (this.pauseOpen || this.bagOpenNow) return;
     this.pauseOpen = true;
     this.controlsBeforePause = getControlsVisible();
 
@@ -452,6 +500,7 @@ export class UIScene extends Phaser.Scene {
 
   private backToTitle(): void {
     this.pauseOpen = false;
+    this.bagOpenNow = false;
     for (const o of this.pauseLayer) o.destroy();
     this.pauseLayer = [];
     hideOverlay();
@@ -476,6 +525,11 @@ export class UIScene extends Phaser.Scene {
   /** 供端到端脚本断言：面板打开时控件应为隐藏 */
   controlsShown(): boolean {
     return this.inputSystem.shown;
+  }
+
+  /** 供端到端脚本断言：换武器面板期间顶部「背包」按钮必须收起 */
+  bagButtonShown(): boolean {
+    return this.bagBtn?.visible ?? false;
   }
 
   /** 供端到端脚本断言：炮键只在战斗幕出现 */

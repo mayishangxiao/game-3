@@ -24,15 +24,26 @@ import {
   statDeltaParts,
   type Rng,
 } from '../core/balance';
-import { bus, EV, emitHud, emitObjective, emitSceneLabel, emitToast, setCannonVisible, setControlsVisible, setHudVisible, setInputEnabled } from '../core/EventBus';
+import { bus, EV, emitHud, emitObjective, emitSceneLabel, emitToast, getControlsVisible, getHudVisible, getWeaponBagVisible, setCannonVisible, setControlsVisible, setHudVisible, setInputEnabled, setWeaponBagVisible } from '../core/EventBus';
+import {
+  SWAP_REJECT_TEXT,
+  canOpenWeaponBag,
+  commitWeaponSwap,
+  isCombatPlayable,
+  listWeaponOptions,
+  planWeaponSwap,
+  rollbackWeaponSwap,
+  type WeaponBagGate,
+  type WeaponOption,
+} from '../core/weaponSwap';
 import { DEFEAT_TEXT } from '../core/defeat';
 import { DefeatCinematic } from '../systems/DefeatCinematic';
 import { controls } from '../systems/InputSystem';
 import { DialogueBox } from '../systems/DialogueBox';
-import { hideDialogue, hideFloat, hideOverlay, moveFloat, showFloat, showOverlay } from '../systems/DomUi';
+import { hideDialogue, hideFloat, hideOverlay, hideToast, moveFloat, showFloat, showOverlay } from '../systems/DomUi';
 import { MapRenderer } from '../gfx/MapRenderer';
 import { backdropImage, horizonImage, HORIZON_H } from '../gfx/Backdrop';
-import { nearestOpenPoint } from '../core/space';
+import { isFootBlocked, nearestOpenPoint } from '../core/space';
 import {
   applyUpgrade,
   bonusPierce,
@@ -129,6 +140,9 @@ const DEMO_INCOMING_DAMAGE_MULT = 0.55;
  * 而所有出手判定都在 `update()` 之后，所以这里用模块级变量是安全的（见 `applyPlayerDamageMult`）。
  */
 let PLAYER_DMG = 1;
+
+/** 战斗内换武器面板一屏能放几行；超出的用 ↑↓ 滚动，不分页（少一层状态） */
+const WEAPON_BAG_ROWS = 4;
 
 /** 把敌方伤害按演示倍率折一下，最少 1 点（不能因为折扣出现「打了不掉血」） */
 function incoming(damage: number): number {
@@ -283,6 +297,23 @@ export class LevelScene extends Phaser.Scene {
   private dungeonResultOpen = false;
   /** 剧情关卡战败面板是否开着：开着时冻结世界更新，等玩家点「再试一次」 */
   private storyFailOpen = false;
+
+  /* 战斗内换武器面板（设计书 4.3.8）：真值源仍是 save.equipment.weapon */
+  private weaponBagOpen = false;
+  private weaponBagPanel: Phaser.GameObjects.Container | null = null;
+  private weaponBagOptions: WeaponOption[] = [];
+  private weaponBagCursor = 0;
+  private weaponBagScroll = 0;
+  private weaponBagMessage = '';
+  /** 开面板前的 HUD 显隐，关闭时按原值还原，不去猜别的流程设成了什么 */
+  private weaponBagHudBefore = true;
+  /** 面板专用键盘监听，关面板时逐个 off，避免 once 泄漏到下一场战斗 */
+  private weaponBagKeys: Array<{ event: string; fn: () => void }> = [];
+  /** 常驻的 B 键：开着面板时再按一次就是取消 */
+  private readonly handleBagKey = (): void => {
+    if (this.weaponBagOpen) this.closeWeaponBag('cancel');
+    else this.openWeaponBag();
+  };
 
   /* 演示版：虎门重炮与清王朝血条 */
   private cannonCd = 0;
@@ -477,6 +508,15 @@ export class LevelScene extends Phaser.Scene {
     this.pendingCardTap = null;
     this.spawnedTotal = 0;
     this.hudTimer = 0;
+    // 换武器面板不能跨关卡残留：显示对象随场景销毁，状态与全局开关必须自己复位
+    this.weaponBagOpen = false;
+    this.weaponBagPanel = null;
+    this.weaponBagOptions = [];
+    this.weaponBagCursor = 0;
+    this.weaponBagScroll = 0;
+    this.weaponBagMessage = '';
+    this.weaponBagKeys = [];
+    setWeaponBagVisible(false);
 
     void this.boot();
 
@@ -517,6 +557,18 @@ export class LevelScene extends Phaser.Scene {
             }
           : null,
       unsafe: (x: number, y: number) => this.enemySpotUnsafe(x, y),
+      /** 排查用：中心 + 12×8 脚盒四角的完整判据（贴墙卡死就靠它区分） */
+      footUnsafe: (x: number, y: number) => this.enemyFootUnsafe(x, y),
+      /** 排查用：每个敌人的实时追击状态与卡住时长 */
+      enemyStates: () =>
+        this.enemies.map((e, i) => ({
+          i,
+          x: e.x,
+          y: e.y,
+          alive: e.alive,
+          state: e.state,
+          stuckMs: e.stuckTime,
+        })),
       /** 排查用：碰撞格矩阵（'#' = 撞墙/海，'.' = 可站），一行一行的字符串 */
       grid: () => {
         const m = this.map;
@@ -605,6 +657,53 @@ export class LevelScene extends Phaser.Scene {
         this.clearDeadEnemies();
         return this.waveIndex;
       },
+
+      // —— 战斗内换武器（设计书 4.3.8）：E2E 不必模拟按键坐标，直接读状态 ——
+      weaponBag: () => ({
+        open: this.weaponBagOpen,
+        message: this.weaponBagMessage,
+        cursor: this.weaponBagCursor,
+        options: this.weaponBagOptions.map((o) => ({
+          id: o.id,
+          name: o.name,
+          weaponRef: o.weaponRef,
+          available: o.available,
+          current: o.current,
+          reason: o.reason,
+          deltaText: o.deltaText,
+        })),
+        weaponId: this.player?.weapon.id ?? null,
+        weaponRange: this.player?.weapon.range ?? null,
+        attacksPerSec: this.player?.weapon.attacks_per_sec ?? null,
+        atk: this.player?.atk ?? null,
+        hp: this.player?.hp ?? null,
+        maxHp: this.player?.maxHp ?? null,
+        alive: this.player?.alive ?? null,
+        equippedUid: this.save?.equipment.weapon?.uid ?? null,
+        bagUids: (this.save?.bag.items ?? []).filter((i) => i.slot === 'weapon').map((i) => i.uid),
+        controlsVisible: getControlsVisible(),
+        hudVisible: getHudVisible(),
+        panelVisible: getWeaponBagVisible(),
+        mode: this.mode,
+        nodeBusy: this.nodeBusy,
+      }),
+      openWeaponBag: (): boolean => {
+        this.openWeaponBag();
+        return this.weaponBagOpen;
+      },
+      closeWeaponBag: (): boolean => {
+        this.closeWeaponBag('cancel');
+        return this.weaponBagOpen;
+      },
+      chooseWeapon: (id: string): boolean => {
+        this.selectWeaponOption(id);
+        return this.weaponBagOpen;
+      },
+      /** 模拟节点完成 / 副本结算置起的 nodeBusy，验证面板每帧兜底自动收起 */
+      setNodeBusy: (v: boolean): boolean => {
+        this.nodeBusy = v;
+        return this.nodeBusy;
+      },
     };
   }
 
@@ -651,11 +750,20 @@ export class LevelScene extends Phaser.Scene {
     // 离开关卡时同样得自己收 DOM：暂停菜单「回主菜单」经常是在对白没播完时走的，
     // 不收就会把整个对白框（含立绘）留在长廊/标题上，和场景里的字叠成一片。
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      // 面板可能在节点结算 / 暂停返回主菜单时还开着，先把全局界面状态还回去
+      this.closeWeaponBag('auto');
+      setWeaponBagVisible(false);
+      bus.off(EV.OPEN_WEAPON_BAG, this.openWeaponBag, this);
+      this.input.keyboard?.off('keydown-B', this.handleBagKey);
       hideDialogue();
       hideFloat();
       hideOverlay();
     });
 
+    // UIScene 的「背包」按钮与键盘 B 走同一条门禁；这里订阅而不是在 UIScene
+    // 里直接操作 Level，保持两个场景之间只有 EventBus 这一条耦合线。
+    bus.on(EV.OPEN_WEAPON_BAG, this.openWeaponBag, this);
+    this.input.keyboard?.on('keydown-B', this.handleBagKey);
     this.input.on('pointerdown', () => this.onAdvanceInput());
 
     if (this.dungeon) {
@@ -670,6 +778,7 @@ export class LevelScene extends Phaser.Scene {
   /* ==================== 副本模式（可重复刷） ==================== */
 
   private async startDungeon(): Promise<void> {
+    this.closeWeaponBag('auto');
     const d = this.dungeon;
     if (!d) return;
     this.transitioning = true;
@@ -724,6 +833,7 @@ export class LevelScene extends Phaser.Scene {
 
   /** 副本结算：收拢掉落、更新保底计数、弹出面板 */
   private finishDungeon(): void {
+    this.closeWeaponBag('auto');
     const d = this.dungeon;
     if (!d || this.dungeonResultOpen) return;
     this.nodeBusy = true;
@@ -879,6 +989,7 @@ export class LevelScene extends Phaser.Scene {
 
   /** 副本失败：不扣任何东西，可以直接重来 */
   private showDungeonFail(): void {
+    this.closeWeaponBag('auto');
     const d = this.dungeon;
     if (!d || this.dungeonResultOpen) return;
     this.dungeonResultOpen = true;
@@ -929,6 +1040,7 @@ export class LevelScene extends Phaser.Scene {
    * 面板期间 `updateWorld` 整体冻结，敌人不会在弹窗后面继续围殴尸体。
    */
   private showStoryFail(): void {
+    this.closeWeaponBag('auto');
     if (this.storyFailOpen || !this.scene.isActive()) return;
     this.storyFailOpen = true;
     this.nodeBusy = true;
@@ -1006,6 +1118,7 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private leaveDungeon(): void {
+    this.closeWeaponBag('auto');
     const chapterId = this.dungeon?.chapter_id ?? 'ch00';
     setInputEnabled(true);
     setControlsVisible(true);
@@ -1484,6 +1597,7 @@ export class LevelScene extends Phaser.Scene {
   /* ==================== 节点调度 ==================== */
 
   private async startNode(index: number): Promise<void> {
+    this.closeWeaponBag('auto');
     const nodeId = this.act.nodes[index];
     const node = this.bundle.nodes.find((n) => n.id === nodeId);
     if (!node) {
@@ -1793,8 +1907,11 @@ export class LevelScene extends Phaser.Scene {
    * 射程 / 攻速 / 倍率 / 近远程形态 / 手中条状物颜色全部跟着 config.json 走。
    * 老存档与没标字段的装备一律直接返回，`bestWeapon()` 的结果原样保留，零兼容风险。
    */
-  private applyEquippedWeapon(): void {
-    const ref = this.save.equipment.weapon?.weapon_ref;
+  private applyEquippedWeapon(keepCooldown = false): void {
+    const equipped = this.save.equipment.weapon;
+    // 老存档的实例没有 weapon_ref：按 base_id 回模板表补一次。
+    // 面板提交时也会把字段写回实例，这里兜住「玩家从未打开过面板」的情况。
+    const ref = equipped?.weapon_ref ?? (equipped ? dataLoader.findItemBase(equipped.base_id)?.weapon_ref : undefined);
     if (!ref) return;
     const w = this.cfg.weapons[ref];
     if (!w) return;
@@ -1805,7 +1922,253 @@ export class LevelScene extends Phaser.Scene {
       wp_matchlock: PALETTE.redSoft,
       wp_mg: PALETTE.blueLight,
     };
-    this.player.setWeapon(w, tint[ref] ?? PALETTE.greyLight);
+    const color = tint[ref] ?? PALETTE.greyLight;
+    // 战斗内换装保留攻击冷却；进关卡 / 节点奖励解锁武器仍是原来的归零语义
+    if (keepCooldown) this.player.swapWeapon(w, color);
+    else this.player.setWeapon(w, color);
+  }
+
+  /* ==================== 战斗内背包：切换武器（设计书 4.3.8） ====================
+   *
+   * 规则沿用现有的全屏面板做法（`showUpgradeCard` / 战败面板）：
+   *   - 世界冻结：updateWorld 开头早退，敌人、投射物、波次判定都不再推进；
+   *   - 输入关闸：setInputEnabled(false) + setControlsVisible(false) + controls.reset()；
+   *   - 界面状态：setHudVisible(false) 收起 UIScene 整块 HUD 与顶部按钮，
+   *     setWeaponBagVisible(true) 让 UIScene 不再响应「暂停」，两层面板不叠加；
+   *   - 出口兜底：节点完成 / 副本结算 / 战败 / 切节点 / 阵亡都会置 nodeBusy 等
+   *     门禁标志，updateWorld 每帧复检，失效即自动收起（各出口另有显式调用）。
+   *
+   * 切换的真值只有一处：`save.equipment.weapon`。提交成功后重算 effectiveStats →
+   * Player.applyEquipmentStats（保血量 / 存活 / 冷却）→ applyEquippedWeapon(true)
+   * 换掉 player.weapon（playerAttack 每帧读它）→ pushHud 刷新武器名。
+   */
+
+  private weaponBagGate(): WeaponBagGate {
+    return {
+      mode: this.mode,
+      nodeBusy: this.nodeBusy,
+      transitioning: this.transitioning,
+      storyFailOpen: this.storyFailOpen,
+      dungeonResultOpen: this.dungeonResultOpen,
+      introOpen: this.introOpen,
+      upgradeOpen: this.upgradeOpen,
+      cardOpen: this.pendingCardTap !== null,
+      dialogueActive: this.dialogue?.isActive ?? false,
+      playerAlive: this.player?.alive ?? false,
+      sceneActive: this.scene.isActive(),
+      scenePaused: this.scene.isPaused(),
+      cfgLoaded: !!this.cfg && !!this.save,
+      bagOpen: this.weaponBagOpen,
+    };
+  }
+
+  /** 打开（UIScene 按钮 / B 键 / 探针都走这里）。不可切换状态只给一条 toast，不改任何状态。 */
+  private openWeaponBag(): void {
+    const gate = canOpenWeaponBag(this.weaponBagGate());
+    if (!gate.ok) {
+      if (gate.reason !== 'panel_conflict') emitToast(gate.message, 1200);
+      return;
+    }
+    // 上一次「不可切换」的 toast 还挂在 DOM 层时，会横压在面板列表上
+    hideToast();
+    const options = listWeaponOptions(this.save, this.cfg, dataLoader.getItems());
+    this.weaponBagOpen = true;
+    this.weaponBagOptions = options;
+    this.weaponBagCursor = Math.max(0, options.findIndex((o) => o.available));
+    this.weaponBagScroll = 0;
+    this.weaponBagMessage = options.some((o) => o.available)
+      ? '战斗已暂停 · 选中后立即生效'
+      : '背包里没有可切换的武器';
+    this.weaponBagHudBefore = getHudVisible();
+    setInputEnabled(false);
+    setControlsVisible(false);
+    setHudVisible(false);
+    setWeaponBagVisible(true);
+    controls.reset();
+    this.bindWeaponBagKeys();
+    this.renderWeaponBag();
+  }
+
+  /**
+   * 关闭。`cancel` 给一句回执；`switched` 由调用方另发换装 toast；
+   * `auto` 是战斗结束 / 状态失效时的静默收起，不打扰玩家。
+   */
+  private closeWeaponBag(reason: 'cancel' | 'switched' | 'auto' = 'cancel'): void {
+    if (!this.weaponBagOpen) return;
+    this.weaponBagOpen = false;
+    this.unbindWeaponBagKeys();
+    // 场景 SHUTDOWN 也会走到这里，那时 Phaser 可能已经把 container 收掉了
+    if (this.weaponBagPanel?.active) this.weaponBagPanel.destroy();
+    this.weaponBagPanel = null;
+    this.weaponBagOptions = [];
+    this.weaponBagMessage = '';
+    setWeaponBagVisible(false);
+    setHudVisible(this.weaponBagHudBefore);
+    setInputEnabled(true);
+    setControlsVisible(
+      isCombatPlayable(this.mode) && !this.nodeBusy && !this.storyFailOpen && !this.transitioning,
+    );
+    controls.reset();
+    if (reason === 'cancel') emitToast('已取消切换，继续战斗', 1000);
+  }
+
+  private bindWeaponBagKeys(): void {
+    const kb = this.input.keyboard;
+    if (!kb) return;
+    const on = (event: string, fn: () => void): void => {
+      kb.on(event, fn);
+      this.weaponBagKeys.push({ event, fn });
+    };
+    on('keydown-ESC', () => this.closeWeaponBag('cancel'));
+    on('keydown-UP', () => this.moveWeaponBagCursor(-1));
+    on('keydown-DOWN', () => this.moveWeaponBagCursor(1));
+    on('keydown-ENTER', () => this.confirmWeaponBag());
+    on('keydown-SPACE', () => this.confirmWeaponBag());
+    const numberKeys = ['ONE', 'TWO', 'THREE', 'FOUR'];
+    numberKeys.forEach((key, i) => on(`keydown-${key}`, () => this.selectWeaponAt(this.weaponBagScroll + i)));
+  }
+
+  private unbindWeaponBagKeys(): void {
+    const kb = this.input.keyboard;
+    for (const { event, fn } of this.weaponBagKeys) kb?.off(event, fn);
+    this.weaponBagKeys = [];
+  }
+
+  private moveWeaponBagCursor(delta: number): void {
+    const n = this.weaponBagOptions.length;
+    if (n === 0) return;
+    this.weaponBagCursor = (this.weaponBagCursor + delta + n) % n;
+    if (this.weaponBagCursor < this.weaponBagScroll) this.weaponBagScroll = this.weaponBagCursor;
+    if (this.weaponBagCursor >= this.weaponBagScroll + WEAPON_BAG_ROWS) {
+      this.weaponBagScroll = this.weaponBagCursor - WEAPON_BAG_ROWS + 1;
+    }
+    this.renderWeaponBag();
+  }
+
+  private confirmWeaponBag(): void {
+    const o = this.weaponBagOptions[this.weaponBagCursor];
+    if (o) this.selectWeaponOption(o.id);
+  }
+
+  private selectWeaponAt(index: number): void {
+    const o = this.weaponBagOptions[index];
+    if (o) this.selectWeaponOption(o.id);
+  }
+
+  /**
+   * 一次选择 = 校验 → 原子提交 → 落盘 → 同步角色。任一环失败都停在面板里，
+   * 用一行消息说明原因，且（commit 已有快照）绝不留下装备换了背包没换的半状态。
+   */
+  private selectWeaponOption(optionId: string): void {
+    if (!this.weaponBagOpen) return;
+    const planned = planWeaponSwap(this.save, this.cfg, optionId, dataLoader.getItems());
+    if (!planned.ok) {
+      this.weaponBagMessage = planned.message;
+      this.renderWeaponBag();
+      return;
+    }
+    const committed = commitWeaponSwap(this.save, planned.plan);
+    if (!committed.ok) {
+      this.weaponBagMessage = committed.message;
+      this.renderWeaponBag();
+      return;
+    }
+    try {
+      persist();
+    } catch {
+      // localStorage 写失败（配额 / 隐私模式）：内存态也要还原，否则 HUD 与存档不一致
+      rollbackWeaponSwap(this.save, committed.snapshot);
+      this.weaponBagMessage = SWAP_REJECT_TEXT.switch_failed;
+      this.renderWeaponBag();
+      return;
+    }
+    this.syncPlayerAfterWeaponSwap();
+    this.closeWeaponBag('switched');
+    emitToast(`换上 ${committed.item.name}　${planned.plan.deltaText}`, 1600);
+  }
+
+  /** 属性 / 攻击逻辑 / HUD 三处同步，但不动血量、存活、冷却、位置 */
+  private syncPlayerAfterWeaponSwap(): void {
+    const stats = effectiveStats(
+      this.save.player.level,
+      this.save.knowledge.length,
+      this.save.equipment,
+      this.cfg,
+    );
+    this.player.applyEquipmentStats(stats);
+    this.applyEquippedWeapon(true);
+    this.pushHud();
+  }
+
+  private renderWeaponBag(): void {
+    if (this.weaponBagPanel?.active) this.weaponBagPanel.destroy();
+    const c = this.add.container(0, 0).setDepth(DEPTH.overlay + 5).setScrollFactor(0);
+    this.weaponBagPanel = c;
+    const cx = VIEW_W / 2;
+    const addText = (
+      x: number,
+      y: number,
+      text: string,
+      size: string,
+      color: string,
+      originX = 0.5,
+    ): Phaser.GameObjects.Text =>
+      this.add.text(x, y, text, { fontFamily: FONT_UI, fontSize: size, color }).setOrigin(originX, 0).setScrollFactor(0);
+
+    // 全屏暗底故意不挂 interactive：强化卡踩过一次，底板吃点击会把「选中」变成「取消」
+    c.add(this.add.rectangle(cx, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.86).setScrollFactor(0));
+    c.add(
+      this.add
+        .rectangle(cx, 135, 340, 214, PALETTE.plumDark, 0.98)
+        .setStrokeStyle(1, PALETTE.star)
+        .setScrollFactor(0),
+    );
+    c.add(addText(cx, 36, '战斗背包 · 切换武器', '14px', '#F0C419'));
+    c.add(addText(cx, 55, `当前：${this.player.weapon.name}　战斗已暂停`, '9px', '#C2BCD1'));
+    c.add(addText(cx, 68, '↑↓ 选择　Enter / 1-4 装备　Esc 取消　B 收起', '8.5px', '#8E88A0'));
+
+    const rows = this.weaponBagOptions.slice(this.weaponBagScroll, this.weaponBagScroll + WEAPON_BAG_ROWS);
+    if (rows.length === 0) c.add(addText(cx, 108, '背包里没有武器装备。\n去副本里刷一把再来。', '10px', '#6B6489'));
+    rows.forEach((o, i) => {
+      const idx = this.weaponBagScroll + i;
+      const y = 84 + i * 24;
+      const picked = idx === this.weaponBagCursor;
+      const box = this.add
+        .rectangle(cx, y + 11, 324, 22, picked ? PALETTE.plumMid : PALETTE.ink, 0.92)
+        .setStrokeStyle(1, picked ? PALETTE.star : PALETTE.greyPlum)
+        .setScrollFactor(0)
+        .setInteractive({ useHandCursor: true });
+      box.on('pointerdown', () => this.selectWeaponOption(o.id));
+      c.add(box);
+      const qColor = o.quality === 'purple' ? '#948DAB' : o.quality === 'blue' ? '#7FB2D9' : '#C2BCD1';
+      c.add(addText(84, y + 1, `${idx + 1}. ${o.name}`, '9.5px', o.available || o.current ? qColor : '#6B6489', 0));
+      c.add(
+        addText(396, y + 1, `${o.weaponName} · ${o.kindText}`, '9px', o.available ? '#F0C419' : '#6B6489', 1),
+      );
+      const status = o.current
+        ? '当前武器 · 重复选择无效'
+        : !o.available
+          ? SWAP_REJECT_TEXT[o.reason ?? 'weapon_unavailable']
+          : o.deltaText;
+      c.add(addText(84, y + 12, `${o.statText}　${status}`, '8.5px', o.available ? '#C2BCD1' : '#8E88A0', 0));
+    });
+    if (this.weaponBagOptions.length > WEAPON_BAG_ROWS) {
+      c.add(addText(396, 186, `第 ${this.weaponBagScroll + 1}–${this.weaponBagScroll + rows.length} / ${this.weaponBagOptions.length} 件`, '8px', '#6B6489', 1));
+    }
+    c.add(addText(84, 188, this.weaponBagMessage, '9px', '#F0C419', 0));
+
+    const btn = (x: number, label: string, fn: () => void, accent = false): void => {
+      const r = this.add
+        .rectangle(x, 214, 116, 18, accent ? PALETTE.redDark : PALETTE.plumMid, 0.95)
+        .setStrokeStyle(1, PALETTE.ink)
+        .setScrollFactor(0)
+        .setInteractive({ useHandCursor: true });
+      r.on('pointerdown', fn);
+      c.add(r);
+      c.add(addText(x, 210, label, '9px', '#F2EDE4'));
+    };
+    btn(cx - 64, '装备选中 Enter', () => this.confirmWeaponBag(), true);
+    btn(cx + 64, '取消 Esc', () => this.closeWeaponBag('cancel'));
   }
 
   private spawnWorldObject(obj: MapObject): void {
@@ -2628,9 +2991,19 @@ export class LevelScene extends Phaser.Scene {
     // 否则两个兵会精确重叠成一个 —— 手机上看着像只有一个人。
     const jx = ((this.spawnedTotal * 7) % 11) - 5;
     const jy = ((this.spawnedTotal * 5) % 9) - 4;
-    // 出怪点可能正好压在海面上（地图作者画 spawn 标记时看不见水陆边界），
-    // 出生就校正一次，别让玩家看到「小兵从海里冒出来」。
-    const land = this.enemySpotUnsafe(p.x + jx, p.y + jy) ? this.landingNear(p.x, p.y) : { x: p.x + jx, y: p.y + jy };
+    // 出怪点可能压在海面上，也可能被上面那点抖动推到边界墙里。
+    // 判据必须用「中心 + 脚盒四角」：只查中心会放过 (461, 90) 这种
+    // 「半个身子嵌在右墙」的位置，敌人从出生第一帧起四个角全被挡，永远走不动
+    // （甲方截图「这两个小兵卡住了」）。落脚点也从**抖动后的点**往外找，
+    // 别再退化成所有兵都挤回同一个未抖动的格心。
+    let land = { x: p.x + jx, y: p.y + jy };
+    if (this.enemyFootUnsafe(land.x, land.y)) {
+      land = this.landingNearForEnemy(land.x, land.y);
+      // 极端情况（整片都堵死）再退回 spawnPoints 的原始格心：它至少保证了
+      // 本格与下一格都可站，脚盒四角不会压墙。
+      if (this.enemyFootUnsafe(land.x, land.y)) land = this.landingNearForEnemy(p.x, p.y);
+      if (this.enemyFootUnsafe(land.x, land.y)) land = { x: p.x, y: p.y };
+    }
     const e = new Enemy(this, land.x, land.y, def, stats);
     this.enemies.push(e);
     this.spawnedTotal += 1;
@@ -3284,7 +3657,8 @@ export class LevelScene extends Phaser.Scene {
       e.rig.knockback(
         (dx / len) * kb,
         (dy / len) * kb,
-        (tx, ty) => this.enemySpotUnsafe(tx, ty),
+        // 击退落点同样要过脚盒判据：把人推到贴墙处，下一帧他就走不动了
+        (tx, ty) => this.enemyFootUnsafe(tx, ty),
       );
     }
     if (res.crit) this.cameras.main.shake(60, fb.screenshake_amp / 1000);
@@ -3647,6 +4021,23 @@ export class LevelScene extends Phaser.Scene {
     return nearestOpenPoint(wx, wy, q) ?? { x: wx, y: wy };
   }
 
+  /**
+   * 敌人专用的最近落脚点：判据换成「中心 + 脚盒四角」。
+   *
+   * `landingNear()` 是给 8×8 掉落物和玩家用的，只看一个点；直接拿它给敌人用，
+   * 找出来的「空地」仍可能把 12×8 的脚盒塞进墙里。两者不能混用。
+   */
+  private landingNearForEnemy(wx: number, wy: number): { x: number; y: number } {
+    if (!this.map) return { x: wx, y: wy };
+    const q = {
+      cols: this.map.def.width,
+      rows: this.map.def.height,
+      tile: TILE,
+      blocked: (px: number, py: number) => this.enemyFootUnsafe(px, py),
+    };
+    return nearestOpenPoint(wx, wy, q) ?? { x: wx, y: wy };
+  }
+
   private collectNearbyItems(): void {
     const R = 20;
     for (const f of [...this.floorItems]) {
@@ -3990,6 +4381,12 @@ export class LevelScene extends Phaser.Scene {
    * 判定必须同时查三样：地图外/墙里（`isSolidAtWorld`）、军舰压出的海面（`isSeaAt`）、
    * **地图数据里的原始海面**（`map.isSeaAtWorld`）。只查前两者是之前那份补丁漏掉
    * 原始海面的原因——那片蓝不在碰撞格里，`isSolidAtWorld` 对它恒为 false。
+   *
+   * v1.6 补第四种「越界」：**脚盒嵌墙**。甲方截图「这两个小兵卡住了」里，两个英军
+   * 贴着右边界墙一动不动——出怪点抖动 +5px 后身体中心仍在空地，但 12×8 脚盒的
+   * 右角已进 col 29 的墙，之后每一帧两轴移动都被 `footBlocked` 拒绝；而本函数
+   * 原先只看中心那一个像素，判定「站得好好的」，永远不救援。现在统一走
+   * `enemyFootUnsafe`（中心 + 四角）与 `landingNearForEnemy`。
    */
   private rescueStrayEnemies(): void {
     const map = this.map;
@@ -3997,8 +4394,12 @@ export class LevelScene extends Phaser.Scene {
     for (let i = 0; i < this.enemies.length; i++) {
       const e = this.enemies[i];
       if (!e.alive) continue;
-      if (!this.enemySpotUnsafe(e.x, e.y)) continue;
-      const spot = this.landingNear(e.x, e.y);
+      // 只看中心会漏掉「半个脚盒嵌在墙里」的小兵：他哪儿也去不了，
+      // 但旧判据一直认为他站得好好的（贴右墙一动不动那两个就是这么来的）。
+      if (!this.enemyFootUnsafe(e.x, e.y)) continue;
+      const spot = this.landingNearForEnemy(e.x, e.y);
+      // 找不到真正合法的落脚点就别把人乱挪，否则会在墙边来回瞬移
+      if (this.enemyFootUnsafe(spot.x, spot.y)) continue;
       e.teleportTo(spot.x, spot.y);
     }
   }
@@ -4015,6 +4416,21 @@ export class LevelScene extends Phaser.Scene {
     if (!map) return false;
     if (this.isSeaAt(wx, wy) || map.isSeaAtWorld(wx, wy)) return true;
     return map.isSolidAtWorld(wx, wy);
+  }
+
+  /**
+   * 敌人站在 (wx, wy) 时，**身体中心与 12×8 脚盒四角**有没有踩进禁区。
+   *
+   * 与 `enemySpotUnsafe` 的差别就是那四个角。出生点校正、每帧救援、击退落点、
+   * 最近落脚点全部走这一条，避免「中心合法但脚卡墙里」的半嵌状态漏网。
+   * `map.isSolidAtWorld` 内含 `extraSolid`（军舰海面 / 销烟人群），无需再单独判一次。
+   */
+  private enemyFootUnsafe(wx: number, wy: number): boolean {
+    const map = this.map;
+    if (!map) return false;
+    return isFootBlocked(wx, wy, (px, py) =>
+      this.isSeaAt(px, py) || map.isSeaAtWorld(px, py) || map.isSolidAtWorld(px, py),
+    );
   }
 
   /* ==================== 弹道 ==================== */
@@ -4100,6 +4516,7 @@ export class LevelScene extends Phaser.Scene {
    *   不放开这一条，「关天培牺牲」之后会停在原地——正是老师说的「直接卡死」。
    */
   private completeNode(force = false): void {
+    this.closeWeaponBag('auto');
     if (this.nodeBusy && !force) return;
     // 副本没有节点概念，误入此路径时交给副本结算，避免读不到 this.node 而崩
     if (this.dungeon || !this.node) {
@@ -4141,6 +4558,7 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private finishAct(): void {
+    this.closeWeaponBag('auto');
     // 首通奖励
     const rewardId = this.act.first_clear_reward;
     const key = `act_cleared_${this.act.id}`;
@@ -4183,6 +4601,17 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private updateWorld(_time: number, delta: number): void {
+    // 换武器面板放在最前面：即便切节点把 player / map 清掉了，也要先把面板收干净。
+    // 每帧复检门禁，节点完成、副本结算、战败、切节点、阵亡都会让它失效 → 自动收起。
+    // 放在这里而不是只靠各出口显式调用，是为了不漏掉任何一条新增的结束路径。
+    if (this.weaponBagOpen) {
+      if (!canOpenWeaponBag({ ...this.weaponBagGate(), bagOpen: false }).ok) {
+        this.closeWeaponBag('auto');
+        return;
+      }
+      setControlsVisible(false);
+      return;
+    }
     if (!this.player || !this.map) return;
     // 战败面板：冻结世界，也别让下面每帧的 setControlsVisible 把摇杆又放回来
     if (this.storyFailOpen) return;

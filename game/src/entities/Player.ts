@@ -109,12 +109,39 @@ export class Player {
     this.speed = s.spd;
   }
 
-  setWeapon(w: WeaponDef, weaponColor: number | null): void {
+  /**
+   * 战斗内换装专用：只换武器定义与手中颜色，**保留攻击冷却 / 血量 / 位置 / 存活**。
+   * `setWeapon()` 是进关卡与解锁武器用的，那两处把冷却归零是对的；换装若也归零，
+   * 来回切两件装备就能把攻击间隔刷没，战斗流程就不一致了。
+   */
+  swapWeapon(w: WeaponDef, weaponColor: number | null): void {
     this.weapon = w;
-    this.attackCd = 0;
     // 占位美术阶段：换武器只改变手中条状物的颜色
     const rig = this.rig as unknown as { weapon?: Phaser.GameObjects.Rectangle };
     if (rig.weapon && weaponColor !== null) rig.weapon.setFillStyle(weaponColor);
+  }
+
+  setWeapon(w: WeaponDef, weaponColor: number | null): void {
+    this.swapWeapon(w, weaponColor);
+    this.attackCd = 0;
+  }
+
+  /**
+   * 战斗内换装后的属性同步：只吃装备带来的数值变化。
+   *
+   * 不能用 `resetForNode()` —— 它会满血、复活、清冷却并给 600ms 无敌，那属于
+   * 节点开始 / 战败重试；用在这里会让「换把弓」变成白回一口血并短暂无敌。
+   * 也刻意不按血量百分比缩放（`setStats` 的做法）：切换不该凭空扣血或回血，
+   * 只在新上限更小的情况下把当前血量夹住。
+   */
+  applyEquipmentStats(s: { hp: number; atk: number; def: number; crit: number; critDmg: number; spd: number }): void {
+    this.maxHp = Math.max(1, s.hp);
+    this.hp = Math.min(this.hp, this.maxHp);
+    this.atk = s.atk;
+    this.def = s.def;
+    this.crit = s.crit;
+    this.critDmg = s.critDmg;
+    this.speed = s.spd;
   }
 
   get isInvincible(): boolean {

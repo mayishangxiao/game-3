@@ -25,6 +25,10 @@ export const EV = {
   OBJECTIVE: 'objective',
   /** 左上角「当前战役 / 年份」条 */
   SCENE_LABEL: 'scene:label',
+  /** UIScene 的「背包」按钮 → LevelScene：请求打开战斗内换武器面板 */
+  OPEN_WEAPON_BAG: 'weaponBag:open',
+  /** LevelScene → UIScene：面板开着时收起顶部按钮，避免暂停 / 背包两层叠在一起 */
+  WEAPON_BAG_VISIBLE: 'weaponBag:visible',
 } as const;
 
 export interface HudPayload {
@@ -71,6 +75,9 @@ export interface SceneLabelPayload {
  */
 let controlsVisible = true;
 
+/** 战斗内换武器面板是否开着：和 controlsVisible 一样要能在 UIScene 建好时补读 */
+let weaponBagVisible = false;
+
 /** 当前这一场的名字与年份（UIScene 建好时补读一次） */
 let currentSceneLabel: SceneLabelPayload | null = null;
 
@@ -93,6 +100,21 @@ export function emitObjective(text: string): void {
 
 export function setInputEnabled(v: boolean): void {
   bus.emit(EV.INPUT_ENABLE, v);
+}
+
+/** 右上角「背包」按钮：只发请求，能不能开由 LevelScene 的门禁决定 */
+export function emitOpenWeaponBag(): void {
+  bus.emit(EV.OPEN_WEAPON_BAG);
+}
+
+export function getWeaponBagVisible(): boolean {
+  return weaponBagVisible;
+}
+
+export function setWeaponBagVisible(v: boolean): void {
+  if (weaponBagVisible === v) return;
+  weaponBagVisible = v;
+  bus.emit(EV.WEAPON_BAG_VISIBLE, v);
 }
 
 /** 左上角「当前战役 + 年份」。每进一个节点发一次。 */

@@ -8,6 +8,7 @@ import { CharacterRig } from '../gfx/CharacterRig';
 import type { MapRenderer } from '../gfx/MapRenderer';
 import { PALETTE, SHIP_TEX, TILE, unitArtOf } from '../core/constants';
 import { computeDamage, type Rng } from '../core/balance';
+import { advanceWithCollision, ENEMY_FOOT, isFootBlocked } from '../core/space';
 import type { BalanceConfig, BossPhase, EnemyDef } from '../core/types';
 import { FONT_UI } from '../gfx/TextStyle';
 
@@ -57,9 +58,8 @@ const BOSS_RECOVER = { broadside: 1900, landing_boat: 2100, ram: 1500 } as const
 const BOSS_RECOVER_SCALE = 0.5;
 
 const ENEMY_BASE_SPEED = 44;
-const ENEMY_FOOT_W = 12;
-const ENEMY_FOOT_H = 8;
-const ENEMY_FOOT_Y = 10;
+// 脚部占位盒统一放在 core/space.ts：场景侧校正出生点 / 击退落点 / 每帧救援时
+// 必须用同一组四角，否则会出现「场景认为能站、移动认为被挡」的半嵌墙状态。
 /** 近战敌人的刀光长度（世界像素）：比身体略长，一眼看出「他够得着这么远」 */
 const ENEMY_MELEE_REACH = 26;
 
@@ -100,6 +100,10 @@ export class Enemy {
   private readonly barOffY: number;
 
   private stateTimer = 0;
+  /** 连续「两轴都走不动」的累计时长（ms）：超时就翻面，换一侧沿墙绕 */
+  private stuckMs = 0;
+  /** 沿墙绕行优先走哪一侧，记住上次成功的一侧以免左右来回抽 */
+  private slideSign = 1;
   private homeX: number;
   private homeY: number;
   private phaseIndex = 0;
@@ -216,6 +220,11 @@ export class Enemy {
 
   get hpRatio(): number {
     return this.maxHp > 0 ? this.hp / this.maxHp : 0;
+  }
+
+  /** E2E / 排查用：连续被墙挡住多久（正常追击应为 0） */
+  get stuckTime(): number {
+    return this.stuckMs;
   }
 
   get isWeakpoint(): boolean {
@@ -551,33 +560,33 @@ export class Enemy {
   }
 
   private stepToward(tx: number, ty: number, dtMs: number, map: MapRenderer): void {
-    const speed = ENEMY_BASE_SPEED * this.def.spd;
     const dx = tx - this.x;
     const dy = ty - this.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const step = (speed * dtMs) / 1000;
-    const nx = (dx / len) * step;
-    const ny = (dy / len) * step;
+    const step = (ENEMY_BASE_SPEED * this.def.spd * dtMs) / 1000;
 
     if (Math.abs(dx) > Math.abs(dy)) this.rig.setFacing(dx < 0 ? 'left' : 'right');
     else this.rig.setFacing(dy < 0 ? 'up' : 'down');
 
-    if (!this.footBlocked(this.x + nx, this.y, map)) this.rig.x += nx;
-    if (!this.footBlocked(this.x, this.y + ny, map)) this.rig.y += ny;
+    // 分轴滑动 + 贴墙绕行抽在 core/space.ts 里，node 环境可直接回归
+    // 「所有地图的出生点都不会把小兵卡死」，不用 import Phaser 实体。
+    const r = advanceWithCollision(
+      this.x,
+      this.y,
+      tx,
+      ty,
+      step,
+      dtMs,
+      (cx, cy) => this.footBlocked(cx, cy, map),
+      { stuckMs: this.stuckMs, slideSign: this.slideSign },
+    );
+    this.rig.x = r.x;
+    this.rig.y = r.y;
+    this.stuckMs = r.state.stuckMs;
+    this.slideSign = r.state.slideSign;
   }
 
   private footBlocked(cx: number, cy: number, map: MapRenderer): boolean {
-    const left = cx - ENEMY_FOOT_W / 2;
-    const right = cx + ENEMY_FOOT_W / 2;
-    const top = cy + ENEMY_FOOT_Y - ENEMY_FOOT_H / 2;
-    const bottom = cy + ENEMY_FOOT_Y + ENEMY_FOOT_H / 2;
-    const pts: [number, number][] = [
-      [left, top],
-      [right, top],
-      [left, bottom],
-      [right, bottom],
-    ];
-    return pts.some(([px, py]) => map.isSolidAtWorld(px, py));
+    return isFootBlocked(cx, cy, (px, py) => map.isSolidAtWorld(px, py));
   }
 
   /** 直接把身体挪到某点（脱困、登岸用）。血条等部件会在下一帧 `syncBar()` 跟上 */
@@ -587,7 +596,7 @@ export class Enemy {
 
   /** 脚下的世界坐标（血条、脱困判定都以「脚」为基准） */
   get footPoint(): { x: number; y: number } {
-    return { x: this.x, y: this.y + ENEMY_FOOT_Y };
+    return { x: this.x, y: this.y + ENEMY_FOOT.offsetY };
   }
 
   destroy(): void {

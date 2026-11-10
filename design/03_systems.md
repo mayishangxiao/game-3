@@ -236,6 +236,32 @@
 > （只改手中武器）。这些属于方向与内容层的取舍，等「看得见」上线后看数据再谈，避免一边调数值一边
 > 怪玩家没感觉。
 
+### 4.3.8 战斗内打开背包切换武器（2026-11-10）
+
+**目标**：战斗中不必退回长廊就能换武器，选中后立即生效。**真值源只有一处**——
+`save.equipment.weapon`；不引入「临时覆盖武器」的第二套状态，否则回长廊 / 重进关卡后手感会跳回去。
+
+| 环节 | 规则 | 落点 |
+| --- | --- | --- |
+| 入口 | 右上角「背包」按钮（暂停左侧）与键盘 `B`，都走 `EventBus.OPEN_WEAPON_BAG` → `LevelScene.openWeaponBag()`。非战斗关卡点按钮只给一行 toast，不改任何状态 | `core/EventBus.ts`、`scenes/UIScene.ts`、`scenes/LevelScene.ts` |
+| 暂停与输入 | 完全沿用全屏面板既有做法：`updateWorld()` 开头早退冻结世界（敌人 / 投射物 / 波次判定 / 玩家移动全停）、`setInputEnabled(false)` + `setControlsVisible(false)` + `controls.reset()` 关闸、`setHudVisible(false)` 收起 UIScene 整块 HUD、`setWeaponBagVisible(true)` 让 UIScene 收起顶部两枚按钮并拒绝「暂停」，两层面板不会叠加 | `scenes/LevelScene.ts`、`scenes/UIScene.ts` |
+| 候选列表 | `listWeaponOptions()`：当前已装备那件排第一（标「当前武器 · 重复选择无效」）+ 背包里所有 `slot==='weapon'` 的装备。每行显示装备名、对应武器名与近/远程、`ATK n`、相对当前的 `ATK +3 ▲`。**老存档实例没有 `weapon_ref` 时按 `base_id` 回模板表补**，不让旧档整列变灰 | `core/weaponSwap.ts` |
+| 选择 | 点行 / 数字键 1–4 / ↑↓ + Enter；`Esc`、B、点击「取消」为取消选择，回一句「已取消切换，继续战斗」，存档与角色零改动 | `scenes/LevelScene.ts` |
+| 即时生效 | `planWeaponSwap()` 校验 → `commitWeaponSwap()` 原子写 `bag.items` 与 `equipment.weapon` → `persist()` → `effectiveStats()` 重算 → `Player.applyEquipmentStats()`（**只吃属性，保血量绝对值 / alive / 冷却 / 位置**）→ `applyEquippedWeapon(true)` 用 `Player.swapWeapon()` 换掉 `player.weapon` 且**不清攻击冷却**（否则来回切两件就能刷掉攻击间隔）→ `pushHud()` 刷新武器名。`playerAttack()` 每帧读 `player.weapon`，射程 / 攻速 / 近远程 / 倍率立刻跟着变 | `core/weaponSwap.ts`、`scenes/LevelScene.ts`、`entities/Player.ts` |
+
+**明确处理的边界**（`core/weaponSwap.ts` 的 `WeaponSwapReject` 一张表管全部文案）：
+
+- **不可切换状态**：非 `combat` / `escort` 模式、场景未运行或被暂停、配置未就绪、玩家阵亡、`nodeBusy` / 切节点 / 战败面板 / 副本结算 / 开场卡 / 强化卡 / 对白中——一律拒绝并说明原因，只发 toast。
+- **武器不可用**：无 `weapon_ref`、`cfg.weapons` 里查不到对应 id，该行标灰且点击给出原因；`unknown_option` / `stale_option` 挡住面板打开期间背包被外部改动的情形。
+- **重复操作**：选当前已装备的那件返回 `already_equipped`，面板保持打开、不写存档、不发 toast；再次按 B / 点击「背包」也不会叠出第二个面板（`panel_conflict`）。
+- **取消选择**：只做界面还原，装备槽、背包、角色属性、武器一概不动。
+- **切换失败**：`commitWeaponSwap()` 先复查再一次性写入并留快照；`persist()` 抛错（配额 / 隐私模式）时用 `rollbackWeaponSwap()` 把内存态还原，面板内显示「切换失败，已恢复原武器」。背包容量不够时提前拒绝，不产生「装备换了、背包没换」的半状态。
+- **战斗结束**：节点完成、副本结算 / 失败、剧情战败、切节点、离开关卡、幕完成各出口都显式收起面板；`updateWorld()` 每帧再复检一次门禁，标志失效即自动静默收起并还原输入 / HUD / 控件。场景 `SHUTDOWN` 也复位全局开关，重进关卡不会残留。
+
+**验收**：`tsc` 0 错；`vitest` 15 文件 / 305 条全绿（`weaponSwap.test.ts` 17 条覆盖门禁、可用性、重复、取消、容量、提交与回滚）；`vite build` 通过。`tools/_cdp/weapon-swap.mjs` 在无头 Edge 里进真实战斗节点实拍，**53 项断言全过、控制台零异常**：按钮与 B 键开合、门禁拒绝、世界冻结（HP / 波次 / 敌人坐标 420ms 不变）、控件与 HUD 收放、顶部按钮互斥、取消零改动、重复 / 不可用 / 陈旧选项各有文案、切到猎弓后 `weapon.id=wp_bow` / `range=200` / `attacks_per_sec=1.67` / `ATK +3` / HP 不变 / 旧武器回背包 / 存档落盘 / HUD 显示「猎弓」/ 下一次普攻真的生成投射物、战斗结束自动收起。实拍还修掉一处界面瑕疵：门禁拒绝的 DOM toast 会横压在随后打开的面板上，`openWeaponBag()` 现在先 `hideToast()`。
+
+**回退**：删 `EventBus` 的 `OPEN_WEAPON_BAG` / `WEAPON_BAG_VISIBLE` 两个事件与 UIScene 的「背包」按钮，功能整体失效；`core/weaponSwap.ts` 是纯函数、不写存档结构、不改 `SAVE_VERSION`，删掉不影响其它系统。
+
 ## 4.4 成长与数值曲线
 
 ### 4.4.1 等级与属性
