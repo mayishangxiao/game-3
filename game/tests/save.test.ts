@@ -12,13 +12,17 @@ import {
   markNodeDone,
   migrate,
   SaveManager,
+  SLOT_ORDER,
+  slotProgress,
   unlockWeapon,
 } from '../src/core/SaveManager';
 import { SAVE_VERSION } from '../src/core/constants';
 import config from '../public/data/config.json';
-import type { BalanceConfig, ItemInstance } from '../src/core/types';
+import itemsBaseJson from '../public/data/equipment/items_base.json';
+import type { BalanceConfig, ItemBase, ItemInstance, SaveData } from '../src/core/types';
 
 const cfg = config as unknown as BalanceConfig;
+const itemBases = (itemsBaseJson as unknown as { items: ItemBase[] }).items;
 
 function item(over: Partial<ItemInstance> = {}): ItemInstance {
   return {
@@ -162,5 +166,54 @@ describe('6.7.4 章节完成度', () => {
     const pct = chapterCompletion([], [], [], [], [], false, 0);
     expect(pct).toBe(0);
     expect(Number.isFinite(pct)).toBe(true);
+  });
+});
+
+describe('slotProgress：五槽位「我还差什么」', () => {
+  it('空存档返回 5 个槽位全覆盖，全部未获得', () => {
+    const p = slotProgress(createDefaultSave(cfg), itemBases);
+    expect(Object.keys(p)).toHaveLength(5);
+    for (const slot of SLOT_ORDER) {
+      expect(p[slot].slot).toBe(slot);
+      expect(p[slot].best).toBeNull();
+      expect(p[slot].reached).toBe(false);
+    }
+  });
+
+  it('目标品质取模板表实际最高，不写死紫：武器是蓝、身体与饰品是紫', () => {
+    const p = slotProgress(createDefaultSave(cfg), itemBases);
+    expect(p.weapon.target).toBe('blue');
+    expect(p.head.target).toBe('blue');
+    expect(p.legs.target).toBe('blue');
+    expect(p.body.target).toBe('purple');
+    expect(p.accessory.target).toBe('purple');
+  });
+
+  it('穿上紫装后该槽位最高品质变紫并达成目标', () => {
+    const s = createDefaultSave(cfg);
+    s.equipment.accessory = item({
+      uid: 'a1',
+      slot: 'accessory',
+      quality: 'purple',
+      name: '钦差的火漆印',
+    });
+    const p = slotProgress(s, itemBases);
+    expect(p.accessory.best).toBe('purple');
+    expect(p.accessory.reached).toBe(true);
+  });
+
+  it('背包与已装备一起统计，取两者中更高的品质', () => {
+    const s = createDefaultSave(cfg);
+    s.bag.items.push(item({ uid: 'b1', slot: 'head', quality: 'white' }));
+    s.equipment.head = item({ uid: 'h1', slot: 'head', quality: 'blue' });
+    expect(slotProgress(s, itemBases).head.best).toBe('blue');
+    expect(slotProgress(s, itemBases).head.reached).toBe(true);
+  });
+
+  it('老存档缺 bag / equipment 字段也不崩，退化为全未获得', () => {
+    const raw = { bag: undefined, equipment: undefined } as unknown as SaveData;
+    const p = slotProgress(raw, itemBases);
+    expect(Object.keys(p)).toHaveLength(5);
+    for (const slot of SLOT_ORDER) expect(p[slot].best).toBeNull();
   });
 });

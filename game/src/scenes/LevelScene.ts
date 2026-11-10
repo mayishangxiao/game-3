@@ -19,6 +19,9 @@ import {
   expToNext,
   applyExp,
   makeItemInstance,
+  compareWithEquipped,
+  formatStatDelta,
+  statDeltaParts,
   type Rng,
 } from '../core/balance';
 import { bus, EV, emitHud, emitObjective, emitSceneLabel, emitToast, setCannonVisible, setControlsVisible, setHudVisible, setInputEnabled } from '../core/EventBus';
@@ -168,8 +171,11 @@ interface Projectile {
 }
 
 interface FloorItem {
-  obj: Phaser.GameObjects.Rectangle;
+  /** 掉落物容器：底座方块 + 槽位形状标记（+ 紫装呼吸光）。x/y/destroy 与 Rectangle 一致 */
+  obj: Phaser.GameObjects.Container;
   item: ItemInstance;
+  /** 紫装专属呼吸光，销毁前要 killTweensOf，避免 tween 挂在已销毁对象上 */
+  glow?: Phaser.GameObjects.Arc;
 }
 
 type Mode = 'explore' | 'combat' | 'cutscene' | 'choice' | 'escort' | 'management';
@@ -697,6 +703,7 @@ export class LevelScene extends Phaser.Scene {
         this.cfg,
       );
       this.player.resetForNode(stats);
+      this.applyEquippedWeapon();
 
       const st = getDungeonState(this.save, d.id);
       // 副本没有「幕」：左上角直接显示副本名与推荐等级年份位
@@ -726,7 +733,7 @@ export class LevelScene extends Phaser.Scene {
     const gained: ItemInstance[] = [...this.runDrops];
     for (const f of [...this.floorItems]) {
       if (addToBag(this.save, f.item) === 'ok') gained.push(f.item);
-      f.obj.destroy();
+      this.destroyFloorItem(f);
     }
     this.floorItems = [];
     this.clearEnemies();
@@ -799,6 +806,28 @@ export class LevelScene extends Phaser.Scene {
               fontSize: '10px',
               color,
             })
+            .setScrollFactor(0),
+        );
+        // 结算清单同样给出对比差值：这一趟刷到的是不是「比我身上的好」，一眼可见。
+        // 基准是本趟开始时的已装备（结算期间 save.equipment 不变）。
+        const delta = compareWithEquipped(it, this.save.equipment);
+        const parts = statDeltaParts(delta);
+        const tone =
+          parts.length === 0
+            ? '#6B6489'
+            : parts.every((p) => p.positive)
+              ? '#8FD19E'
+              : parts.every((p) => !p.positive)
+                ? '#F2A08C'
+                : '#C2BCD1';
+        overlay.add(
+          this.add
+            .text(432, 56 + i * 15, formatStatDelta(delta), {
+              fontFamily: FONT_UI,
+              fontSize: '9px',
+              color: tone,
+            })
+            .setOrigin(1, 0)
             .setScrollFactor(0),
         );
       });
@@ -1515,6 +1544,7 @@ export class LevelScene extends Phaser.Scene {
       this.cfg,
     );
     this.player.resetForNode(stats);
+    this.applyEquippedWeapon();
     // 重试必须回到关卡出生点：以前只把 alive 翻回 true，玩家还站在倒下的位置，
     // 看起来就是「原地诈尸」。地图没换时 buildWorld 不会重跑，这一步得在这里做。
     const spawn = this.map?.def.spawn;
@@ -1631,7 +1661,7 @@ export class LevelScene extends Phaser.Scene {
     this.crowdSolids.clear();
     this.propSprites.forEach((p) => p.img.destroy());
     this.propSprites = [];
-    this.floorItems.forEach((f) => f.obj.destroy());
+    this.floorItems.forEach((f) => this.destroyFloorItem(f));
     this.floorItems = [];
 
     this.map = new MapRenderer(this, def);
@@ -1754,6 +1784,28 @@ export class LevelScene extends Phaser.Scene {
   private bestWeapon(): string {
     if (this.save.weapons.includes('wp_bow')) return 'wp_bow';
     return this.save.weapons[0] ?? 'wp_dao';
+  }
+
+  /**
+   * 装备「存在感」P1：武器槽不再只是 +ATK 的数字挂件。
+   *
+   * `items_base.json` 里标了 `weapon_ref` 的武器装备，进关卡时真的换掉手上的武器：
+   * 射程 / 攻速 / 倍率 / 近远程形态 / 手中条状物颜色全部跟着 config.json 走。
+   * 老存档与没标字段的装备一律直接返回，`bestWeapon()` 的结果原样保留，零兼容风险。
+   */
+  private applyEquippedWeapon(): void {
+    const ref = this.save.equipment.weapon?.weapon_ref;
+    if (!ref) return;
+    const w = this.cfg.weapons[ref];
+    if (!w) return;
+    const tint: Record<string, number> = {
+      wp_dao: PALETTE.greyLight,
+      wp_bow: PALETTE.brown,
+      wp_crowbar: PALETTE.sand,
+      wp_matchlock: PALETTE.redSoft,
+      wp_mg: PALETTE.blueLight,
+    };
+    this.player.setWeapon(w, tint[ref] ?? PALETTE.greyLight);
   }
 
   private spawnWorldObject(obj: MapObject): void {
@@ -3035,7 +3087,7 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private clearFloorItems(): void {
-    this.floorItems.forEach((f) => f.obj.destroy());
+    this.floorItems.forEach((f) => this.destroyFloorItem(f));
     this.floorItems = [];
   }
 
@@ -3464,6 +3516,74 @@ export class LevelScene extends Phaser.Scene {
     this.pushHud();
   }
 
+  /**
+   * 掉落物的两个正交维度：**形状承载槽位、颜色承载品质**，紫色再加一层呼吸光。
+   * 原来所有掉落都是同一个 8×8 纯色方块，玩家在场上根本判断不了值不值得绕路去捡。
+   * 返回容器 + 可选光效；光效 tween 必须在 destroyFloorItem 里先 kill 掉。
+   */
+  private makeDropVisual(
+    x: number,
+    y: number,
+    item: ItemInstance,
+  ): { obj: Phaser.GameObjects.Container; glow?: Phaser.GameObjects.Arc } {
+    const color =
+      item.quality === 'purple'
+        ? PALETTE.greyPlum
+        : item.quality === 'blue'
+          ? PALETTE.blueLight
+          : PALETTE.greyLight;
+    const children: Phaser.GameObjects.GameObject[] = [];
+    let glow: Phaser.GameObjects.Arc | undefined;
+    if (item.quality === 'purple') {
+      glow = this.add.circle(0, 0, 9, PALETTE.star, 0.32).setName('drop-glow');
+      children.push(glow);
+    }
+    children.push(
+      this.add.rectangle(0, 0, 8, 8, color).setStrokeStyle(1, PALETTE.ink).setName('drop-base'),
+    );
+    let mark: Phaser.GameObjects.GameObject;
+    switch (item.slot) {
+      case 'weapon': // 竖条：刀 / 弓 / 撬棍
+        mark = this.add.rectangle(0, -9, 2, 7, color);
+        break;
+      case 'head': // 三角：帽 / 巾
+        mark = this.add.triangle(0, -9, 0, 0, 4, 7, -4, 7, color);
+        break;
+      case 'body': // 空心方块：衣甲
+        mark = this.add.rectangle(0, -9, 7, 7, color, 0).setStrokeStyle(1, color);
+        break;
+      case 'legs': // 短横：绑腿
+        mark = this.add.rectangle(0, -9, 9, 2, color);
+        break;
+      default: // 菱形：饰品
+        mark = this.add.rectangle(0, -9, 5, 5, color).setAngle(45);
+        break;
+    }
+    mark.setName(`drop-shape-${item.slot}`);
+    children.push(mark);
+
+    const obj = this.add.container(x, y, children).setDepth(DEPTH.deco + 3);
+    obj.setData('slot', item.slot);
+    obj.setData('quality', item.quality);
+    if (glow) {
+      this.tweens.add({
+        targets: glow,
+        alpha: 0.08,
+        duration: 720,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
+    return glow ? { obj, glow } : { obj };
+  }
+
+  /** 统一销毁：先停紫装呼吸光的 tween，再销毁容器（容器会连带销毁子对象） */
+  private destroyFloorItem(f: FloorItem): void {
+    if (f.glow) this.tweens.killTweensOf(f.glow);
+    f.obj.destroy();
+  }
+
   private rollDrop(e: Enemy): void {
     const drops = dataLoader.getDrops();
     const rule = drops.rules.find((r) => r.source_type === e.def.tier);
@@ -3496,16 +3616,11 @@ export class LevelScene extends Phaser.Scene {
     const base = pool[Math.floor(rng() * pool.length)];
     const item = makeItemInstance(base, this.cfg, rng);
 
-    const color =
-      quality === 'purple' ? PALETTE.greyPlum : quality === 'blue' ? PALETTE.blueLight : PALETTE.greyLight;
     // 掉落不能落在海里：敌人死在岸边时装备会沉进水里，玩家永远捡不到
     // （甲方报的「掉的装备也会掉到海里」）。用 space.ts 的最近空地搜一次，落点保证能走上去。
     const spot = this.landingNear(e.x, e.y);
-    const obj = this.add
-      .rectangle(spot.x, spot.y, 8, 8, color)
-      .setStrokeStyle(1, PALETTE.ink)
-      .setDepth(DEPTH.deco + 3);
-    this.floorItems.push({ obj, item });
+    const v = this.makeDropVisual(spot.x, spot.y, item);
+    this.floorItems.push({ obj: v.obj, item, ...(v.glow ? { glow: v.glow } : {}) });
   }
 
   /**
@@ -3537,11 +3652,17 @@ export class LevelScene extends Phaser.Scene {
     for (const f of [...this.floorItems]) {
       if (Phaser.Math.Distance.Between(this.player.x, this.player.y, f.obj.x, f.obj.y) > R) continue;
       const r = addToBag(this.save, f.item);
-      f.obj.destroy();
+      this.destroyFloorItem(f);
       this.floorItems = this.floorItems.filter((x) => x !== f);
       if (r === 'ok') {
         this.runDrops.push(f.item);
-        emitToast(`拾取 ${f.item.name}（${qualityLabel(f.item.quality)}）`, 1400);
+        // 装备「存在感」P0：把「比我身上这件好多少」当场算给玩家看，
+        // 不再让他自己心算。只显示主属性差值，不动任何数值。
+        const delta = compareWithEquipped(f.item, this.save.equipment);
+        emitToast(
+          `拾取 ${f.item.name}（${qualityLabel(f.item.quality)}）　${formatStatDelta(delta)}`,
+          1400,
+        );
       } else {
         emitToast('背包已满，已自动拆分', 1400);
       }
@@ -4314,11 +4435,10 @@ export class LevelScene extends Phaser.Scene {
     const item = makeItemInstance(base, this.cfg, rng);
     const x = this.player.x + 40;
     const y = this.player.y;
-    const obj = this.add
-      .rectangle(x, y, 10, 10, PALETTE.greyLight)
-      .setStrokeStyle(1, PALETTE.star)
-      .setDepth(DEPTH.deco + 3);
-    this.floorItems.push({ obj, item });
+    // 剧情里掉的那把猎弓也走同一套标记（武器竖条 + 白色），不再是一个孤零零的方块
+    const v = this.makeDropVisual(x, y, item);
+    const obj = v.obj;
+    this.floorItems.push({ obj, item, ...(v.glow ? { glow: v.glow } : {}) });
     emitToast('敌兵丢下一把猎弓', 1600);
 
     // 走近自动装备
@@ -4329,8 +4449,9 @@ export class LevelScene extends Phaser.Scene {
         if (!this.player) return;
         if (Phaser.Math.Distance.Between(this.player.x, this.player.y, obj.x, obj.y) < 22) {
           check.remove();
-          obj.destroy();
-          this.floorItems = this.floorItems.filter((f) => f.obj !== obj);
+          const picked = this.floorItems.find((it) => it.obj === obj);
+          if (picked) this.destroyFloorItem(picked);
+          this.floorItems = this.floorItems.filter((it) => it.obj !== obj);
           const w = this.cfg.weapons.wp_bow as WeaponDef;
           if (!this.save.weapons.includes('wp_bow')) this.save.weapons.push('wp_bow');
           this.player.setWeapon(w, PALETTE.brown);

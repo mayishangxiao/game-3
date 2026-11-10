@@ -70,6 +70,18 @@
       "reload_ms": 2000,
       "projectile_speed": 420
     },
+    "wp_crowbar": {
+      "id": "wp_crowbar",
+      "name": "码头撬棍",
+      "mult": 1.7,
+      "attacks_per_sec": 0.95,
+      "range": 52,
+      "pierce": 0,
+      "arc_deg": 75,
+      "magazine": 0,
+      "reload_ms": 0,
+      "projectile_speed": 0
+    },
     "wp_mg": {
       "id": "wp_mg",
       "name": "机枪",

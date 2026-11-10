@@ -15,7 +15,7 @@
 | `events/events_ch00.json` | 历史事件卡（图鉴条目 + 关卡题材）：时间、地点、人物、文献、结果、五要素核对 | 11 | `id` |
 | `knowledge/knowledge_all.json` | 知识卡：摘要/详解/出处/标签/**`links`（因果边，图谱玩法就靠它）** | 12 | `id` |
 | `enemies/enemies_ch00.json` | 敌人：`tier` `hp_base` `atk_base` `def_base` `spd` `ai_params`（`attack_cooldown_ms` = 出手间隔）、`boss_phases`、**`final_strike`（Boss 半血剧情杀）**、`color` `size` | 19 | `id` |
-| `equipment/items_base.json` | 装备模板：`slot` `quality` `stat` `base_value` `quality_multiplier` `source` | 16 | `id` |
+| `equipment/items_base.json` | 装备模板：`slot` `quality` `stat` `base_value` `quality_multiplier` `source`，武器模板可选 `weapon_ref`（指向 `config.json.weapons`，进关卡真的换武器；见 `design/03_systems.md` 4.3.7） | 16 | `id` |
 | `equipment/drops.json` | 掉落规则：按来源类型的掉率、部位权重、品质权重；`pity` 保底参数 | 5 条规则 | `rules[].source_type` |
 | `dungeons/dungeons.json` | 副本：波次（`waves[]`）、Boss、`quality_weights`、`unique_drop`、`unlock_act` | 3 | `id` |
 | `maps/map_ch00_act1a.json` `maps/map_ch00_act1b.json` `maps/map_ch00_act2a.json` `maps/map_ch00_act2b.json` `maps/map_ch00_tp_village.json` `maps/map_ch00_tp_city.json` `maps/map_ch00_tp_battlefield.json` `maps/map_dg01_alley.json` `maps/map_dg02_bandit.json` `maps/map_dg03_dock.json` | 瓦片地图：`width/height` `tile_colors` `spawn` `layers[]` `objects[]` `triggers[]`（清单见第六节）。`map_ch00_act2a/b` 自 v1.1 起保留为回退素材、不再被引用 | 10 张 | `id` |
@@ -141,7 +141,7 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 ## 七、加内容的配方
 
 - **加一个事件 + 节点**：`events` 加事件卡 → `knowledge` 加对应知识卡（并让它的 `links` 指向已有事件，避免孤岛）→ `nodes` 加节点（`event_id` 指过去）→ `acts[].nodes` 插入顺序 → 若涉及新地图就加 `maps/map_*.json`。
-- **加一件装备**：`items_base.json` 加模板（`quality` 决定能否带词条：只有 `purple` 会 roll 词条）→ `drops.json` 加进对应 `quality_weights`/`slot_weights`，或直接挂某个副本的 `unique_drop`。
+- **加一件装备**：`items_base.json` 加模板（`quality` 决定能否带词条：只有 `purple` 会 roll 词条）→ `drops.json` 加进对应 `quality_weights`/`slot_weights`，或直接挂某个副本的 `unique_drop`。**若是武器**：再加可选 `weapon_ref`，且必须指向 `config.json.weapons` 里真实存在的 id（`tests/data.test.ts` 会拦拼错），否则它仍只是个 +ATK 数字挂件。
 - **加一个敌人**：`enemies_ch00.json` 加条目，`ai_params` 决定行为（不为单个敌人写新 AI）；远程需要 `projectile` 且前摇 ≥550ms；Boss 用 `boss_phases`。
 - **加一个副本**：`dungeons.json` 加定义 → 新地图（右侧留出生格）→ `unlock_act` 指向已实现的幕。
 - **加数值平衡**：改 `config.json`（不用动代码），但设计书 4.4 / 4.3 的表格也要同步，否则 `tests/balance.test.ts` 会红。

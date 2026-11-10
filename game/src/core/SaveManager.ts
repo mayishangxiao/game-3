@@ -5,7 +5,7 @@
 
 import { SAVE_KEY, SAVE_VERSION } from './constants';
 import { levelStats } from './balance';
-import type { BalanceConfig, ItemInstance, SaveData, Slot } from './types';
+import type { BalanceConfig, ItemBase, ItemInstance, Quality, SaveData, Slot } from './types';
 
 export function createDefaultSave(cfg: BalanceConfig, now = new Date()): SaveData {
   const iso = now.toISOString();
@@ -152,6 +152,58 @@ function safeParse(text: string): unknown {
 }
 
 /* ================= 便捷读写helper ================= */
+
+/* ==================== 装备「我还差什么」：五槽位收集进度 ==================== */
+
+export const SLOT_ORDER: readonly Slot[] = ['weapon', 'head', 'body', 'legs', 'accessory'];
+
+const QUALITY_RANK: Record<Quality, number> = { white: 0, blue: 1, purple: 2 };
+
+export interface SlotProgressInfo {
+  slot: Slot;
+  /** 当前持有（背包 + 已装备）的最高品质；一件都没有时为 null */
+  best: Quality | null;
+  /** 该槽位在模板表里实际存在的最高品质 —— 一个真能达成的目标 */
+  target: Quality;
+  reached: boolean;
+}
+
+/**
+ * 纯函数：算出五个槽位各自的「已有最高品质 / 目标品质」。
+ *
+ * 目标不写死为紫色：模板表里武器、头盔、腿部目前最高只到蓝，写死紫会造出
+ * 三个永远达不成的假目标。数据源只有存档与传入的模板表，不改存档结构、不落盘。
+ */
+export function slotProgress(data: SaveData, items: ItemBase[]): Record<Slot, SlotProgressInfo> {
+  const owned: (ItemInstance | null)[] = [
+    ...((data.bag?.items ?? []) as ItemInstance[]),
+    ...Object.values(data.equipment ?? {}),
+  ];
+  const out = {} as Record<Slot, SlotProgressInfo>;
+  for (const slot of SLOT_ORDER) {
+    const pool = items.filter((i) => i.slot === slot);
+    let target: Quality = 'purple';
+    if (pool.length > 0) {
+      target = pool.reduce<Quality>(
+        (best, i) => (QUALITY_RANK[i.quality] > QUALITY_RANK[best] ? i.quality : best),
+        'white',
+      );
+    }
+    let best: Quality | null = null;
+    for (const it of owned) {
+      if (!it || it.slot !== slot) continue;
+      const q = it.quality as Quality;
+      if (q in QUALITY_RANK && (best === null || QUALITY_RANK[q] > QUALITY_RANK[best])) best = q;
+    }
+    out[slot] = {
+      slot,
+      best,
+      target,
+      reached: best !== null && QUALITY_RANK[best] >= QUALITY_RANK[target],
+    };
+  }
+  return out;
+}
 
 export function equipItem(data: SaveData, item: ItemInstance): ItemInstance | null {
   const prev = data.equipment[item.slot as Slot] ?? null;

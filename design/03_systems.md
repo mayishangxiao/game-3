@@ -203,6 +203,39 @@
 
 背包 60 格（每格可叠 5 件同款）。满格时新掉落自动转为零件并提示"背包已满"。这一条必须在试玩中验证：**不要有玩家因为背包满而丢失一件紫装**——紫装掉落时若背包满，强制弹窗让玩家选择拆解哪一件。
 
+### 4.3.7 装备存在感改造（v1.5，2026-11-10）
+
+**问题诊断**：机制一直是通的——`effectiveStats()` 汇总五槽位并在 `resetForNode()` 注入玩家。
+缺的是「让玩家看见它生效」：场上掉落是 8×8 纯色方块、拾取只有一行名字、换装只有「已装备 XX」、
+武器槽的 `atk` 与 `cfg.weapons.wp_dao.mult` 是两套独立系统（刷到匪寨大刀仍握着腰刀挥）、
+小数值强化因取整收益归零（布巾 DEF 4 花 320 零件只涨 1 点）、界面不显示「还差什么」。
+
+因此本轮**不改任何既有数值与公式**，只把已有信息接上 UI、把武器槽接上真实武器：
+
+| # | 实现 | 落点 |
+| --- | --- | --- |
+| 1 | `compareWithEquipped()` 纯函数算出与同槽位已装备的主属性差值（强化等级参与、词条不参与、四属性不互相抵消），`formatStatDelta()` / `statDeltaParts()` 输出 `ATK +5 ▲` / `HP −2 ▼`；接入拾取 toast、副本结算每行右侧（绿▲/红▼/混合中性）、换装消息 | `core/balance.ts`、`scenes/LevelScene.ts`、`scenes/EquipmentScene.ts` |
+| 2 | `items_base.json` 增加**可选** `weapon_ref` → `config.json.weapons`；`makeItemInstance()` 透传，进关卡 `resetForNode()` 后按已装备武器 `setWeapon()`。刀 / 弓 / 撬棍的射程、攻速、倍率、手中武器颜色真的不同。`码头撬棍` 新增近战重钝器 `wp_crowbar`（range 52 / 0.95 次每秒 / ×1.7），**没有**串成远程火枪；未标字段的模板与老存档一律不触发，行为与改造前完全一致 | `core/types.ts`、`core/balance.ts`、`scenes/LevelScene.ts`、`public/data/equipment/items_base.json`、`public/data/config.json` |
+| 3 | `enhanceGain()` / `firstGainfulEnhance()` 算出「这一档到底涨几点」；强化按钮显示 `强化 R (20) → DEF 5→5`，收益为 0 时按钮禁用、消息栏常驻 `本次强化无提升，强化到 +3 才有提升`，键盘 R 同步拦截；成功后消息带 `DEF 4→5` | `core/balance.ts`、`scenes/EquipmentScene.ts` |
+| 4 | 掉落物改成容器：**形状承载槽位**（武器竖条 / 头三角 / 身空心方块 / 腿短横 / 饰品菱形）、**颜色承载品质**（白 / 蓝 / 紫），紫装额外呼吸光；容器带 `slot` / `quality` data 与 `drop-shape-*` / `drop-glow` 名称供探针断言；统一 `destroyFloorItem()` 先停 tween 再销毁，剧情掉落的猎弓走同一套 | `scenes/LevelScene.ts` |
+| 5 | `slotProgress()` 纯函数按「背包 + 已装备」算每槽位已获得最高品质，左列每行第二行显示 `最高：白　目标：紫` / `最高：蓝　已达目标`。**目标品质取模板表该槽位实际存在的最高品质**（武器/头盔/腿部目前最高是蓝），不写死紫，避免三个永远达不成的假目标 | `core/SaveManager.ts`、`scenes/EquipmentScene.ts` |
+
+**验收**：`tsc` 0 错；`vitest` 14 文件 / 288 条全绿（原 265 → +23：对比差值 9 条、强化收益 3 条、weapon_ref 透传 2 条、
+数据引用完整性与掉落形状覆盖 4 条、槽位进度 5 条）；`vite build` 通过。
+`tests/data.test.ts` 锁「每个 `weapon_ref` 都能在 `cfg.weapons` 找到」——拼错会静默失效，必须机器挡住。
+`tools/_cdp/equip-presence.mjs` 在无头 Edge 里实拍装备界面与虎门关卡，15 项断言全过、控制台零异常：
+进度行 / 强化按钮禁用 / 键盘 R 也拦 / 零件不扣 / 换装消息含 ▲ / 已装备武器真的切到 `wp_bow`（range 200）/
+紫装掉落含呼吸光与菱形标记 / 白装无光。实拍还暴露并修掉一处旧布局问题：底部消息原先压在左列详情框上，
+常驻强化提示上线后从偶发变常态，已把消息移到右列底部空白、页码挪到「背包 N / 60」同行。
+
+**回退优先级**：只想退掉武器手感就删 `weapon_ref` 字段（第 2 条自动失效，config 里新增的
+`wp_crowbar` 无害可留）；只想退掉展示层就移除三处 `compareWithEquipped` 调用与左列进度行。
+所有新函数都是纯函数，不写存档结构、不改 `SAVE_VERSION`。
+
+> **仍未动的事**：16 件基础装备依旧没有负面属性、没有套装与图鉴收集天花板、装备仍不改变角色贴图
+> （只改手中武器）。这些属于方向与内容层的取舍，等「看得见」上线后看数据再谈，避免一边调数值一边
+> 怪玩家没感觉。
+
 ## 4.4 成长与数值曲线
 
 ### 4.4.1 等级与属性

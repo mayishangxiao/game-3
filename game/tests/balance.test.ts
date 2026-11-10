@@ -7,10 +7,14 @@ import { describe, expect, it } from 'vitest';
 import {
   applyExp,
   bossBaseHp,
+  compareWithEquipped,
   cumulativeExp,
   computeDamage,
   enhancedValue,
   enhanceCost,
+  enhanceGain,
+  firstGainfulEnhance,
+  formatStatDelta,
   enemyStats,
   expToNext,
   knowledgeBonus,
@@ -20,14 +24,17 @@ import {
   rollAffixCount,
   rollQuality,
   salvageValue,
+  statDeltaParts,
   weaponDps,
   weightedPick,
   type Rng,
 } from '../src/core/balance';
 import config from '../public/data/config.json';
-import type { BalanceConfig, EnemyDef, ItemBase } from '../src/core/types';
+import itemsBaseJson from '../public/data/equipment/items_base.json';
+import type { BalanceConfig, EnemyDef, ItemBase, ItemInstance, Slot } from '../src/core/types';
 
 const cfg = config as unknown as BalanceConfig;
+const itemBases = (itemsBaseJson as unknown as { items: ItemBase[] }).items;
 
 /** 固定随机源：始终返回 v */
 const fixed = (v: number): Rng => () => v;
@@ -302,5 +309,143 @@ describe('加权抽签', () => {
     expect(weightedPick(w, fixed(0))).toBe(0);
     expect(weightedPick(w, fixed(0.5))).toBe(2);
     expect(weightedPick(w, fixed(0.999))).toBe(2);
+  });
+});
+
+/* ============ 装备存在感：对比差值 / 强化收益 / weapon_ref 透传 ============ */
+
+function eq(over: Partial<ItemInstance> = {}): ItemInstance {
+  return {
+    uid: 'u',
+    base_id: 'b',
+    slot: 'weapon',
+    quality: 'white',
+    name: '测试装备',
+    stat: 'atk',
+    value: 10,
+    enhance: 0,
+    affixes: [],
+    ...over,
+  };
+}
+
+describe('compareWithEquipped：把「比我身上的好多少」算出来', () => {
+  const zero = { atk: 0, def: 0, hp: 0, spd: 0 };
+
+  it('① 更高：同槽位主属性上涨', () => {
+    const d = compareWithEquipped(eq({ value: 15 }), { weapon: eq({ value: 10 }) });
+    expect(d).toEqual({ ...zero, atk: 5 });
+  });
+
+  it('② 更低：下跌也如实显示，不屏蔽负差值', () => {
+    const d = compareWithEquipped(eq({ value: 6 }), { weapon: eq({ value: 10 }) });
+    expect(d).toEqual({ ...zero, atk: -4 });
+  });
+
+  it('③ 更换槽位：别的槽位不参与比较', () => {
+    const equipped: Partial<Record<Slot, ItemInstance | null>> = { weapon: eq({ value: 10 }) };
+    const d = compareWithEquipped(eq({ slot: 'head', stat: 'def', value: 5 }), equipped);
+    expect(d).toEqual({ ...zero, def: 5 });
+  });
+
+  it('④ 空槽 / 显式 null：旧值按 0 算，等于整件净加成', () => {
+    expect(compareWithEquipped(eq({ value: 17 }), {})).toEqual({ ...zero, atk: 17 });
+    expect(compareWithEquipped(eq({ value: 17 }), { weapon: null })).toEqual({ ...zero, atk: 17 });
+  });
+
+  it('⑤ 强化等级参与：+5 的旧武器按 13 算而不是 10', () => {
+    const old = eq({ value: 10, enhance: 5 }); // round(10 * 1.30) = 13
+    expect(compareWithEquipped(eq({ value: 12 }), { weapon: old })).toEqual({ ...zero, atk: -1 });
+    expect(compareWithEquipped(eq({ value: 10, enhance: 5 }), {})).toEqual({ ...zero, atk: 13 });
+  });
+
+  it('⑥ 词条不参与：紫装随机词条不改变这一格差值', () => {
+    const affix = [{ id: 'af_crit', value: 30 }];
+    const d = compareWithEquipped(
+      eq({ value: 12, affixes: affix }),
+      { weapon: eq({ value: 10, affixes: [{ id: 'af_speed', value: 20 }] }) },
+    );
+    expect(d).toEqual({ ...zero, atk: 2 });
+  });
+
+  it('⑦ 相等返回全 0，单行文本为「属性持平」', () => {
+    const d = compareWithEquipped(eq({ value: 10 }), { weapon: eq({ value: 10 }) });
+    expect(d).toEqual(zero);
+    expect(statDeltaParts(d)).toEqual([]);
+    expect(formatStatDelta(d)).toBe('属性持平');
+  });
+
+  it('⑧ 跨属性不互相抵消：atk 跌、def 涨同时各自保留', () => {
+    const d = compareWithEquipped(eq({ stat: 'def', value: 7 }), { weapon: eq({ value: 10 }) });
+    expect(d).toEqual({ ...zero, atk: -10, def: 7 });
+    expect(formatStatDelta(d)).toBe('ATK −10 ▼ DEF +7 ▲');
+    expect(statDeltaParts(d).map((p) => p.positive)).toEqual([false, true]);
+  });
+
+  it('toast / 结算用的单行文本带 ▲▼', () => {
+    expect(formatStatDelta(compareWithEquipped(eq({ value: 15 }), { weapon: eq() }))).toBe('ATK +5 ▲');
+    expect(formatStatDelta(compareWithEquipped(eq({ value: 5 }), { weapon: eq() }))).toBe('ATK −5 ▼');
+  });
+});
+
+describe('enhanceGain / firstGainfulEnhance：取整归零档可见', () => {
+  it('布巾 DEF 4 前两档收益为 0，首次提升在 +3', () => {
+    const cloth = eq({ stat: 'def', value: 4 });
+    expect(enhanceGain(cloth)).toBe(0);
+    expect(enhanceGain({ ...cloth, enhance: 1 })).toBe(0);
+    expect(enhanceGain({ ...cloth, enhance: 2 })).toBe(1);
+    expect(firstGainfulEnhance(cloth)).toBe(3);
+  });
+
+  it('大数值装备每档都有收益；到 +5 后返回 0 / null', () => {
+    const big = eq({ value: 100 });
+    expect(enhanceGain(big)).toBe(6);
+    expect(firstGainfulEnhance(big)).toBe(1);
+    expect(enhanceGain({ ...big, enhance: 5 })).toBe(0);
+    expect(firstGainfulEnhance({ ...big, enhance: 5 })).toBeNull();
+  });
+
+  it('16 件基础装备都能算出「首次有收益」的等级，且此前各档确实为 0', () => {
+    expect(itemBases).toHaveLength(16);
+    for (const b of itemBases) {
+      const inst = makeItemInstance(b, cfg, fixed(0.3));
+      const first = firstGainfulEnhance(inst);
+      if (first === null) {
+        for (let lv = 0; lv < 5; lv += 1) expect(enhanceGain({ ...inst, enhance: lv })).toBe(0);
+      } else {
+        expect(first).toBeGreaterThan(0);
+        expect(first).toBeLessThanOrEqual(5);
+        expect(enhanceGain({ ...inst, enhance: first - 1 })).toBeGreaterThan(0);
+        for (let lv = 0; lv < first - 1; lv += 1) {
+          expect(enhanceGain({ ...inst, enhance: lv }), `${b.id} +${lv}`).toBe(0);
+        }
+      }
+    }
+  });
+});
+
+describe('makeItemInstance：weapon_ref 透传且不影响老模板', () => {
+  it('标了 weapon_ref 的武器模板带出字段，没标的模板不带这个键', () => {
+    const bow = itemBases.find((b) => b.id === 'eq_wp_bow_blue_01')!;
+    const cloth = itemBases.find((b) => b.id === 'eq_head_cloth_white_01')!;
+    expect(makeItemInstance(bow, cfg, fixed(0.3)).weapon_ref).toBe('wp_bow');
+    expect(makeItemInstance(cloth, cfg, fixed(0.3)).weapon_ref).toBeUndefined();
+    expect('weapon_ref' in makeItemInstance(cloth, cfg, fixed(0.3))).toBe(false);
+  });
+
+  it('weapon_ref 经 effectiveStats 聚合后仍能取到对应武器的射程与攻速', () => {
+    for (const b of itemBases.filter((x) => x.weapon_ref)) {
+      const inst = makeItemInstance(b, cfg, fixed(0.3));
+      const w = cfg.weapons[inst.weapon_ref!];
+      expect(w, `${b.id} 的 weapon_ref 指向不存在的武器`).toBeDefined();
+      expect(w.range).toBeGreaterThan(0);
+      expect(w.attacks_per_sec).toBeGreaterThan(0);
+    }
+    // 三种手感确实不同：刀 / 弓 / 撬棍
+    expect(cfg.weapons.wp_dao.range).toBe(40);
+    expect(cfg.weapons.wp_bow.range).toBe(200);
+    expect(cfg.weapons.wp_crowbar.range).toBeLessThan(60); // 撬棍是近战钝器，不是火枪
+    expect(cfg.weapons.wp_crowbar.attacks_per_sec).toBeLessThan(cfg.weapons.wp_dao.attacks_per_sec);
+    expect(cfg.weapons.wp_crowbar.mult).toBeGreaterThan(cfg.weapons.wp_dao.mult);
   });
 });

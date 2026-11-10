@@ -11,10 +11,16 @@
 import Phaser from 'phaser';
 import { DEPTH, HUD_H, PALETTE, VIEW_H, VIEW_W } from '../core/constants';
 import {
+  compareWithEquipped,
   enhanceCost,
   enhancedValue,
+  enhanceGain,
+  firstGainfulEnhance,
+  formatStatDelta,
   salvageValue,
 } from '../core/balance';
+import { slotProgress, type SlotProgressInfo } from '../core/SaveManager';
+import { dataLoader } from '../core/DataLoader';
 import { getSave, persist } from './BootScene';
 import type { ItemInstance, Slot } from '../core/types';
 import { FONT_UI } from '../gfx/TextStyle';
@@ -35,6 +41,28 @@ function qualityColor(q: string): string {
 }
 function qualityLabel(q: string): string {
   return q === 'purple' ? '紫' : q === 'blue' ? '蓝' : '白';
+}
+
+/** 左列第二行：这一槽位「已有最高品质 / 还差什么」 */
+function progressText(p: SlotProgressInfo): string {
+  if (p.best === null) return `${qualityLabel(p.target)}：未获得`;
+  if (p.reached) return `最高：${qualityLabel(p.best)}　已达目标`;
+  return `最高：${qualityLabel(p.best)}　目标：${qualityLabel(p.target)}`;
+}
+
+/**
+ * 选中装备时常驻的强化预测。
+ * 收益为 0 时明确告诉玩家「下一档哪一等级才涨」，而不是让他花掉零件后自己发现数字没动。
+ */
+function enhanceHint(item: ItemInstance): string {
+  if (item.enhance >= 5) return `${item.name} 已强化到 +5（上限）`;
+  const gain = enhanceGain(item);
+  const now = enhancedValue(item);
+  if (gain > 0) return `下次强化：${item.stat.toUpperCase()} ${now}→${now + gain}，需 ${enhanceCost(item.enhance)} 零件`;
+  const next = firstGainfulEnhance(item);
+  return next === null
+    ? `${item.name} 到 +5 也不会提升主属性`
+    : `本次强化无提升，强化到 +${next} 才有提升`;
 }
 
 export class EquipmentScene extends Phaser.Scene {
@@ -119,13 +147,15 @@ export class EquipmentScene extends Phaser.Scene {
     const item = this.selected();
     if (!item) return;
     const prev = save.equipment[item.slot] ?? null;
+    // 换装前先算差值：装备写进去之后就只剩「已装备 XX」，玩家无从判断这次换得值不值
+    const delta = compareWithEquipped(item, save.equipment);
     save.equipment[item.slot] = item;
     // 从背包移除，旧装备放回背包
     save.bag.items = save.bag.items.filter((i) => i.uid !== item.uid);
     if (prev) save.bag.items.push(prev);
     this.cursor = Math.min(this.cursor, Math.max(0, save.bag.items.length - 1));
     this.page = Math.floor(this.cursor / PAGE_SIZE);
-    this.message = `已装备 ${item.name}`;
+    this.message = `已装备 ${item.name}　${formatStatDelta(delta)}`;
     persist();
     this.render();
   }
@@ -161,17 +191,25 @@ export class EquipmentScene extends Phaser.Scene {
       return;
     }
     const cost = enhanceCost(item.enhance);
+    // 取整归零档：按钮已禁用，键盘 R 也要拦住，绝不让玩家花 20 零件换一个「什么都没变」
+    const gain = enhanceGain(item);
+    if (gain <= 0) {
+      this.message = enhanceHint(item);
+      this.render();
+      return;
+    }
     if (save.scrap < cost) {
       this.message = `零件不够：需要 ${cost}，现有 ${save.scrap}`;
       this.render();
       return;
     }
+    const before = enhancedValue(item);
     save.scrap -= cost;
     item.enhance += 1;
     // 如果这件正装备着，同步
     const slotItem = equipped[item.slot];
     if (slotItem && slotItem.uid === item.uid) slotItem.enhance = item.enhance;
-    this.message = `${item.name} 强化到 +${item.enhance}，消耗 ${cost} 零件`;
+    this.message = `${item.name} 强化到 +${item.enhance}　${item.stat.toUpperCase()} ${before}→${before + gain}，消耗 ${cost} 零件`;
     persist();
     this.render();
   }
@@ -190,6 +228,8 @@ export class EquipmentScene extends Phaser.Scene {
     this.clear();
     const save = getSave();
     const c = this.root;
+    // 模板表由 BootScene 预载；万一没拿到，slotProgress 会把目标品质兜底为紫，不会崩
+    const progress = slotProgress(save, dataLoader.getItems());
 
     c.add(
       this.add
@@ -265,6 +305,15 @@ export class EquipmentScene extends Phaser.Scene {
           this.add.text(58, y, '（空）', { fontFamily: FONT_UI, fontSize: '9.5px', color: '#6B6489' }),
         );
       }
+      // 每行第二行：这一槽位已经摸到的最高品质与可达成的目标，给出「还差什么」
+      const p = progress[s.key];
+      c.add(
+        this.add.text(58, y + 13, progressText(p), {
+          fontFamily: FONT_UI,
+          fontSize: '8px',
+          color: p.reached ? '#7EC08A' : '#6B6489',
+        }),
+      );
     });
 
     // ---- 右：背包列表 ----
@@ -393,29 +442,39 @@ export class EquipmentScene extends Phaser.Scene {
     }
 
     if (totalPages > 1) {
+      // 页码挪到「背包 N / 60」同一行的右端：底部那片空白要让给常驻消息，
+      // 否则消息 / 页码 / 详情框三样东西挤在 y≈226 一带互相盖字。
       c.add(
         this.add
-          .text(346, 226, `第 ${this.page + 1} / ${totalPages} 页`, {
+          .text(466, 32, `第 ${this.page + 1} / ${totalPages} 页`, {
             fontFamily: FONT_UI,
             fontSize: '8.5px',
             color: '#6B6489',
           })
-          .setOrigin(0.5),
+          .setOrigin(1, 0),
       );
     }
 
     // ---- 底部操作 ----
+    const sel = this.selected();
+    const cost = sel ? enhanceCost(sel.enhance) : 0;
+    const gain = sel ? enhanceGain(sel) : 0;
+    const enhanceLabel = sel
+      ? `强化 R (${cost}) → ${sel.stat.toUpperCase()} ${enhancedValue(sel)}→${enhancedValue(sel) + gain}`
+      : '强化 R';
+    // 没有操作消息时，这行常驻显示「这次强化到底涨几点」；收益为 0 会直接说明要等到哪一档
+    const hint = sel ? enhanceHint(sel) : '';
+    // 消息放右列底部空白（左列 y=198..250 是详情框，原来的 x=14 会压在详情文字上）。
+    // 常驻强化提示上线后这行几乎一直有内容，重叠就从偶发变成了常态。
     c.add(
-      this.add.text(14, VIEW_H - HUD_H - 30, this.message, {
+      this.add.text(226, VIEW_H - HUD_H - 38, this.message || hint, {
         fontFamily: FONT_UI,
         fontSize: '9.5px',
-        color: '#F0C419',
-        wordWrap: { width: VIEW_W - 28 },
+        color: gain === 0 && sel ? '#948DAB' : '#F0C419',
+        wordWrap: { width: 240 },
       }),
     );
 
-    const sel = this.selected();
-    const cost = sel ? enhanceCost(sel.enhance) : 0;
     // 选中已装备的那件时，第一键变成「卸下」，拆解先禁用
     this.button(
       46,
@@ -436,7 +495,8 @@ export class EquipmentScene extends Phaser.Scene {
       () => this.salvageSelected(),
       !!sel && !this.equipSel,
     );
-    this.button(218, VIEW_H - 14, 96, 16, `强化 R (${cost})`, () => this.enhanceSelected(), !!sel, true);
+    // 收益为 0 直接禁用（键盘 R 在 enhanceSelected 里同样拦截）
+    this.button(232, VIEW_H - 14, 124, 16, enhanceLabel, () => this.enhanceSelected(), !!sel && gain > 0, true);
     this.button(VIEW_W - 46, VIEW_H - 14, 76, 16, '返回 Esc', () => this.back(), true);
   }
 

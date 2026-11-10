@@ -311,6 +311,12 @@ export interface ItemBase {
   quality_multiplier: number;
   source: 'drop' | 'quest' | 'first_clear';
   flavor: string;
+  /**
+   * 可选：这件武器装备对应 config.json 里的 WeaponDef id。
+   * 装备上它后进关卡会真的换手上的武器（射程 / 攻速 / 倍率 / 颜色）。
+   * 老存档与没有该字段的模板一律不触发，行为与改动前一致。
+   */
+  weapon_ref?: string;
 }
 
 /** 背包中的一件实体装备 */
@@ -324,6 +330,8 @@ export interface ItemInstance {
   value: number;
   enhance: number;
   affixes: { id: string; value: number }[];
+  /** 由 ItemBase.weapon_ref 透传；老存档里不存在该字段 */
+  weapon_ref?: string;
 }
 
 /* ============ 7.2.10 equipment/drops.json ============ */

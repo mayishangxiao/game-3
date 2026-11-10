@@ -246,6 +246,8 @@ export function makeItemInstance(
     value,
     enhance: 0,
     affixes: base.quality === 'purple' ? rollAffixes(cfg, rng) : [],
+    // 只有标注了 weapon_ref 的武器模板才带这个键，老存档 / 其它槽位不受影响
+    ...(base.weapon_ref ? { weapon_ref: base.weapon_ref } : {}),
   };
 }
 
@@ -258,6 +260,30 @@ export function enhancedValue(item: ItemInstance): number {
 /** 强化消耗零件：20 × 当前强化等级 */
 export function enhanceCost(currentEnhance: number): number {
   return 20 * Math.max(1, currentEnhance);
+}
+
+/**
+ * 下一次强化的**实际**主属性收益。
+ *
+ * 公式是 `round(value × (1 + 0.06×lv))`，小数值装备（布巾 DEF 4、绑腿 SPD 5）
+ * 前几档取整后收益是 0：花 20 零件数字一动不动，玩家会觉得系统在骗人。
+ * 这里不改公式，只把「这一次到底涨几点」算出来给 UI 决定是否禁用按钮。
+ */
+export function enhanceGain(item: ItemInstance): number {
+  if (item.enhance >= 5) return 0;
+  return enhancedValue({ ...item, enhance: item.enhance + 1 }) - enhancedValue(item);
+}
+
+/**
+ * 从当前等级往后找，第一个相对**当前数值**真正有提升的强化等级；到 +5 都没有就返回 null。
+ * UI 用它把「这次没收益」变成「强化到 +3 才有提升」这种明确的下一步。
+ */
+export function firstGainfulEnhance(item: ItemInstance): number | null {
+  const base = enhancedValue(item);
+  for (let lv = Math.min(5, item.enhance + 1); lv <= 5; lv += 1) {
+    if (enhancedValue({ ...item, enhance: lv }) > base) return lv;
+  }
+  return null;
 }
 
 /** 拆解返还零件：白 1 / 蓝 2 / 紫 3，×10 */
@@ -331,6 +357,64 @@ export function effectiveStats(
     critDmg: 150 + eq.critDmg,
     spd: 72 + eq.spd,
   };
+}
+
+/* ==================== 6.3.x 装备「看得见」的对比差值 ==================== */
+
+export type StatKey = (typeof STAT_KEYS)[number];
+export type StatDelta = Record<StatKey, number>;
+
+export interface StatDeltaPart {
+  key: StatKey;
+  value: number;
+  /** 例：'ATK +5 ▲' / 'HP −2 ▼' */
+  text: string;
+  positive: boolean;
+}
+
+/**
+ * 候选装备相对「同槽位当前已装备」的主属性差值。
+ *
+ * 刻意只算主属性（enhancedValue），不带紫装随机词条：词条在换装前后是另一条
+ * 独立的计算链，混进这一格的「好多少」会让玩家无法核对。强化等级参与计算。
+ * 四个属性各自独立增减，不做求和 / 不互相抵消。
+ * 空槽时旧值按 0 算，结果就等于整件装备的净加成。
+ */
+export function compareWithEquipped(
+  item: ItemInstance,
+  equipped: Partial<Record<Slot, ItemInstance | null>>,
+): StatDelta {
+  const out: StatDelta = { atk: 0, def: 0, hp: 0, spd: 0 };
+  const add = (stat: string, v: number): void => {
+    if ((STAT_KEYS as readonly string[]).includes(stat)) out[stat as StatKey] += v;
+  };
+  const cur = equipped[item.slot] ?? null;
+  if (cur) add(cur.stat, -enhancedValue(cur));
+  add(item.stat, enhancedValue(item));
+  return out;
+}
+
+/** 把差值拆成可直接逐项着色的片段（绿▲ / 红▼ 由 UI 决定颜色） */
+export function statDeltaParts(delta: StatDelta): StatDeltaPart[] {
+  const parts: StatDeltaPart[] = [];
+  for (const key of STAT_KEYS) {
+    const v = delta[key];
+    if (v === 0) continue;
+    const positive = v > 0;
+    parts.push({
+      key,
+      value: v,
+      positive,
+      text: `${key.toUpperCase()} ${positive ? '+' : '−'}${Math.abs(v)} ${positive ? '▲' : '▼'}`,
+    });
+  }
+  return parts;
+}
+
+/** 单行文本版，给 toast 与换装消息用 */
+export function formatStatDelta(delta: StatDelta, sep = ' '): string {
+  const parts = statDeltaParts(delta);
+  return parts.length > 0 ? parts.map((p) => p.text).join(sep) : '属性持平';
 }
 
 /** 按 tier 取出敌人基准表 */

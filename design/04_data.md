@@ -236,6 +236,7 @@
 | `quality_multiplier` | `number` | 品质倍率 |
 | `source` | `string` | 获取方式 `"drop"/"quest"/"first_clear"` |
 | `flavor` | `string` | 一行风味文字，例 `"道光二十年造，曾守虎门三昼夜。"` |
+| `weapon_ref` | `string?` | **可选**，仅武器槽：指向 `config.json.weapons` 的 id，装备后进关卡真的换手上的武器（射程 / 攻速 / 倍率 / 颜色）。缺省不触发，老存档零影响；详见 `03_systems.md` 4.3.7 |
 
 ### 5.2.10 `equipment/drops.json` —— 掉落配置
 
@@ -367,7 +368,8 @@
   "stat": "atk", "base_value": 12,
   "quality_multiplier": 1.00,
   "source": "quest",
-  "flavor": "虎门水勇标配，刀身短而沉。"
+  "flavor": "虎门水勇标配，刀身短而沉。",
+  "weapon_ref": "wp_dao"
 }
 ```
 

@@ -111,6 +111,7 @@ interface ItemJson {
   id: string;
   slot: string;
   quality: string;
+  weapon_ref?: string;
 }
 interface DlgJson {
   dialogues: { id: string; speaker: string; lines: { text: string }[] }[];
@@ -709,5 +710,43 @@ describe('地图可达性（防止关卡走不通）', () => {
     for (const n of noMap) {
       expect(['cutscene', 'choice', 'management']).toContain(n.type);
     }
+  });
+});
+
+describe('装备存在感：weapon_ref 引用完整性与掉落形状覆盖', () => {
+  it('每个 weapon_ref 都指向 config.json 里真实存在的武器', () => {
+    const weapons = read<{ weapons: Record<string, unknown> }>('config.json').weapons;
+    const refs = items.filter((i) => i.weapon_ref);
+    expect(refs.length).toBeGreaterThanOrEqual(5);
+    for (const i of refs) {
+      expect(weapons, `${i.id} 的 weapon_ref 拼错了会静默失效`).toHaveProperty(i.weapon_ref!);
+    }
+  });
+
+  it('weapon_ref 只出现在武器槽，非武器模板保持无字段（老存档零影响）', () => {
+    for (const i of items) {
+      if (i.weapon_ref) expect(i.slot).toBe('weapon');
+      else expect('weapon_ref' in i).toBe(false);
+    }
+  });
+
+  it('五种槽位掉落权重全 > 0，保证五种形状都能在场上出现', () => {
+    const drops = read<{ rules: { slot_weights: Record<string, number> }[] }>('equipment/drops.json');
+    expect(drops.rules.length).toBeGreaterThan(0);
+    const slots = ['weapon', 'head', 'body', 'legs', 'accessory'];
+    for (const rule of drops.rules) {
+      for (const s of slots) {
+        expect(Object.keys(rule.slot_weights), `掉落规则漏了 ${s} 槽`).toContain(s);
+        expect(rule.slot_weights[s], `${s} 权重为 0 会导致对应形状永不出现`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('每个槽位至少有一件可掉落模板，且模板表存在可达成的品质目标', () => {
+    const slots = ['weapon', 'head', 'body', 'legs', 'accessory'];
+    for (const s of slots) {
+      expect(items.some((i) => i.slot === s), `${s} 没有模板`).toBe(true);
+    }
+    expect(items.some((i) => i.quality === 'purple')).toBe(true);
   });
 });
