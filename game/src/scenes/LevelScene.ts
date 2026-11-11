@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CROWD_SCALE, CROWD_TEX, DEPTH, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CROWD_SCALE, CROWD_TEX, DEPTH, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, MELEE_RANGE_MAX, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -46,16 +46,21 @@ import { backdropImage, horizonImage, HORIZON_H } from '../gfx/Backdrop';
 import { isFootBlocked, nearestOpenPoint } from '../core/space';
 import { canCompleteEscort } from '../core/escort';
 import {
+  DEFAULT_WAVE_UPGRADE_TUNING,
+  UpgradeBook,
   applyUpgrade,
   bonusPierce,
+  cleaveDmgMult,
   describeNext,
-  emptyUpgradeState,
   hasteMult,
   pickUpgradeChoices,
+  sweepArcMult,
+  upgradeClass,
   upgradeSummary,
   upgradesExhausted,
   volleyOffsets,
   volleyRows,
+  type UpgradeClass,
   type UpgradeId,
   type UpgradeState,
 } from '../core/waveUpgrade';
@@ -107,6 +112,7 @@ import type {
   NodeDef,
   Quality,
   SaveData,
+  WaveUpgradeTuning,
   WeaponDef,
 } from '../core/types';
 import { FONT_UI } from '../gfx/TextStyle';
@@ -253,17 +259,36 @@ export class LevelScene extends Phaser.Scene {
   private wavePending = false;
   private bossSpawned = false;
   /**
-   * 本关的波次强化累积（`core/waveUpgrade.ts`）。
-   * **只在本关内有效**：在 `create()` 里重置，不写存档——甲方确认过「只在本关内」，
-   * 一旦落盘就要处理 SAVE_VERSION 迁移，收益不值得这个风险。
+   * 本关的波次强化状态，按**武器实例**隔离（`core/waveUpgrade.ts` 的 `UpgradeBook`）。
+   * **只在本关内有效**：`create()` 里 clear()，不写存档 —— 一旦落盘就要处理
+   * SAVE_VERSION 迁移，收益不值得这个风险。
+   *
+   * 为什么不是全关一份：强化卡是「给手上这把武器」的。中途换刀 / 换弓时，
+   * 不能把弓的齐射等级带到刀上，也不能因为某把武器满了级，就让换过来的另一把
+   * 武器这一整关再也弹不出卡。
    */
-  private upgrades: UpgradeState = emptyUpgradeState();
+  private readonly upgradeBook = new UpgradeBook();
+  /** 强化数值来自 config.json；配置还没加载时用默认值兜底（与旧版弓数值逐字一致） */
+  private upgradeTuning(): WaveUpgradeTuning {
+    return this.cfg?.wave_upgrade ?? DEFAULT_WAVE_UPGRADE_TUNING;
+  }
+  /**
+   * 旧探针 / 调试用的兼容视图：读写都落到「当前武器实例」，真值只在 upgradeBook 里。
+   * 故意不加 `private`：这是给浏览器探针（`L.upgrades`）用的公开调试接口。
+   */
+  get upgrades(): UpgradeState {
+    return this.currentUpgrades();
+  }
+  set upgrades(s: UpgradeState) {
+    this.upgradeBook.set(this.upgradeKey(), s);
+  }
   /** 强化选卡正在显示（期间世界冻结，复用 `pendingCardTap` 作为「有卡可点」信号） */
   private upgradeOpen = false;
   /**
    * 清完这一波之后该不该弹强化卡。
-   * 由 `showUpgradeCard` 在关闭时置回 true —— 用一个标志位而不是每帧重算，
-   * 是因为「池子被抽干」和「玩家点了跳过」都只应该发生一次判定。
+   * 用标志位而不是每帧重算，是为了让「玩家点了跳过」只发生一次判定；
+   * **注意**：某把武器满级不再把它永久置 false —— 换武器后另一把还没满级，
+   * 下一波仍应能弹卡（满级判定在波次推进处按当前实例实时算）。
    */
   private pendingUpgrade = true;
   private nodeBusy = false;
@@ -503,8 +528,9 @@ export class LevelScene extends Phaser.Scene {
     this.waveIndex = -1;
     this.wavePending = false;
     this.bossSpawned = false;
-    // 波次强化只在本关内有效：重进关卡必须清零，否则上一关刷满的三行齐射会带过来
-    this.upgrades = emptyUpgradeState();
+    // 波次强化只在本关内有效：重进关卡必须把**所有武器实例**一起清零，
+    // 否则上一关刷满的三行齐射 / ×1.50 横扫会带过来
+    this.upgradeBook.clear();
     this.upgradeOpen = false;
     this.pendingUpgrade = true;
     this.nodeBusy = false;
@@ -628,20 +654,37 @@ export class LevelScene extends Phaser.Scene {
         this.rescueStrayEnemies();
         return this.enemies.filter((e) => e.alive).length;
       },
-      // —— 波次强化（甲方「每波次强化系统」）的探查入口 ——
-      /** 当前强化状态 + 派生数值，探针据此断言「选完真的变了」 */
-      upgrades: () => ({
-        ...this.upgrades,
-        rows: volleyRows(this.upgrades),
-        haste: hasteMult(this.upgrades),
-        pierceBonus: bonusPierce(this.upgrades),
-        summary: upgradeSummary(this.upgrades),
-        cardOpen: this.upgradeOpen,
-      }),
-      /** 直接塞一个强化状态（探针用；避免为了测「三行齐射」真去打三波） */
-      setUpgrades: (patch: Partial<UpgradeState>) => {
-        this.upgrades = { ...this.upgrades, ...patch };
-        return this.upgrades;
+      // —— 波次强化（弓 + 近战，按武器实例隔离）的探查入口 ——
+      /** 当前**武器实例**的强化状态 + 派生数值，探针据此断言「选完真的变了」 */
+      upgrades: () => {
+        const up = this.currentUpgrades();
+        const cls = this.currentUpgradeClass();
+        const tune = this.upgradeTuning();
+        const info = this.debugWeaponInfo();
+        return {
+          ...up,
+          rows: volleyRows(up),
+          haste: hasteMult(up, tune),
+          pierceBonus: bonusPierce(up),
+          summary: upgradeSummary(up, cls, tune),
+          cardOpen: this.upgradeOpen,
+          weaponClass: cls,
+          key: info.key,
+          arcMult: info.arcMult,
+          cleaveMult: info.cleaveMult,
+        };
+      },
+      /** 直接塞一个强化状态（探针用；可用 key 指定别的武器实例） */
+      setUpgrades: (patch: Partial<UpgradeState>, key?: string) => {
+        const k = key ?? this.upgradeKey();
+        return this.upgradeBook.set(k, { ...this.upgradeBook.get(k), ...patch });
+      },
+      /** 所有武器实例的状态快照：验「互不带走」与「换关全清」 */
+      upgradeStates: () => this.upgradeBook.snapshot(),
+      /** 手动整本清零（探针验重置，不必真 scene.restart） */
+      resetUpgrades: () => {
+        this.upgradeBook.clear();
+        return true;
       },
       /** 跳过卡片：选第一项（等价于点第一张卡） */
       pickUpgrade: (i = 0) => {
@@ -649,13 +692,9 @@ export class LevelScene extends Phaser.Scene {
         this.pendingCardTap?.();
         return this.upgradeOpen;
       },
-      /** 玩家当前武器与实时射击间隔（毫秒），用来验证「火线」真的快了 */
-      bowInfo: () => {
-        const w = this.player.weapon;
-        const base = 1000 / (w.attacks_per_sec || 1);
-        const h = w.id === 'wp_bow' ? hasteMult(this.upgrades) : 1;
-        return { id: w.id, baseMs: base, actualMs: base / h, arrows: w.id === 'wp_bow' ? volleyRows(this.upgrades) : 1 };
-      },
+      /** 当前武器实时参数（字段与 v1.6 `bowInfo` 兼容，旧探针不用改） */
+      bowInfo: () => this.debugWeaponInfo(),
+      weaponInfo: () => this.debugWeaponInfo(),
       /** 清空当前存活敌人，直接推进到下一次波次判定（省得探针真打） */
       clearWave: () => {
         // 只翻 alive，**不要**自己 destroy rig：`clearDeadEnemies()` 会调 `e.destroy()`
@@ -1379,6 +1418,10 @@ export class LevelScene extends Phaser.Scene {
    * 不然死太快了」。所以这里给的是**看得见的质变**（箭矢从 1 行变 2 行、3 行），
    * 而不是 +5% 伤害那种玩家感觉不到的数字。
    *
+   * v1.7：近战武器补齐同一套卡片，标题/条目名/效果按 `upgradeClass` 分派
+   * （横扫=扇形加宽、火线=攻速、破甲=挥砍伤害），状态按武器实例隔离。
+   * 触发时机、三选一、上限 6 次、本关内重置与弓完全一致。
+   *
    * 实现要点（都踩过）：
    *   1. 世界必须冻结 —— 复用 `introOpen`，`updateWorld` 开头 `if (this.introOpen) return;`；
    *   2. 卡开着时要让 `tapCard()` 能点，所以写 `pendingCardTap`，关的时候**必须清回 null**，
@@ -1387,17 +1430,71 @@ export class LevelScene extends Phaser.Scene {
    *      底板吃掉点击会让选中的那一下变成「跳过」（早期情境卡就是这么坏的）；
    *   4. 键盘 1/2/3 也能选，手柄/无触摸的环境下不至于卡死。
    */
+  /**
+   * 武器实例 key：优先用装备 uid（同一 `weapon_ref` 的不同装备实例各自独立），
+   * 装备槽与手上武器对不上时（剧情掉落弓、老存档没 `weapon_ref`）回落到武器 ref。
+   * 这样换装、捡弓、重进关卡都不会把两把武器的强化串在一起。
+   */
+  private upgradeKey(): string {
+    const w = this.player?.weapon;
+    if (!w) return 'weapon:none';
+    const eq = this.save?.equipment?.weapon;
+    const ref = eq?.weapon_ref ?? (eq ? dataLoader.findItemBase(eq.base_id)?.weapon_ref : undefined);
+    return eq && ref === w.id ? `uid:${eq.uid}` : `ref:${w.id}`;
+  }
+
+  /** 当前手持武器实例在本关累积的强化（没有就返回全 0，不写入 book） */
+  private currentUpgrades(): UpgradeState {
+    return this.upgradeBook.get(this.upgradeKey());
+  }
+
+  private currentUpgradeClass(): UpgradeClass {
+    return this.player ? upgradeClass(this.player.weapon) : 'other';
+  }
+
+  /** 探针用的武器实时参数快照（`bowInfo` / `weaponInfo` 共用一份，字段名向后兼容） */
+  private debugWeaponInfo() {
+    const w = this.player.weapon;
+    const cls = this.currentUpgradeClass();
+    const up = this.currentUpgrades();
+    const tune = this.upgradeTuning();
+    const base = 1000 / (w.attacks_per_sec || 1);
+    const h = cls === 'other' ? 1 : hasteMult(up, tune);
+    return {
+      id: w.id,
+      weaponClass: cls,
+      key: this.upgradeKey(),
+      baseMs: base,
+      actualMs: base / h,
+      arrows: cls === 'bow' ? volleyRows(up) : 1,
+      arcMult: sweepArcMult(up, tune),
+      cleaveMult: cleaveDmgMult(up, tune),
+      summary: upgradeSummary(up, cls, tune),
+    };
+  }
+
   private showUpgradeCard(onDone: () => void): void {
-    const choices = upgradesExhausted(this.upgrades) ? [] : pickUpgradeChoices(this.upgrades, rng);
+    // 绑定弹卡那一刻的实例与类别：卡片期间世界冻结，但键盘连点 / 延迟回调
+    // 仍可能落到「武器已经换过」的状态，用局部快照避免把强化记到别的武器上。
+    const key = this.upgradeKey();
+    const cls = this.currentUpgradeClass();
+    const state = this.upgradeBook.get(key);
+    const tune = this.upgradeTuning();
+    const choices = upgradesExhausted(state) ? [] : pickUpgradeChoices(state, rng, cls);
     if (choices.length === 0) {
-      this.pendingUpgrade = false;
+      // 兜底：波次推进处已经按当前实例过滤过了。这里**不能**再永久关掉 pendingUpgrade，
+      // 否则玩家换一把没满级的武器后，这一关就再也弹不出卡了。
       onDone();
       return;
     }
+    const isMelee = cls === 'melee';
     this.introOpen = true;
     this.upgradeOpen = true;
     setHudVisible(false);
     this.dialogue?.hide();
+    // 清波常会带出「敌兵丢下一把猎弓」之类的 toast，DOM 层浮在 canvas 之上，
+    // 会正好压住中间那张卡。开卡先收掉；选完的「强化：…」toast 在 finish 里另发。
+    hideToast();
 
     const c = this.add.container(0, 0).setDepth(DEPTH.overlay).setScrollFactor(0);
     c.add(
@@ -1407,7 +1504,7 @@ export class LevelScene extends Phaser.Scene {
     );
     c.add(
       this.add
-        .text(VIEW_W / 2, 34, '弓 术 精 进', {
+        .text(VIEW_W / 2, 34, isMelee ? '近 战 精 进' : '弓 术 精 进', {
           fontFamily: FONT_UI,
           fontSize: '18px',
           color: '#F0C419',
@@ -1418,7 +1515,7 @@ export class LevelScene extends Phaser.Scene {
     );
     c.add(
       this.add
-        .text(VIEW_W / 2, 54, `第 ${this.waveIndex} 波已清 · 选一项强化（只作用于弓）`, {
+        .text(VIEW_W / 2, 54, `第 ${this.waveIndex} 波已清 · 选一项强化（${isMelee ? '只作用于当前近战武器' : '只作用于弓'}）`, {
           fontFamily: FONT_UI,
           fontSize: '10px',
           color: '#C2BCD1',
@@ -1427,10 +1524,10 @@ export class LevelScene extends Phaser.Scene {
         .setScrollFactor(0),
     );
     // 当前已生效的强化，让玩家知道自己叠到哪一步了
-    const cur = upgradeSummary(this.upgrades);
+    const cur = upgradeSummary(state, cls, tune);
     c.add(
       this.add
-        .text(VIEW_W / 2, 70, cur ? `当前：${cur}` : '当前：单发弓箭', {
+        .text(VIEW_W / 2, 70, cur ? `当前：${cur}` : isMelee ? '当前：基础挥砍' : '当前：单发弓箭', {
           fontFamily: FONT_UI,
           fontSize: '9px',
           color: '#8E88A0',
@@ -1451,9 +1548,11 @@ export class LevelScene extends Phaser.Scene {
       if (closed) return;
       closed = true;
       if (id) {
-        this.upgrades = applyUpgrade(this.upgrades, id);
+        // 写回**弹卡时绑定的那个实例**，不是此刻的 this.currentUpgrades()：
+        // 键盘连点或延迟回调里武器可能已被换掉，记错 key 就等于给别人加强化。
+        const next = this.upgradeBook.set(key, applyUpgrade(state, id));
         // 选完立刻把新数值亮出来，玩家才知道自己刚选的东西生效了
-        const sum = upgradeSummary(this.upgrades);
+        const sum = upgradeSummary(next, cls, tune);
         emitToast(sum ? `强化：${sum}` : '强化已生效', 1600);
       }
       this.introOpen = false;
@@ -1488,7 +1587,7 @@ export class LevelScene extends Phaser.Scene {
       c.add(this.add.rectangle(x, cardY - 14, 60, 1, PALETTE.star, 0.7).setScrollFactor(0));
       c.add(
         this.add
-          .text(x, cardY + 8, describeNext(this.upgrades, u.id), {
+          .text(x, cardY + 8, describeNext(state, u.id, cls, tune), {
             fontFamily: FONT_UI,
             fontSize: '9px',
             color: '#F2EDE4',
@@ -1867,8 +1966,13 @@ export class LevelScene extends Phaser.Scene {
     }
     // 军舰碾出来的海面只有玩家进不去（敌人是小艇，可以从水上逼近）
     this.player.setBlocker((x, y) => this.isSeaAt(x, y));
-    // 波次强化的「火线」只加快弓；其他武器保持 config.json 里的原始射速
-    this.player.setHasteHook(() => (this.player.weapon.id === 'wp_bow' ? hasteMult(this.upgrades) : 1));
+    // 波次强化的「火线」同时加快弓与全部近战武器，倍率取**当前武器实例**自己的状态；
+    // 其它远程（火枪 / 机枪）不参与强化，保持 config.json 里的原始射速。
+    // 钩子在每次 tryAttack 时调用，所以战斗内换武器会自动切到新武器的倍率，无需重设。
+    this.player.setHasteHook(() => {
+      const cls = this.currentUpgradeClass();
+      return cls === 'other' ? 1 : hasteMult(this.currentUpgrades(), this.upgradeTuning());
+    });
 
     // 故意**不用** `setBounds`：Phaser 的 `clampX` 是
     //   bx = bounds.x + (displayWidth - width) / 2
@@ -3562,7 +3666,7 @@ export class LevelScene extends Phaser.Scene {
 
   private playerAttack(power = 1): void {
     const w = this.player.weapon;
-    const ranged = w.range > 60;
+    const ranged = w.range > MELEE_RANGE_MAX;
 
     // 先瞄准再出手：命中方向用「到敌人的精确角度」，四方向朝向只负责画面
     const target = this.nearestEnemy(this.aimRange(ranged, w.range));
@@ -3579,19 +3683,19 @@ export class LevelScene extends Phaser.Scene {
     if (ranged) {
       // 远程：投射物朝敌人飞，而不是朝玩家原来的朝向
       const speed = w.projectile_speed || 260;
-      // 波次强化只作用于弓（甲方原话「只对弓强化」）。判定用射程区分类别：
-      // 刀 40 / 弓 200 / 火枪 260 / 机枪 220 —— 只有弓吃这套加成，
-      // 否则玩家中途捡到火枪时，齐射会变成「火枪一次放三发」，那不是设计意图。
-      const bow = w.id === 'wp_bow';
-      const up = this.upgrades;
+      // 远程里只有弓吃波次强化（近战在下面的扇形分支吃同一套状态）。
+      // 火枪 260 / 机枪 220 仍按基础手感：否则齐射会变成「火枪一次放三发」，不是设计意图。
+      const bow = upgradeClass(w) === 'bow';
+      const up = this.currentUpgrades();
+      const tune = this.upgradeTuning();
       const rows = bow ? volleyRows(up) : 1;
-      const rowsP = bow ? 1 + (rows - 1) * 0.35 : 1;
+      const rowsP = bow ? 1 + (rows - 1) * tune.volley.damage_per_row : 1;
       const pierce = w.pierce + (bow ? bonusPierce(up) : 0);
       const dmg = this.player.atk * w.mult * power * rowsP * PLAYER_DMG;
       // 垂直于飞行方向的横向单位向量：斜射时这样才能上下错开而不是左右重叠
       const perpX = -dirY;
       const perpY = dirX;
-      for (const off of rows === 1 ? [0] : volleyOffsets(rows)) {
+      for (const off of rows === 1 ? [0] : volleyOffsets(rows, tune)) {
         const rect = this.add
           .rectangle(
             this.player.x + dirX * 10 + perpX * off,
@@ -3615,11 +3719,20 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
 
-    // 近战：扇形判定（重击时判定范围略放大，手感上「扫一圈」）
+    // 近战：扇形判定（重击时判定范围略放大，手感上「扫一圈」）。
+    // 波次强化取**当前近战武器实例**自己的状态：横扫放大扇形、破甲放大伤害，
+    // 火线在 Player 的攻速钩子里生效。0 级时三个倍率都是 1，基础手感一字不变。
+    const up = this.currentUpgrades();
+    const tune = this.upgradeTuning();
+    const sweep = sweepArcMult(up, tune);
+    const cleave = cleaveDmgMult(up, tune);
     const reach = w.range + 8 + (power > 1 ? 6 : 0);
-    const arc = Phaser.Math.DegToRad(w.arc_deg) * (power > 1 ? 1.15 : 1);
+    const heavyMult = power > 1 ? 1.15 : 1;
+    const arc = Phaser.Math.DegToRad(w.arc_deg) * sweep * heavyMult;
     const baseAngle = Math.atan2(dirY, dirX);
-    this.slashFx(baseAngle, reach, power > 1);
+    // 刀光必须与真实判定同步变宽，否则玩家看到「扫到了」却没伤害（或反过来）。
+    // 未强化时仍是原来的 82° / 110°，不影响任何既有表现。
+    this.slashFx(baseAngle, reach, power > 1, (power > 1 ? 110 : 82) * sweep);
     for (const e of this.enemies) {
       if (!e.alive) continue;
       const dx = e.x - this.player.x;
@@ -3629,7 +3742,7 @@ export class LevelScene extends Phaser.Scene {
       const ang = Math.atan2(dy, dx);
       const diff = Math.abs(Phaser.Math.Angle.Wrap(ang - baseAngle));
       if (diff <= arc / 2 || dist <= 20) {
-        this.damageEnemy(e, w.mult * power, DIST_MELEE);
+        this.damageEnemy(e, w.mult * power * cleave, DIST_MELEE);
       }
     }
   }
@@ -3641,14 +3754,14 @@ export class LevelScene extends Phaser.Scene {
    * 手机上根本看不出打没打到。所以命中判定之外必须有一层可见的挥砍反馈：
    * 弧线从起手角度扫过判定扇形，0.16 秒淡出，比一闪而过的白块更能读出「砍了一下」。
    */
-  private slashFx(baseAngle: number, reach: number, heavy: boolean): void {
+  private slashFx(baseAngle: number, reach: number, heavy: boolean, spreadDeg?: number): void {
     this.slashAt(
       this.player.x,
       this.player.y - 8,
       baseAngle,
       reach,
       heavy ? PALETTE.star : PALETTE.paper,
-      heavy ? 110 : 82,
+      spreadDeg ?? (heavy ? 110 : 82),
     );
   }
 
@@ -4832,10 +4945,13 @@ export class LevelScene extends Phaser.Scene {
           emitObjective(`第 ${next + 1} / ${waves.length} 波`);
           // 设计书 3.3.1：击退第一批登陆英兵后掉落一把白色的弓（仅剧情关卡，副本不给）
           if (next === 1 && !this.dungeon) this.dropBow();
-          // 甲方要求「每波次强化系统，只对弓强化，比如弹幕变两行之类的」：
-          // 清完一波先弹三选一（世界冻结），选完/跳过再放下一波。
-          // 不弹卡时直接进原节奏，避免多一层延迟。
-          const openUpgrade = !this.dungeon && next > 0 && this.pendingUpgrade;
+          // 甲方要求「每波次强化系统」：清完一波先弹三选一（世界冻结），选完/跳过再放下一波。
+          // v1.7 起弓与全部近战武器共用规则、各自独立累积，按**当前手持实例**判断：
+          // 该实例已满级、或武器不参与强化（其它远程）时直接进原节奏，避免多一层延迟。
+          // 满级每波实时算，换一把没满级的武器后下一波照样能弹卡。
+          const cls = this.currentUpgradeClass();
+          const canUpgrade = cls !== 'other' && !upgradesExhausted(this.currentUpgrades());
+          const openUpgrade = !this.dungeon && next > 0 && this.pendingUpgrade && canUpgrade;
           if (openUpgrade) {
             this.showUpgradeCard(() => this.time.delayedCall(1200, () => this.spawnWave(next)));
           } else {

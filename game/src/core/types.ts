@@ -418,6 +418,8 @@ export interface BalanceConfig {
   };
   /** 主动技能配置（按钮触发，纯数值，逻辑在 core/cannon.ts） */
   skills?: { humen_cannon: CannonParams };
+  /** 波次强化数值；缺省时 core/waveUpgrade.ts 用 DEFAULT_WAVE_UPGRADE_TUNING 兜底 */
+  wave_upgrade?: WaveUpgradeTuning;
   ui: {
     dialog_speed: number;
     text_chars_per_line: number;
@@ -461,6 +463,32 @@ export interface WeaponDef {
   magazine: number;
   reload_ms: number;
   projectile_speed: number;
+}
+
+/**
+ * 波次强化数值（`config.json → wave_upgrade`）。
+ *
+ * 一张表同时管弓与近战，是为了让两类的等级上限、攻速曲线、重置规则
+ * 永远来自同一处；`max_picks` 是 `core/waveUpgrade.ts` 里 2+3+1 的镜像，
+ * 单测会断言两者一致，防止只改了一边。
+ */
+export interface WaveUpgradeTuning {
+  /** 一关内最多可选次数（两类相同） */
+  max_picks: number;
+  /** 火线每级的攻速加成（两类相同） */
+  haste_per_level: number;
+  volley: {
+    /** 相邻两行箭矢的垂直偏移 */
+    spread_px: number;
+    /** 齐射每多一行，单发伤害的补偿倍率 */
+    damage_per_row: number;
+  };
+  melee: {
+    /** 横扫每多一档，扇形角度的放大倍率 */
+    sweep_arc_per_row: number;
+    /** 破甲满级时的挥砍伤害加成 */
+    cleave_damage: number;
+  };
 }
 
 /* ============ 副本（可重复刷） ============ */

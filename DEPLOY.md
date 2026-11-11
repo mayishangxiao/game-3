@@ -13,7 +13,7 @@ $pnpm="$env:USERPROFILE\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pnpm\
 # 2. 类型检查
 & $node $pnpm exec tsc --noEmit
 
-# 3. 跑测试（312 个，全绿才继续）
+# 3. 跑测试（342 个，全绿才继续）
 & $node $pnpm test
 
 # 4. 构建
@@ -61,7 +61,7 @@ python tools/deploy_ecs.py 39.103.58.244
 ## 发布前检查清单（每次发版照着走）
 
 - [ ] `pnpm exec tsc --noEmit` 0 错
-- [ ] `pnpm test` 全绿（当前 16 文件 / 325 条）
+- [ ] `pnpm test` 全绿（当前 16 文件 / 342 条）
 - [ ] 改动涉及战斗内换武器时，跑 `node tools/_cdp/weapon-swap.mjs <edgePath> <baseUrl> <outDir>`，确认 53 项断言全过：门禁拒绝、世界冻结、控件/HUD 收放、取消零改动、重复/不可用/陈旧选项各有文案、切换后武器与属性即时生效、战斗结束自动收起
 - [ ] 改动涉及敌人移动 / 出生点 / 碰撞层时，跑 `node tools/_cdp/enemy-stuck.mjs <edgePath> <baseUrl> <outDir>`，确认 22 项断言全过：所有敌人 `footUnsafe=false`、2.4 秒内确实朝玩家移动、`stuckMs<700`、主动制造「中心合法但脚盒压墙」后 `rescue()` 能把人捞回合法点并恢复追击；同时 `tests/space.test.ts` 会遍历全部 10 张地图的出生点 × 4 个追击方向
 - [ ] 改动涉及装备时，确认 `items_base.json` 里每个 `weapon_ref` 都在 `config.json.weapons` 里（`tests/data.test.ts` 会挡拼错），且未标字段的模板与老存档仍走原武器逻辑；跑 `node tools/_cdp/equip-presence.mjs <edgePath> <baseUrl> tools/_cdp/equip`，确认 `equip-presence.json` 的 `ok=true` / `errors=[]`，并逐张看 `equipment-initial.png` / `equipment.png` / `level-equipped-bow.png` 无文字重叠
@@ -69,6 +69,7 @@ python tools/deploy_ecs.py 39.103.58.244
 - [ ] 改动涉及渲染 / UI 时，用 CDP 探针实拍并逐张看截图（断言全绿不等于画面没问题）
 - [ ] 改动涉及节点切换 / 护送 / 经营幕时，跑 `node tools/_cdp/management-flash.mjs <edgePath> [staticDir] [outDir]`（自带静态服务，不用先起预览），确认 21 项断言全过：经营面板出现后稳定停留 ≥3 秒、没跳到内讧幕、经营节点没被自动标记完成、没有「护送出 0/0」重复 toast；文字层几何部分断言所有盒子不越出面板、`确认本月分配` 中心 = 200/232、HUD 目标条已收起；`tests/escort.test.ts` 同时全绿
 - [ ] 改动涉及经营面板排版时，逐张看 `management-final.png`（横屏）与 `management-portrait.png`（竖屏模拟）。**竖屏模拟图在无头 Edge 里只占中间一条横带**（真机靠 orientationchange 铺满），黑边不是页面故障；要看的是文字与色块是否同步、确认按钮文字是否落在红块内
+- [ ] 改动涉及波次强化 / 武器 / 近战判定 / `config.json` 时，跑 `node tools/_cdp/wave-upgrade.mjs <edgePath> [staticDir] <outDir>`（自带静态服务），确认 32 项断言全过：近战卡标题与三项、刀光 82°→123°、腰刀/撬棍/弓三实例互不带走、机枪不吃强化、连点只生效一次、`restart` 后全清；`tests/waveUpgrade.test.ts` 同时全绿，且 `config.wave_upgrade` 与 `DEFAULT_WAVE_UPGRADE_TUNING` 一致
 - [ ] 改动涉及死亡 / 复活 / 关卡物件时，跑 `node tools/_cdp/tp-defeat.mjs <edgePath> http://127.0.0.1:4173 tools/_cdp/tp`，确认 `defeat.json` 里 `after.alive / rigDead / tintFill / visiblePickups` 全部达标
 - [ ] 改动涉及远景背景时，跑 `node tools/_cdp/tp-maps.mjs ...`，确认只有城破之战 `horizonTex=['art_bg_strip_tianjing_fall']`、虎门对照组为空，并逐张看 HUD 白字清晰度
 - [ ] 改动涉及远景背景**像素**时，重跑 `python tools/gen_tianjing_fall_bg.py`，自检的「HUD 区亮度 / 可见区平均亮度 / 结构边缘 / 上半部冷色占比 / 墙顶轮廓成形率」必须全过；可见区亮度不得比上一版明显升高（会抢前景），并做一次引擎可见区（源图 x=90..390 / y=0..40，1.6 倍）前后放大对照
@@ -89,6 +90,7 @@ python tools/deploy_ecs.py 39.103.58.244
 | 2026-11-10 | **v1.6.1 敌人贴墙卡死热修**（真机截图「这两个小兵卡住了」）：根因是出怪点抖动 +5px 后身体中心仍在空地、但 12×8 脚盒右角已进边界墙，`footBlocked()` 从此对任何方向都返回 true；而每帧 `rescueStrayEnemies()` 只查中心那一个像素，判定「安全」，永远不救援。修法：① `core/space.ts` 抽 `ENEMY_FOOT` / `footCorners` / `isFootBlocked`，出生点、击退落点、`landingNearForEnemy`、每帧救援统一「中心 + 四角」判据；② 落脚点从**抖动后的点**往外找，不再让多个兵挤回同一格心；③ `advanceWithCollision` 纯函数在两轴全堵时沿墙切向绕行，并按**实际位移**（不是「某轴没被挡」）判卡住——顺带修掉「分量为 0 的轴也算 moved」与「原地蹭 0.02px 仍算在动」两个隐性缺陷；④ `__dshLevel` 加 `footUnsafe` / `enemyStates` 诊断钩子。不改速度、攻击、状态机、数值、地图数据 | `tsc` 0 错；`vitest` 15 文件 / **312 条**全绿（305 → +7）；`vite build` 通过；`tests/space.test.ts` 遍历 10 张地图全部出生点 × 4 方向追击 5 秒，断言无静止卡死；新增 `tools/_cdp/enemy-stuck.mjs`，虎门 + 天京两关实拍 **22 项断言全过、控制台零异常**（含主动复现半嵌墙 → `rescue()` 捞回 → 恢复追击），两张截图人工复核敌兵在开阔地推进 | http://39.103.58.244/game/ |
 | 2026-11-10 | **v1.6.2 天京经营幕闪退热修**（真机截图「这一幕怎么闪一下就没了」）：根因是 `startNode` 换图时的 `await buildWorld` 让出一帧，期间 `mode` 仍是上一幕 escort、玩家还在护送终点，而 `nodeBusy` 被提前置回 false，护送完成判定二次命中 `completeNode()`，把刚进场的天京经营节点标记完成并排队跳到内讧幕（CDP 实测面板只活 542→1105ms、约 0.5 秒，还附带一条「护送出 0/0 名战士」重复 toast）。修法：① `startNode` 拆出门禁包装，整段 async 由 `transitioning` + `nodeBusy` 托管（try/finally + 序号防重入），`mode` 在 `await` 之前就切好；② 新增纯函数 `core/escort.ts → canCompleteEscort`，把「本节点确实在护送 / 非切节点 / 未结算 / 终点已初始化 / 战士还在册」集中判定；③ `clearAllies` 一并作废 `escortGoalX` / `escortTotal`，结算分母改用记录的初始人数，不再出现 0/0。不改任何数值、公式、地图数据、存档结构 | `tsc` 0 错；`vitest` 16 文件 / **321 条**全绿（312 → +9）；`vite build` 通过；新增 `tools/_cdp/management-flash.mjs`（自带静态服务 + 无头 Edge，不依赖常驻预览）：修复前 11 项断言 5 过 6 挂（时间线 542ms 面板出现 → 1105ms 已进内讧幕、`nodes_done` 里躺着经营节点），修复后 **12/12 全过、控制台零异常**，5.4 秒采样里 43 个样本全部停在 management、`nodes_done` 只含护送节点；`management-final.png` 人工复核三栏分配、文案、确认按钮显示正常 | http://39.103.58.244/game/ |
 | 2026-11-10 | **v1.6.3 天京经营面板文字排版修正**（真机竖屏截图「字配歪了」）：根因是 DOM 文字层与 canvas 图元各写各的魔数——① 确认按钮文字层 `left:200;width:120`（中心 260）而红色按钮矩形中心是 200，**整行字偏出 60 逻辑像素**，竖屏旋转 90° 后被放大成明显的错位；② 右上预算条用 `right:46` 右锚到 x=434，顶出面板右边界 380，压在地图上；③ 加减号文字盒没给宽度，`text-align:center` 对 shrink-to-fit 盒子无效，符号偏右 8px；④ 说明长句无宽度约束，几乎顶到面板外；⑤ HUD 目标条固定在 `top:42%`（y≈113）横压第三行「民心」卡片。修法：`core/management.ts` 新增唯一坐标源 `MANAGE_LAYOUT` + `managementTextLayout()`，`LevelScene.renderManagement()` 让两侧共用；文字盒统一 flex 居中、全部约束在面板内（提示行改 10px + 负字距 + nowrap 保完整显示）；预算文案收为「可分配 N 点 · 消耗 M」右对齐到 x=366；经营模式不再 emit 目标条（面板本身已有「天京经营 第 N / 8 月」标题）。**只改经营面板的排版，不动数值、公式、地图数据、存档结构、其它界面** | `tsc` 0 错；`vitest` 16 文件 / **325 条**全绿（321 → +4，新增文字盒同心/不越界/不重叠断言）；`vite build` 通过；`tools/_cdp/management-flash.mjs` 追加 9 项 DOM 几何断言与竖屏模拟实拍，**21/21 全过、控制台零异常**；`management-final.png` 人工复核：标题与预算都在面板内、提示长句完整、三行名称/库存/格子/加减号对齐、「确认本月分配」精确居中于红色按钮；`management-portrait.png` 复核竖屏下文字与色块同步 | http://39.103.58.244/game/ |
+| 2026-11-11 | **v1.7 近战武器波次强化**（用户「现在我的弓箭有波次强化，给近战武器也加上」）：问题不止「近战没强化」——旧版 `showUpgradeCard` 不管手上拿什么武器都弹「弓 术 精 进」，开局拿腰刀时选了完全无效；`upgrades` 是单实例，所有效果都判 `w.id === 'wp_bow'`。修法：① `core/waveUpgrade.ts` 保留弓的全部导出与默认行为（新增参数一律 `cls='bow'`，默认值与旧常量逐字一致），新增 `upgradeClass`（`id==='wp_bow'` → bow；`range ≤ MELEE_RANGE_MAX` → melee，按类别自动覆盖腰刀 / 撬棍及以后新增的近战）、`MELEE_UPGRADES`（同 id / 同 maxLevel / 同 6 次上限）、近战效果 `sweepArcMult` ×1.00/1.25/1.50（判定与刀光同步变宽）、`cleaveDmgMult` ×1.25、共用 `hasteMult`，以及按实例隔离的 `UpgradeBook`；② `config.json` 新增 `wave_upgrade` 数值段 + `types.ts` 的 `WaveUpgradeTuning`，两类共用一张表；③ `constants.ts` 抽 `MELEE_RANGE_MAX=60`，`playerAttack` 与 `weaponSwap` 的近远程判据统一；④ `LevelScene.upgrades` 改为按装备 uid（无则武器 ref）分键的 `UpgradeBook`，卡片按当前类别出标题 / 文案、写回绑定弹卡那一刻的 key，攻速钩子每次攻击按当前实例取倍率，满级判定每波实时算（换武器后仍可弹卡），火枪 / 机枪不参与；开卡时 `hideToast()` 收掉会压住中间卡片的掉落提示。波次触发、三选一、世界冻结、本关内清零、存档结构、弓的数值与文案全部未变 | `tsc` 0 错；`vitest` 16 文件 / **342 条**全绿（325 → +17）；`vite build` 通过；`tools/_cdp/wave-upgrade.mjs` 改为自带静态服务并扩到 **32/32 断言全过、控制台零异常**：近战卡「近 战 精 进 / 横 扫 · 火 线 · 破 甲」、连点三次 `picked=1`、满级 `arcMult=1.5 / cleaveMult=1.25 / 攻速 ÷1.24`、spy `slashAt` 抓到刀光 82°→123°、三实例 key 独立（`ref:wp_dao` / `ref:wp_crowbar` / `ref:wp_bow`）、机枪 `baseMs==actualMs`、换回腰刀状态仍在、`restart` 后全清；`u1-melee-upgrade-card.png` 人工复核三张卡文字完整无重叠 | http://39.103.58.244/game/ |
 
 **回退**：v1.5 想整体退回，把 `items_base.json` 里 5 个 `weapon_ref` 字段删掉即可让武器手感回到原状（config 里新增的 `wp_crowbar` 无人引用、无害可留）；展示层只需移除 `LevelScene` / `EquipmentScene` 里对 `compareWithEquipped` / `slotProgress` / `enhanceGain` 的调用。所有新函数都是纯函数，不改 `SAVE_VERSION`、不改存档结构。
 
@@ -97,6 +99,8 @@ python tools/deploy_ecs.py 39.103.58.244
 **回退（v1.6.2）**：去掉 `startNode` 的门禁包装、在 `startNodeInner` 里恢复 `nodeBusy` 的提前赋值、护送判定改回只判 `x >= goalX && !nodeBusy` 即可——**同样不建议**，这正是经营幕被整幕跳过的原因；`core/escort.ts` 是纯函数，保留它不影响任何数值与存档。
 
 **回退（v1.6.3）**：把 `LevelScene.renderManagement()` 的 `box(...)` 还原成旧的绝对定位字符串、并恢复 `emitObjective('天京经营　分配粮草、兵员、民心')` 即可；`MANAGE_LAYOUT` / `managementTextLayout()` 是纯数据，保留不影响逻辑与存档——但会把「字配歪了」一起带回来。
+
+**回退（v1.7）**：把 `LevelScene.showUpgradeCard` 的 `cls` 固定为 `'bow'`、`currentUpgradeClass()` 恒返回 `'bow'`、并把 `upgradeBook` 换回单个 `UpgradeState` 即可；`core/waveUpgrade.ts` 的新增导出都是纯函数、默认值与旧版一致，保留不影响弓。**不建议**——会把「拿刀弹弓卡、选了没用」一起带回来；`config.json → wave_upgrade` 留着无害（缺省时纯逻辑用同一套默认值兜底）。
 
 **回退（地图）**：把 `game/public/data/nodes/nodes_ch00.json` 里 `nd_1851_jintian_escort` /
 `nd_1853_tianjing_manage` / `nd_1864_tianjing_fall` 三处 `map_ref`，以及

@@ -95,6 +95,18 @@
       "projectile_speed": 380
     }
   },
+  "wave_upgrade": {
+    "max_picks": 6,
+    "haste_per_level": 0.08,
+    "volley": {
+      "spread_px": 7,
+      "damage_per_row": 0.35
+    },
+    "melee": {
+      "sweep_arc_per_row": 0.25,
+      "cleave_damage": 0.25
+    }
+  },
   "enemy_tiers": {
     "mob": {
       "hp": 45,

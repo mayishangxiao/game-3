@@ -12,6 +12,7 @@
  */
 
 import { compareWithEquipped, enhancedValue, formatStatDelta } from './balance';
+import { MELEE_RANGE_MAX } from './constants';
 import type { BalanceConfig, ItemBase, ItemInstance, Quality, SaveData } from './types';
 
 /** 拒绝原因。UI 一律走 `SWAP_REJECT_TEXT`，不在场景里散落中文。 */
@@ -151,7 +152,7 @@ export function listWeaponOptions(
     return {
       weaponRef: ref,
       weaponName: w?.name ?? (ref ? '未知武器' : '未配置武器'),
-      kindText: w ? (w.range > 60 ? '远程' : '近战') : '—',
+      kindText: w ? (w.range > MELEE_RANGE_MAX ? '远程' : '近战') : '—',
     };
   };
 

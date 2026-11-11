@@ -1,27 +1,62 @@
-// 波次强化专项探针：确认「每清一波弹三选一」真的弹、真的能点、选完弓真的变强。
+// 波次强化专项探针（v1.7）：弓 + 全部近战武器，每清一波弹三选一，
+// 卡片按当前武器类别显示，强化状态按武器实例隔离。
 //
-// 为什么要探针而不是只看单测：单测钉住的是纯逻辑（行数/倍率算得对），
-// 但「卡片有没有真的出现在屏幕中间」「点下去有没有关掉」「关掉后摇杆有没有回来」
-// 只有真浏览器能验。而且这里有个历史坑——卡片开着的标志与 `pendingCardTap`
-// 不同步时，摇杆会一直收着，玩家表现为「选完就动不了了」。
+// 为什么要探针而不是只看单测：单测钉住纯逻辑（行数/倍率/上限算得对），
+// 但「卡片有没有真的出现在屏幕中间」「点下去有没有关掉」「换武器后状态有没有串」
+// 「刀光有没有跟着扇形一起变宽」只有真浏览器能验。历史坑：卡片开着时
+// `pendingCardTap` 不同步会让摇杆一直收着，玩家表现为「选完就动不了了」。
 //
 // 用法：
-//   node tools/_cdp/wave-upgrade.mjs "<edgePath>" "<baseUrl>" [outDir]
+//   node tools/_cdp/wave-upgrade.mjs "<edgePath>" [staticDir|baseUrl] [outDir]
+// 第二个参数传本地目录（默认 dist）时脚本自带静态服务，不依赖任何常驻预览进程；
+// 传 http(s):// 则直接访问该地址。
 // 输出 <outDir>/wave-upgrade.json + u1..u5 截图。
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { createServer } from 'node:http';
+import { mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { join, resolve, extname, normalize } from 'node:path';
+import { Buffer } from 'node:buffer';
 
 const edgePath = process.argv[2];
-const baseUrl = process.argv[3] ?? 'http://127.0.0.1:4173';
+const target = process.argv[3] ?? 'dist';
 const outDir = resolve(process.argv[4] ?? 'tools/_cdp');
-const PORT = 9402;
+const CDP_PORT = 9402;
+const HTTP_PORT = 9403;
 const profile = join(outDir, '_profile-wave-upgrade');
 
 if (!edgePath) {
-  console.error('usage: node tools/_cdp/wave-upgrade.mjs "<edgePath>" [baseUrl] [outDir]');
+  console.error('usage: node tools/_cdp/wave-upgrade.mjs "<edgePath>" [staticDir|baseUrl] [outDir]');
   process.exit(2);
 }
+
+const isRemote = /^https?:\/\//.test(target);
+const staticDir = isRemote ? null : resolve(target);
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+};
+const server = isRemote
+  ? null
+  : createServer(async (req, res) => {
+      try {
+        const pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+        const rel = normalize(pathname.replace(/^\/+/, '')).replace(/^(\.\.[/\\])+/, '');
+        const file = resolve(staticDir, rel === '' || rel === '.' ? 'index.html' : rel);
+        if (!file.startsWith(staticDir)) {
+          res.writeHead(403).end();
+          return;
+        }
+        const body = await readFile(file);
+        res.writeHead(200, { 'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream' });
+        res.end(body);
+      } catch {
+        res.writeHead(404).end('not found');
+      }
+    });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -38,12 +73,14 @@ async function waitFor(fn, timeout, label) {
 await mkdir(outDir, { recursive: true });
 await rm(profile, { recursive: true, force: true }).catch(() => {});
 await mkdir(profile, { recursive: true });
+if (server) await new Promise((res) => server.listen(HTTP_PORT, '127.0.0.1', res));
+const baseUrl = isRemote ? target : `http://127.0.0.1:${HTTP_PORT}`;
 
 const edge = spawn(
   edgePath,
   [
     '--headless=new',
-    `--remote-debugging-port=${PORT}`,
+    `--remote-debugging-port=${CDP_PORT}`,
     `--user-data-dir=${profile}`,
     '--no-first-run',
     '--no-default-browser-check',
@@ -60,7 +97,7 @@ try {
   const list = await waitFor(
     async () => {
       try {
-        const r = await fetch(`http://127.0.0.1:${PORT}/json/list`);
+        const r = await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`);
         const j = await r.json();
         const page = j.find((t) => t.type === 'page');
         return page ? page.webSocketDebuggerUrl : null;
@@ -147,10 +184,8 @@ try {
     await sleep(160);
   }
   await waitFor(() => evaluate('window.__dshLevel.allEnemies().length > 0'), 20000, 'first wave');
-  // 关键：`spawnWave` 是「每 260ms 放一个」的定时器，`wavePending` 在最后一个敌人出现后才清。
-  // 上一版探针在第一波还没放完时就 clearWave，结果清空的瞬间下一批又刷出来，
-  // `alive` 永远不等于 0 → 波次分支不进 → 卡片永远不弹（白跑一轮）。
-  // 所以必须等 `wavePending === false`（本波出齐）再动手。
+  // `spawnWave` 是「每 260ms 放一个」的定时器，必须等 wavePending === false 再清场，
+  // 否则清空的瞬间下一批又刷出来，alive 永远不等于 0，卡片永远不弹。
   await waitFor(
     () => evaluate('window.__dshGame.scene.getScene("Level").wavePending === false'),
     20000,
@@ -158,11 +193,20 @@ try {
   );
   await sleep(300);
 
+  // 强制拿腰刀：干净存档本来就给刀，这里钉死起点，避免存档差异把近战断言变成弓断言。
+  await evaluate(`(() => {
+    const L = window.__dshGame.scene.getScene('Level');
+    if (L.player.weapon.id !== 'wp_dao') L.player.setWeapon(L.cfg.weapons.wp_dao, 0xcccccc);
+    return L.player.weapon.id;
+  })()`);
   report.before = await evaluate('window.__dshLevel.upgrades()');
   report.checks.startsWithSingleRow = report.before?.rows === 1;
   report.checks.startsWithNoSummary = report.before?.summary === '';
+  report.checks.startsWithMeleeClass = report.before?.weaponClass === 'melee';
+  report.checks.startsWithBaseArc = report.before?.arcMult === 1;
+  report.checks.startsWithBaseCleave = report.before?.cleaveMult === 1;
 
-  // 清掉这一波 → 下一波判定里应该弹强化卡
+  // 清掉这一波 → 下一波判定里应该弹**近战**强化卡
   await evaluate('window.__dshLevel.clearWave()');
   const cardShown = await waitFor(
     async () => (await evaluate('window.__dshLevel.upgrades().cardOpen')) === true,
@@ -172,10 +216,8 @@ try {
   report.checks.cardAppearsAfterWaveCleared = cardShown === true;
   if (!cardShown) throw new Error('强化卡没有弹出');
   await sleep(400);
-  await shot('u1-upgrade-card.png');
+  await shot('u1-melee-upgrade-card.png');
 
-  // 卡片必须真的在屏幕中间，而且有 3 个可点区域（用 elementFromPoint 反查不到 canvas，
-  // 因为卡片是 Phaser 画在 canvas 里的，所以这里改成数「容器里的子对象」）
   report.card = await evaluate(`(() => {
     const L = window.__dshGame.scene.getScene('Level');
     const texts = [];
@@ -187,57 +229,99 @@ try {
     return { texts };
   })()`);
   const cardTexts = report.card?.texts ?? [];
-  report.checks.cardShowsTitle = cardTexts.some((t) => String(t).includes('弓'));
-  report.checks.cardShowsThreeChoices = cardTexts.filter((t) =>
-    ['齐 射', '火 线', '穿 透'].includes(String(t)),
-  ).length;
+  const allText = cardTexts.join('|');
+  report.checks.cardShowsMeleeTitle = cardTexts.some((t) => String(t).includes('近 战 精 进'));
+  report.checks.cardShowsThreeChoices =
+    cardTexts.filter((t) => ['横 扫', '火 线', '破 甲'].includes(String(t))).length === 3;
+  report.checks.cardShowsCurrentWeapon = allText.includes('当前近战武器');
   report.checks.cardWorldFrozen = (await evaluate('window.__dshGame.scene.getScene("Level").introOpen')) === true;
   report.checks.controlsHiddenDuringCard = await evaluate(
     `document.querySelector('#controls, .controls, #dpad') ? getComputedStyle(document.querySelector('#controls, .controls, #dpad')).display !== 'none' : true`,
   );
 
-  // 点第一张卡（走 pendingCardTap，等价于玩家点击）
-  await evaluate('window.__dshLevel.pickUpgrade(0)');
+  // 连点三次：finish() 的 closed 闸门必须只让第一次生效（重复触发场景）
+  await evaluate(`(() => {
+    const H = window.__dshLevel;
+    H.pickUpgrade(0); H.pickUpgrade(0); H.pickUpgrade(0);
+    return true;
+  })()`);
   await sleep(500);
   report.afterChoice = await evaluate('window.__dshLevel.upgrades()');
   report.checks.cardClosesAfterPick = report.afterChoice?.cardOpen === false;
   report.checks.upgradeApplied = (report.afterChoice?.picked ?? 0) === 1;
+  report.checks.repeatPickIgnored = (report.afterChoice?.picked ?? 0) === 1;
   report.checks.summaryNonEmpty = (report.afterChoice?.summary ?? '').length > 0;
   report.checks.worldResumed = (await evaluate('window.__dshGame.scene.getScene("Level").introOpen')) === false;
-  await shot('u2-after-pick.png');
+  await shot('u2-melee-after-pick.png');
 
-  // 弓的实时参数：火线/齐射有没有真的进到武器与射速里
-  // 注意：开局玩家拿的是刀（wp_dao），弓要捡第 2 波前掉的那把 eq_wp_bow_white_01。
-  // 探针不走去捡那一步，直接把武器换成弓——这段测的是「强化对弓的作用」，不是掉落链路。
-  await evaluate(`(() => {
+  // 近战满级：横扫 ×1.50 / 破甲 ×1.25 / 火线 ×1.24，且刀光真的跟着变宽。
+  // 用 spy 抓 slashAt 的第 6 个参数 spreadDeg：0 级 82°，满级 82×1.5=123°。
+  await evaluate('window.__dshLevel.setUpgrades({volley: 2, haste: 3, pierce: 1, picked: 6})');
+  report.meleeMax = await evaluate('window.__dshLevel.weaponInfo()');
+  report.checks.meleeMaxArc = Math.abs((report.meleeMax?.arcMult ?? 0) - 1.5) < 1e-6;
+  report.checks.meleeMaxCleave = Math.abs((report.meleeMax?.cleaveMult ?? 0) - 1.25) < 1e-6;
+  report.checks.meleeHaste =
+    Math.abs((report.meleeMax?.actualMs ?? 0) - (report.meleeMax?.baseMs ?? 0) / 1.24) < 1.5;
+  const slashSpy = `() => {
     const L = window.__dshGame.scene.getScene('Level');
-    const bow = L.cfg.weapons.wp_bow;
-    L.player.weapon = bow;
-    L.save.weapons = Array.from(new Set([...(L.save.weapons || []), 'wp_bow']));
-    return L.player.weapon.id;
-  })()`);
-  report.bow = await evaluate('window.__dshLevel.bowInfo()');
-  report.checks.bowIsSingleShotBase = report.bow?.id === 'wp_bow';
+    const orig = L.slashAt;
+    let captured = null;
+    L.slashAt = function (x, y, ang, reach, color, spread) {
+      captured = { reach: reach, spread: spread };
+      return orig.call(this, x, y, ang, reach, color, spread);
+    };
+    L.player.attackCd = 0;
+    try { L.playerAttack(1); } finally { L.slashAt = orig; }
+    return captured;
+  }`;
+  report.slashMax = await evaluate(`(${slashSpy})()`);
+  await evaluate('window.__dshLevel.setUpgrades({volley: 0, haste: 0, pierce: 0, picked: 0})');
+  report.slashBase = await evaluate(`(${slashSpy})()`);
+  report.checks.meleeSlashWidens =
+    Math.abs((report.slashMax?.spread ?? 0) - 123) < 0.01 &&
+    Math.abs((report.slashBase?.spread ?? 0) - 82) < 0.01;
+  await sleep(120);
+  await shot('u3-melee-wide-sweep.png');
 
-  // 直接把齐射拉到满级，确认「三行」真的会一次发三支箭
-  await evaluate('window.__dshLevel.setUpgrades({volley: 2, haste: 3, pierce: 1})');
-  const before = await evaluate('window.__dshLevel.enemies().length');
+  // 状态隔离：腰刀满级 → 撬棍（第二种近战）全新 → 弓全新 → 换回腰刀仍在。
+  await evaluate('window.__dshLevel.setUpgrades({volley: 2, haste: 3, pierce: 1, picked: 6})');
+  const setWeapon = `(id) => {
+    const L = window.__dshGame.scene.getScene('Level');
+    L.player.setWeapon(L.cfg.weapons[id], 0xcccccc);
+    return window.__dshLevel.upgrades();
+  }`;
+  report.crowbarFresh = await evaluate(`(${setWeapon})('wp_crowbar')`);
+  report.checks.secondMeleeWeaponFresh =
+    report.crowbarFresh?.weaponClass === 'melee' &&
+    (report.crowbarFresh?.picked ?? -1) === 0 &&
+    report.crowbarFresh?.arcMult === 1;
+  await evaluate('window.__dshLevel.setUpgrades({volley: 1, picked: 1})');
+  report.crowbarUp = await evaluate('window.__dshLevel.upgrades()');
+  report.checks.crowbarUpgradeIndependent = Math.abs((report.crowbarUp?.arcMult ?? 0) - 1.25) < 1e-6;
+
+  report.bowFresh = await evaluate(`(${setWeapon})('wp_bow')`);
+  report.checks.bowStateFresh =
+    report.bowFresh?.weaponClass === 'bow' && (report.bowFresh?.picked ?? -1) === 0;
+  report.bowInfo = await evaluate('window.__dshLevel.bowInfo()');
+  report.checks.bowIsSingleShotBase = report.bowInfo?.id === 'wp_bow' && report.bowInfo?.arrows === 1;
+
+  // 弓的实时参数：火线 / 齐射有没有真的进到武器与射速里
+  await evaluate('window.__dshLevel.setUpgrades({volley: 2, haste: 3, pierce: 1, picked: 6})');
   report.shot3 = await evaluate(`(() => {
     const L = window.__dshGame.scene.getScene('Level');
     L.player.attackCd = 0;
     L.projectiles.length = 0;
     L.playerAttack(1);
-    return { arrows: L.projectiles.length, before: ${before} };
+    return { arrows: L.projectiles.length };
   })()`);
   report.checks.threeRowsFireThreeArrows = report.shot3?.arrows === 3;
   report.bowMax = await evaluate('window.__dshLevel.bowInfo()');
   report.checks.hasteSpeedsUpBow =
     Math.abs((report.bowMax?.actualMs ?? 0) - (report.bowMax?.baseMs ?? 0) / 1.24) < 1.5;
   await sleep(120);
-  await shot('u3-three-row-volley.png');
+  await shot('u4-bow-three-row-volley.png');
 
-  // 单发（把齐射清零）对照：确认「不是随便都发三支」
-  await evaluate('window.__dshLevel.setUpgrades({volley: 0, haste: 0, pierce: 0})');
+  await evaluate('window.__dshLevel.setUpgrades({volley: 0, haste: 0, pierce: 0, picked: 0})');
   const single = await evaluate(`(() => {
     const L = window.__dshGame.scene.getScene('Level');
     L.player.attackCd = 0;
@@ -246,14 +330,22 @@ try {
     return { arrows: L.projectiles.length };
   })()`);
   report.checks.zeroLevelFiresOneArrow = single?.arrows === 1;
-  await shot('u4-single-arrow.png');
 
-  // 强化不跨关：重进关卡后必须清零
-  await evaluate(`(() => {
-    const L = window.__dshGame.scene.getScene('Level');
-    L.upgrades = { volley: 2, haste: 3, pierce: 1, picked: 6 };
-    return true;
-  })()`);
+  // 其它远程不参与强化：机枪的攻速保持 config.json 原值
+  report.mg = await evaluate(`(${setWeapon})('wp_mg')`);
+  report.mgInfo = await evaluate('window.__dshLevel.weaponInfo()');
+  report.checks.otherRangedUnaffected =
+    report.mgInfo?.weaponClass === 'other' &&
+    Math.abs((report.mgInfo?.actualMs ?? 0) - (report.mgInfo?.baseMs ?? 1)) < 1e-6;
+
+  // 换回腰刀：本关累积的强化还在（同一实例 key 稳定）
+  report.daoBack = await evaluate(`(${setWeapon})('wp_dao')`);
+  report.checks.backToDaoKeepsState =
+    (report.daoBack?.picked ?? -1) === 6 && Math.abs((report.daoBack?.arcMult ?? 0) - 1.5) < 1e-6;
+  report.states = await evaluate('window.__dshLevel.upgradeStates()');
+  report.checks.statesAreSeparateKeys = Object.keys(report.states ?? {}).length >= 3;
+
+  // 强化不跨关：重进关卡后**所有实例**一起清零
   await evaluate(`(() => {
     const L = window.__dshGame.scene.getScene('Level');
     L.scene.restart();
@@ -265,7 +357,9 @@ try {
     await sleep(300);
   }
   report.afterRestart = await evaluate('window.__dshLevel.upgrades()').catch(() => null);
+  report.statesAfterRestart = await evaluate('window.__dshLevel.upgradeStates()').catch(() => null);
   report.checks.upgradesResetOnRestart = (report.afterRestart?.picked ?? -1) === 0;
+  report.checks.allStatesClearedOnRestart = Object.keys(report.statesAfterRestart ?? { none: 1 }).length === 0;
   await shot('u5-after-restart.png');
 } catch (e) {
   report.fatal = String(e && e.message ? e.message : e);
@@ -289,6 +383,13 @@ try {
     edge.kill();
   } catch {
     /* ignore */
+  }
+  if (server) {
+    try {
+      server.close();
+    } catch {
+      /* ignore */
+    }
   }
   process.exit(report.verdict.ok ? 0 : 1);
 }
