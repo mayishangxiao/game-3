@@ -9,7 +9,7 @@ import { InputSystem } from '../systems/InputSystem';
 import { EV, bus, emitOpenWeaponBag, getCannonVisible, getControlsVisible, getHudVisible, getSceneLabel, getWeaponBagVisible, setControlsVisible, type HudPayload, type SceneLabelPayload, type ToastPayload } from '../core/EventBus';
 import { DYNASTY_MAX } from '../core/cannon';
 import { FONT_UI } from '../gfx/TextStyle';
-import { hideFloat, hideOverlay, setHudDynasty, setHudLevel, setHudObjective, setHudScene, setHudVisible, setHudWeapon, showOverlay, showToast } from '../systems/DomUi';
+import { hideFloat, hideOverlay, scaleHudButtons, setHudDynasty, setHudLevel, setHudObjective, setHudScene, setHudVisible, setHudWeapon, showOverlay, showToast } from '../systems/DomUi';
 
 const BAR_X = 6;
 const BAR_W = 84;
@@ -224,20 +224,8 @@ export class UIScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     this.bagBtn.on('pointerdown', () => emitOpenWeaponBag());
 
-    // 右上角「暂停」按钮文字走 DOM
-    const pauseDom = document.createElement('div');
-    pauseDom.id = 'dom-pause-btn';
-    pauseDom.style.cssText = 'position:absolute;right:14px;top:2px;color:#F2EDE4;font:11px sans-serif;pointer-events:none;line-height:16px;';
-    pauseDom.textContent = '暂停';
-    (document.querySelector('#dom-ui') as HTMLElement)?.appendChild(pauseDom);
-    // dom-ui 不随 Phaser 场景生命周期回收，重进关卡时别叠出第二个「背包」
-    if (!document.getElementById('dom-bag-btn')) {
-      const bagDom = document.createElement('div');
-      bagDom.id = 'dom-bag-btn';
-      bagDom.style.cssText = 'position:absolute;right:54px;top:2px;color:#F0C419;font:11px sans-serif;pointer-events:none;line-height:16px;';
-      bagDom.textContent = '背包';
-      (document.querySelector('#dom-ui') as HTMLElement)?.appendChild(bagDom);
-    }
+    // 右上角两枚按钮的文字走 DOM，底板在 canvas 上；创建规则见 ensureTopButtonLabels()
+    this.ensureTopButtonLabels();
 
     this.inputSystem = new InputSystem(this);
     // 中文文字全部搬到 DOM（DomUi）：canvas 上这些 Text 对象隐藏，只留血条/底槽等色块
@@ -281,6 +269,12 @@ export class UIScene extends Phaser.Scene {
       bus.off(EV.HUD_VISIBLE, this.onHudVisible, this);
       bus.off(EV.CANNON_VISIBLE, this.onCannonVisible, this);
       bus.off(EV.WEAPON_BAG_VISIBLE, this.onWeaponBagVisible, this);
+      // 谁往 #dom-ui 塞东西谁自己收：hideOverlay() 现在会保留常驻 HUD 文字，
+      // 所以退出战斗（回主菜单 / 回长廊）时必须由本场景把这两行字摘掉，
+      // 否则标题页会浮着没有底板的「暂停」「背包」。下次 create() 会重建。
+      document.getElementById('dom-hud-buttons')?.remove();
+      document.getElementById('dom-pause-btn')?.remove();
+      document.getElementById('dom-bag-btn')?.remove();
       this.inputSystem.destroy();
     });
   }
@@ -383,11 +377,61 @@ export class UIScene extends Phaser.Scene {
   }
 
   /**
+   * 右上角两枚按钮的 DOM 文字：「暂停」（右）/「背包」（右二）。
+   *
+   * 幂等 + 自愈：`#dom-ui` 不随 Phaser 场景生命周期回收，重进关卡时不能叠出
+   * 第二个「暂停」；反过来，任何一次显隐同步都要保证两行字确实在文档里——
+   * `hideOverlay()` 早年按反向白名单清 DOM 时误删过它们，只剩两个空框。
+   * 样式与坐标逐字保持原值，这里不参与任何布局调整。
+   */
+  private ensureTopButtonLabels(): void {
+    const ui = document.querySelector('#dom-ui') as HTMLElement | null;
+    if (!ui) return;
+    // 逻辑坐标盒：按钮文字仍用 480×270 下的原始 right/top/字号，由 DomUi 按画布缩放比整体放大。
+    // 没有这层盒子时，宽画布下两行字会一起挤到右边那块底板上。
+    let host = document.getElementById('dom-hud-buttons') as HTMLDivElement | null;
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'dom-hud-buttons';
+      host.dataset.domUiPersist = '1';
+      host.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;transform-origin:top left;';
+      ui.appendChild(host);
+    }
+    const defs: Array<{ id: string; text: string; css: string }> = [
+      {
+        id: 'dom-pause-btn',
+        text: '暂停',
+        css: 'position:absolute;right:14px;top:2px;color:#F2EDE4;font:11px sans-serif;pointer-events:none;line-height:16px;',
+      },
+      {
+        id: 'dom-bag-btn',
+        text: '背包',
+        css: 'position:absolute;right:54px;top:2px;color:#F0C419;font:11px sans-serif;pointer-events:none;line-height:16px;',
+      },
+    ];
+    for (const d of defs) {
+      let el = document.getElementById(d.id) as HTMLDivElement | null;
+      if (!el) {
+        el = document.createElement('div');
+        el.id = d.id;
+        el.style.cssText = d.css;
+      }
+      // 老版本把按钮直接挂在 #dom-ui 下；这里一律挪进逻辑坐标盒
+      if (el.parentElement !== host) host.appendChild(el);
+      // hideOverlay() 靠这个标记把「常驻 HUD」和「场景级浮动标签」分开
+      el.dataset.domUiPersist = '1';
+      if (el.textContent !== d.text) el.textContent = d.text;
+    }
+    scaleHudButtons();
+  }
+
+  /**
    * 顶部两枚按钮的唯一显隐入口。
    * HUD 整块收起（开场卡 / 暂停）或换武器面板打开时都要收，
    * 否则全屏面板上会浮着一枚按得到的「暂停」，出现两层界面叠加。
    */
   private syncTopButtons(): void {
+    this.ensureTopButtonLabels();
     const show = this.hudShown && !this.bagOpenNow;
     this.pauseBtn?.setVisible(show);
     this.bagBtn?.setVisible(show);

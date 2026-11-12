@@ -195,12 +195,13 @@ python tools/analyze_shots.py tools/_cdp2       # 截图调色板合规性
 
 ### DOM 文字层的重叠问题（2026-11-08 甲方手机截图「有文字重叠」）
 
-HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser 的场景生命周期**——场景停了，它塞进去的节点还在。两处真重叠：
+HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser 的场景生命周期**——场景停了，它塞进去的节点还在。三处真问题：
 
 1. 第二次离开长廊时，副本面板 + 底部四入口还叠在战斗画面上（`HubScene` 指着隐式 `shutdown()` 方法，而 Phaser 3.90 根本不会调它）。现在 `create()` 里显式挂 `events.once(SHUTDOWN, ...)`，`LevelScene.boot()` 也在第一个 `await` 之前先把 DOM 浮层收干净。
 2. 右上角「暂停」出现「暂停暂停」：canvas 那份隐藏 Text 被 `setHudShown(true)` 重新点亮，和 DOM 版并排。canvas 版已删除。
+3. 右上角两个框变空框（v1.8.1）：`hideOverlay()` 按 id 反向白名单清「场景级浮动标签」，把同为 `#dom-ui` 直接子元素的「暂停 / 背包」两行字一起删了，canvas 底板却照常可见。现在常驻节点带 `data-dom-ui-persist` 并放在随画布等比缩放的逻辑坐标盒里，`UIScene.syncTopButtons()` 幂等补齐、`SHUTDOWN` 自己收；顺带修掉放大画布时两行字挤进同一个框的换算缺失。
 
-验证脚本：`node tools/_cdp/domstale.mjs "<msedge.exe>" <url> <out>` —— 走 Hub→Level→Hub→Level 四跳，逐跳把 `#dom-ui` 的子元素列出来（第二跳之后是关键，隐式钩子的坑只在第二次离开时暴露）。本地与线上四跳均干净、`errors: []`；`touch.mjs` 7/7、`salvo.mjs` ALL PASS。
+验证脚本：`node tools/_cdp/domstale.mjs "<msedge.exe>" <url> <out>` —— 走 Hub→Level→Hub→Level 四跳，逐跳把 `#dom-ui` 的子元素列出来（第二跳之后是关键，隐式钩子的坑只在第二次离开时暴露）。本地与线上四跳均干净、`errors: []`；`touch.mjs` 7/7、`salvo.mjs` ALL PASS。右上两枚按钮的专项是 `node tools/_cdp/top-buttons-label.mjs "<msedge.exe>" [staticDir] <out>`（45 项断言，含缩放对齐、暂停/背包往返、场景停建与 DOM 清理）。
 
 ### 单元测试锁定了什么（17 个文件 / 370 条）
 

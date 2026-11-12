@@ -62,6 +62,7 @@ export function syncDomUiToCanvas(canvas: HTMLCanvasElement): void {
   ui.style.width = `${canvas.clientWidth}px`;
   ui.style.height = `${canvas.clientHeight}px`;
   scaleOverlay();
+  scaleHudButtons();
 }
 
 export function showDialogue(): void {
@@ -221,9 +222,16 @@ export function hideOverlay(): void {
     overlay.style.display = 'none';
     overlay.innerHTML = '';
   }
-  // 清掉场景级浮动标签（章节门等直接挂在 #dom-ui 下的元素）
+  // 清掉场景级浮动标签（章节门等直接挂在 #dom-ui 下的元素）。
+  // **常驻 HUD 不在此列**：UIScene 的「暂停」「背包」两行字也直接挂在 #dom-ui 下，
+  // 但只有两块底板画在 canvas 上、字必须常驻。早期这个反向白名单漏掉它们，
+  // 进战斗关开场卡 / 关暂停 / 换节点时调 hideOverlay() 会把两行字一起 remove，
+  // 只剩右上角两个空框。带 data-dom-ui-persist 的一律保留，两个 id 再兜一层底。
   document
-    .querySelectorAll('#dom-ui > div:not(#dom-title):not(#dom-dialogue):not(#dom-hud):not(#dom-toast):not(#dom-overlay):not(#dom-float)')
+    .querySelectorAll(
+      '#dom-ui > div:not(#dom-title):not(#dom-dialogue):not(#dom-hud):not(#dom-toast):not(#dom-overlay):not(#dom-float)' +
+        ':not(#dom-pause-btn):not(#dom-bag-btn):not(#dom-hud-buttons):not([data-dom-ui-persist])',
+    )
     .forEach((el) => el.remove());
 }
 
@@ -236,4 +244,24 @@ function scaleOverlay(): void {
   overlay.style.height = '270px';
   overlay.style.transform = `scale(${s})`;
   overlay.style.transformOrigin = 'top left';
+}
+
+/**
+ * 右上角两枚按钮的文字放在一个 480×270 的逻辑坐标盒里，按画布缩放比整体放大。
+ *
+ * 为什么要有这个盒子：canvas 底板按 480×270 逻辑坐标绘制、再随画布等比放大，
+ * 而这两行 DOM 文字原本直接挂在 #dom-ui（宽度 = 画布 CSS 宽度）上用固定 px 定位。
+ * 画布一放大，right:14px / right:54px 就不再对应各自那块底板，两个字会一起挤到
+ * 右边框里、左边框空着。套一层等比缩放的逻辑盒，按钮自身的 CSS 声明一个字都不用改，
+ * 两种尺寸下都能落回自己的框。与 scaleOverlay() 是同一套换算。
+ */
+export function scaleHudButtons(): void {
+  const host = document.getElementById('dom-hud-buttons') as HTMLDivElement | null;
+  if (!host) return;
+  const canvas = document.querySelector('#game-root canvas') as HTMLCanvasElement | null;
+  const s = (canvas?.clientWidth ?? 480) / 480;
+  host.style.width = '480px';
+  host.style.height = '270px';
+  host.style.transform = `scale(${s})`;
+  host.style.transformOrigin = 'top left';
 }
