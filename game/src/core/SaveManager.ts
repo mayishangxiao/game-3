@@ -5,6 +5,7 @@
 
 import { SAVE_KEY, SAVE_VERSION } from './constants';
 import { levelStats } from './balance';
+import { DEFAULT_SELECTED_WEAPON } from './weaponSelection';
 import type { BalanceConfig, ItemBase, ItemInstance, Quality, SaveData, Slot } from './types';
 
 export function createDefaultSave(cfg: BalanceConfig, now = new Date()): SaveData {
@@ -30,6 +31,8 @@ export function createDefaultSave(cfg: BalanceConfig, now = new Date()): SaveDat
     bag: { slots: 60, items: [] },
     scrap: 30,
     weapons: ['wp_dao'],
+    // 开局固定拿腰刀；解锁列表里后来加进来的弓不会自动顶替它
+    selected_weapon: DEFAULT_SELECTED_WEAPON,
     skills: [],
     knowledge: [],
     quiz: {},
@@ -57,6 +60,12 @@ export function migrate(raw: unknown, cfg: BalanceConfig): SaveData {
     settings: { ...base.settings, ...(s.settings ?? {}) },
     inventory: Array.isArray(s.inventory) ? s.inventory : [],
     weapons: Array.isArray(s.weapons) && s.weapons.length > 0 ? s.weapons : base.weapons,
+    // 老存档没有「选定武器」：优先沿用当时武器槽里那件，保住玩家原来的选择；
+    // 连武器槽也是空的就回到开局腰刀。绝不按解锁列表里有没有弓来推断。
+    selected_weapon:
+      typeof s.selected_weapon === 'string' && s.selected_weapon.length > 0
+        ? s.selected_weapon
+        : (s.equipment?.weapon?.weapon_ref ?? base.selected_weapon),
     skills: Array.isArray(s.skills) ? s.skills : [],
     knowledge: Array.isArray(s.knowledge) ? s.knowledge : [],
     quiz: s.quiz && typeof s.quiz === 'object' ? s.quiz : {},
@@ -208,6 +217,8 @@ export function slotProgress(data: SaveData, items: ItemBase[]): Record<Slot, Sl
 export function equipItem(data: SaveData, item: ItemInstance): ItemInstance | null {
   const prev = data.equipment[item.slot as Slot] ?? null;
   data.equipment[item.slot as Slot] = item;
+  // 装备界面是玩家主动选择，同步「选定武器」；没有 ref 的老实例由 LevelScene 兜底。
+  if (item.slot === 'weapon' && item.weapon_ref) data.selected_weapon = item.weapon_ref;
   return prev;
 }
 

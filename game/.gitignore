@@ -42,6 +42,10 @@ tools/_cdp/*/
 !tools/_cdp/weapon-swap.mjs
 # 敌人贴墙卡死回归探针（v1.6：脚盒四角判据 / 出生点校正 / 贴墙绕行 / 救援恢复）
 !tools/_cdp/enemy-stuck.mjs
+# 开炮提示文案回归探针（v1.7.1：虎门保留史实名 / 天京与三个副本一律「重炮」/ toast 样式不变）
+!tools/_cdp/cannon-label.mjs
+# 开局武器选择 + 近战攻击向强化回归探针（v1.8：全程不被换弓 / 九张卡 / 组合技实拍）
+!tools/_cdp/weapon-selection.mjs
 
 # 发布 staging / 打包产物：由 DEPLOY.md 的流程从 dist 重建，纯产物，不入库。
 # 历史版本曾被误提交，用 `git rm -r --cached tools/_stage` 移出索引即可（工作区保留）。

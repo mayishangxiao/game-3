@@ -150,6 +150,12 @@ export class EquipmentScene extends Phaser.Scene {
     // 换装前先算差值：装备写进去之后就只剩「已装备 XX」，玩家无从判断这次换得值不值
     const delta = compareWithEquipped(item, save.equipment);
     save.equipment[item.slot] = item;
+    // 玩家主动换武器 → 更新「选定武器」。这是唯一真值，进关 / 重试 / 换图都读它；
+    // 老实例的 weapon_ref 可能缺失，按 base_id 回模板表补一次。
+    if (item.slot === 'weapon') {
+      const ref = item.weapon_ref ?? dataLoader.findItemBase(item.base_id)?.weapon_ref;
+      if (ref) save.selected_weapon = ref;
+    }
     // 从背包移除，旧装备放回背包
     save.bag.items = save.bag.items.filter((i) => i.uid !== item.uid);
     if (prev) save.bag.items.push(prev);

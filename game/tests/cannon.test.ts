@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
+  CANNON_NAME_GENERIC,
   DYNASTY_MAX,
   applyDynastyDelta,
+  cannonDisplayName,
   cannonReady,
   cooldownSeconds,
   planCannonShot,
@@ -134,6 +138,98 @@ describe('清王朝血条', () => {
     expect(applyDynastyDelta(100, -38)).toBe(62);
     expect(applyDynastyDelta(10, -38)).toBe(0);
     expect(applyDynastyDelta(95, 10)).toBe(100);
+  });
+});
+
+/* ==================== 开炮提示按战场区分（4.3.10） ==================== */
+
+const DATA = join(process.cwd(), 'public', 'data');
+function read<T>(rel: string): T {
+  return JSON.parse(readFileSync(join(DATA, rel), 'utf8')) as T;
+}
+
+describe('开炮显示名：虎门保留原名，其它战场不含地名', () => {
+  const HUMEN = { actId: 'ch00_act1', nodeId: 'nd_1841_humen_battle', dungeon: false };
+  const TIANJING = { actId: 'ch00_act2', nodeId: 'nd_1864_tianjing_fall', dungeon: false };
+
+  it('虎门炮台守卫战沿用配置里的「虎门重炮」', () => {
+    expect(cannonDisplayName(HUMEN, P.name)).toBe('虎门重炮');
+  });
+
+  it('天京陷落与其它幕开炮统一叫「重炮」，不出现「虎门」', () => {
+    const label = cannonDisplayName(TIANJING, P.name);
+    expect(label).toBe(CANNON_NAME_GENERIC);
+    expect(label).not.toContain('虎门');
+    expect(`${label}！`).not.toContain('虎门');
+    expect(`${label}冷却中 ${cooldownSeconds(8000)} 秒`).not.toContain('虎门');
+  });
+
+  it('副本即使解锁于第一幕也不算虎门战场', () => {
+    expect(cannonDisplayName({ ...HUMEN, dungeon: true }, P.name)).toBe(CANNON_NAME_GENERIC);
+    expect(cannonDisplayName({ actId: 'ch00_act1', nodeId: null, dungeon: true }, P.name)).toBe(
+      CANNON_NAME_GENERIC,
+    );
+  });
+
+  it('幕 / 节点缺失、名字为空，都 fail-safe 回落到通用名', () => {
+    expect(cannonDisplayName({}, P.name)).toBe(CANNON_NAME_GENERIC);
+    expect(cannonDisplayName({ actId: 'ch00_act1' }, P.name)).toBe(CANNON_NAME_GENERIC);
+    expect(cannonDisplayName({ actId: 'ch00_act1', nodeId: 'nd_elsewhere' }, P.name)).toBe(
+      CANNON_NAME_GENERIC,
+    );
+    expect(cannonDisplayName(HUMEN, '')).toBe(CANNON_NAME_GENERIC);
+    expect(cannonDisplayName(HUMEN, null)).toBe(CANNON_NAME_GENERIC);
+  });
+
+  it('不改动传入的场景对象，也不参与伤害结算', () => {
+    const scene = { ...HUMEN };
+    const before = planCannonShot([mob, boss], P, 100, 0.99);
+    cannonDisplayName(scene, P.name);
+    expect(scene).toEqual(HUMEN);
+    expect(planCannonShot([mob, boss], P, 100, 0.99)).toEqual(before);
+  });
+
+  it('真实数据：所有 combat 节点与全部副本的开炮文案都正确', () => {
+    const cfg = read<{ skills: { humen_cannon: { name: string } } }>('config.json');
+    const configured = cfg.skills.humen_cannon.name;
+    const nodes = read<{ nodes: { id: string; params: { mode?: string } }[] }>(
+      'nodes/nodes_ch00.json',
+    ).nodes;
+    const acts = ['ch00_act1', 'ch00_act2'].map((id) =>
+      read<{ id: string; nodes: string[] }>(`acts/${id}.json`),
+    );
+    const dungeons = read<{ dungeons: { id: string; map_ref: string }[] }>(
+      'dungeons/dungeons.json',
+    ).dungeons;
+
+    const combats: { actId: string; nodeId: string }[] = [];
+    for (const act of acts) {
+      for (const nodeId of act.nodes) {
+        const node = nodes.find((n) => n.id === nodeId);
+        if (node?.params.mode === 'combat') combats.push({ actId: act.id, nodeId });
+      }
+    }
+    expect(combats.length).toBeGreaterThanOrEqual(2);
+
+    for (const c of combats) {
+      const label = cannonDisplayName({ ...c, dungeon: false }, configured);
+      if (c.actId === 'ch00_act1') {
+        expect(label, `${c.nodeId} 应保留史实称呼`).toBe(configured);
+      } else {
+        expect(label, `${c.nodeId} 不是虎门战场`).toBe(CANNON_NAME_GENERIC);
+        expect(label).not.toContain('虎门');
+      }
+    }
+
+    expect(dungeons.length).toBeGreaterThanOrEqual(3);
+    for (const d of dungeons) {
+      const label = cannonDisplayName(
+        { actId: 'ch00_act1', nodeId: 'nd_1841_humen_battle', dungeon: true },
+        configured,
+      );
+      expect(label, `${d.id} 副本开炮不该出现虎门`).toBe(CANNON_NAME_GENERIC);
+      expect(label).not.toContain('虎门');
+    }
   });
 });
 

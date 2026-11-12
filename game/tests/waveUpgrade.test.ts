@@ -20,9 +20,20 @@ import {
   cleaveDmgMult,
   describeNext,
   emptyUpgradeState,
+  hasRearSlash,
+  hasSwordWave,
   hasteMult,
+  isOmniSlash,
+  meleeEvolutionTuning,
+  meleeHitArcs,
+  meleeKnockbackBonus,
+  meleeLeech,
+  meleeReachMult,
+  meleeStunMs,
   pickUpgradeChoices,
+  shouldSpin,
   sweepArcMult,
+  swordWaveOffsets,
   upgradeClass,
   upgradeDefs,
   upgradeSummary,
@@ -176,11 +187,15 @@ describe('近战强化：类别判定覆盖所有近战武器', () => {
     expect(upgradeClass(cfg.weapons.wp_mg)).toBe('other');
   });
 
-  it('两类用同一组 id / 同一组满级上限 / 同一个 6 次上限', () => {
-    expect(MELEE_UPGRADES.map((u) => [u.id, u.maxLevel])).toEqual(
+  it('共用触发/上限/重置：弓 3 卡，近战在原来 3 卡之外扩了老游戏攻击向卡，两类都锁 6 次', () => {
+    // v1.7 的对称规则保留在前 3 张：同 id、同满级、同顺序
+    expect(MELEE_UPGRADES.slice(0, 3).map((u) => [u.id, u.maxLevel])).toEqual(
       WAVE_UPGRADES.map((u) => [u.id, u.maxLevel]),
     );
-    expect(MELEE_UPGRADES.reduce((s, u) => s + u.maxLevel, 0)).toBe(MAX_UPGRADE_PICKS);
+    expect(WAVE_UPGRADES.reduce((s, u) => s + u.maxLevel, 0)).toBe(MAX_UPGRADE_PICKS);
+    // v1.8：近战多出 6 张攻击向卡，池子总容量超过 6，由 max_picks 统一收口
+    expect(MELEE_UPGRADES.length).toBe(9);
+    expect(MELEE_UPGRADES.reduce((s, u) => s + u.maxLevel, 0)).toBeGreaterThan(MAX_UPGRADE_PICKS);
     expect(upgradeDefs('melee')).toBe(MELEE_UPGRADES);
     expect(upgradeDefs('bow')).toBe(WAVE_UPGRADES);
   });
@@ -235,12 +250,15 @@ describe('近战强化：效果与弓共用同一条曲线', () => {
 describe('近战强化：卡片文案与摘要', () => {
   const s = emptyUpgradeState();
 
-  it('近战候选来自近战表，弓候选仍来自弓表，id 集合相同', () => {
+  it('近战候选只来自近战表，弓候选只来自弓表；弓的 3 张仍是全集', () => {
     const m = pickUpgradeChoices(s, rngZero, 'melee');
     const b = pickUpgradeChoices(s, rngZero, 'bow');
-    expect(m.map((u) => u.id).sort()).toEqual(b.map((u) => u.id).sort());
+    expect(m).toHaveLength(3);
+    expect(b.map((u) => u.id).sort()).toEqual(['haste', 'pierce', 'volley']);
     for (const u of m) expect(MELEE_UPGRADES.includes(u)).toBe(true);
     for (const u of b) expect(WAVE_UPGRADES.includes(u)).toBe(true);
+    // 老游戏攻击向条目绝不串到弓的池子里
+    expect(b.map((u) => u.id)).not.toContain('wave');
   });
 
   it('满级条目同样退出近战候选池，抽干后返回空数组', () => {
@@ -323,5 +341,148 @@ describe('近战强化：不同武器实例状态独立、上限与重置一致'
       expect(book.get(k)).toEqual(emptyUpgradeState());
       expect(upgradesExhausted(book.get(k))).toBe(false);
     }
+  });
+});
+/* ==================== v1.8：老游戏近战攻击向进化迁移 ==================== */
+
+describe('v1.8 攻击向卡池：条目、上限与弓的隔离', () => {
+  const s = emptyUpgradeState();
+
+  it('9 张卡名字/描述/上限齐备；唯一项只能取一次', () => {
+    expect(MELEE_UPGRADES).toHaveLength(9);
+    for (const u of MELEE_UPGRADES) {
+      expect(u.name.trim().length).toBeGreaterThan(0);
+      expect(u.desc.trim().length).toBeGreaterThan(0);
+      expect(u.maxLevel).toBeGreaterThan(0);
+    }
+    for (const id of ['behind', 'spin', 'wave'] as const) {
+      const def = MELEE_UPGRADES.find((u) => u.id === id);
+      expect(def?.unique).toBe(true);
+      expect(def?.maxLevel).toBe(1);
+    }
+    expect(MELEE_UPGRADES.filter((u) => u.color !== undefined)).toHaveLength(6);
+  });
+
+  it('新条目只进近战池，弓的 3 张卡与文案完全没变', () => {
+    expect(WAVE_UPGRADES.map((u) => u.id)).toEqual(['volley', 'haste', 'pierce']);
+    expect(describeNext(s, 'volley')).toContain('2 行');
+    expect(describeNext(s, 'pierce')).toContain('再穿过 1 个');
+    expect(upgradeSummary({ ...s, volley: 1 })).toBe('齐射 2 行');
+  });
+
+  it('applyUpgrade 能加新条目，满级/6 次上限同样生效', () => {
+    let st = applyUpgrade(s, 'wave');
+    expect(st.wave).toBe(1);
+    expect(st.picked).toBe(1);
+    st = applyUpgrade(st, 'wave');
+    expect(st.wave).toBe(1); // 唯一项
+    expect(st.picked).toBe(1);
+    let cap = s;
+    for (let i = 0; i < 30; i++) {
+      cap = applyUpgrade(cap, (['reach', 'knock', 'leech', 'haste'] as const)[i % 4]);
+    }
+    expect(cap.picked).toBe(MAX_UPGRADE_PICKS);
+    expect(upgradesExhausted(cap, 'melee')).toBe(true);
+    expect(pickUpgradeChoices(cap, rngZero, 'melee')).toEqual([]);
+  });
+
+  it('换关清零对新条目一样有效（UpgradeBook 按实例隔离）', () => {
+    const book = new UpgradeBook();
+    book.pick('uid:dao', 'wave');
+    book.pick('uid:dao', 'spin');
+    expect(book.get('uid:dao').wave).toBe(1);
+    expect(book.get('uid:crowbar').wave ?? 0).toBe(0);
+    book.clear();
+    expect(book.get('uid:dao')).toEqual(emptyUpgradeState());
+  });
+});
+
+describe('v1.8 攻击向效果：纯函数', () => {
+  const s = emptyUpgradeState();
+  const tune = DEFAULT_WAVE_UPGRADE_TUNING;
+  const t = meleeEvolutionTuning(tune);
+
+  it('0 级全是单位元 —— 不选卡时基础手感一字不变', () => {
+    expect(meleeReachMult(s, tune)).toBe(1);
+    expect(hasRearSlash(s)).toBe(false);
+    expect(shouldSpin(s, 3, tune)).toBe(false);
+    expect(swordWaveOffsets(s, { spin: false, sweepMult: 1 }, tune)).toEqual([]);
+    expect(meleeHitArcs(s, 0, 1, { spin: false, sweepMult: 1 }, tune)).toEqual([
+      { center: 0, half: 0.5 },
+    ]);
+    expect(meleeKnockbackBonus(s, tune)).toBe(0);
+    expect(meleeStunMs(s, tune)).toBe(0);
+    expect(meleeLeech(s, tune)).toBe(0);
+    expect(upgradeSummary(s, 'melee')).toBe('');
+  });
+
+  it('刃锋延展：每级 +15%，两级 ×1.30，越界封顶', () => {
+    expect(meleeReachMult({ ...s, reach: 1 }, tune)).toBeCloseTo(1.15, 5);
+    expect(meleeReachMult({ ...s, reach: 2 }, tune)).toBeCloseTo(1.3, 5);
+    expect(meleeReachMult({ ...s, reach: 99 }, tune)).toBeCloseTo(1.3, 5);
+  });
+
+  it('背袭：后方扇形加上，全周组合不重复判一次', () => {
+    const rear = { ...s, behind: 1 };
+    expect(hasRearSlash(rear)).toBe(true);
+    expect(meleeHitArcs(rear, 0, 1, { spin: false, sweepMult: 1 }, tune)).toEqual([
+      { center: 0, half: 0.5 },
+      { center: Math.PI, half: t.rear_arc_scale / 2 },
+    ]);
+  });
+
+  it('背袭 + 横扫满档 → 近似全向（老游戏组合技）', () => {
+    const st = { ...s, behind: 1, volley: 2 };
+    expect(sweepArcMult(st, tune)).toBeCloseTo(1.5, 5);
+    expect(isOmniSlash(st, sweepArcMult(st, tune), tune)).toBe(true);
+    expect(meleeHitArcs(st, 0, 1, { spin: false, sweepMult: 1.5 }, tune)).toEqual([
+      { center: 0, half: Math.PI },
+    ]);
+    // 同时选了回旋斩也不取消这个组合：只有「本次是回旋刀」才让位给八方剑气
+    expect(isOmniSlash({ ...st, spin: 1 }, 1.5, tune)).toBe(true);
+    expect(swordWaveOffsets({ ...st, spin: 1, wave: 1 }, { spin: true, sweepMult: 1.5 }, tune)).toHaveLength(8);
+    expect(swordWaveOffsets({ ...st, spin: 1, wave: 1 }, { spin: false, sweepMult: 1.5 }, tune)).toHaveLength(4);
+  });
+
+  it('回旋斩：每 3 刀一次全周，第 1、2 刀不触发', () => {
+    const spin = { ...s, spin: 1 };
+    expect(shouldSpin(spin, 1, tune)).toBe(false);
+    expect(shouldSpin(spin, 3, tune)).toBe(true);
+    expect(shouldSpin(spin, 6, tune)).toBe(true);
+    expect(meleeHitArcs(spin, 0, 1, { spin: true, sweepMult: 1 }, tune)).toEqual([
+      { center: 0, half: Math.PI },
+    ]);
+  });
+
+  it('剑气组合：单道 / 前后双向 / 四向 / 八方环', () => {
+    const opts = { spin: false, sweepMult: 1 };
+    expect(swordWaveOffsets({ ...s, wave: 1 }, opts, tune)).toEqual([0]);
+    expect(swordWaveOffsets({ ...s, wave: 1, behind: 1 }, opts, tune)).toEqual([0, Math.PI]);
+    expect(
+      swordWaveOffsets({ ...s, wave: 1, behind: 1 }, { spin: false, sweepMult: 1.5 }, tune),
+    ).toHaveLength(4);
+    expect(
+      swordWaveOffsets({ ...s, wave: 1, spin: 1 }, { spin: true, sweepMult: 1 }, tune),
+    ).toHaveLength(8);
+    expect(hasSwordWave({ ...s, wave: 1 })).toBe(true);
+  });
+
+  it('震荡 / 嗜血按等级线性叠加，且换配置可改数值', () => {
+    expect(meleeKnockbackBonus({ ...s, knock: 2 }, tune)).toBe(t.knockback_bonus * 2);
+    expect(meleeStunMs({ ...s, knock: 1 }, tune)).toBe(t.stun_ms);
+    expect(meleeLeech({ ...s, leech: 2 }, tune)).toBe(t.leech_per_hit * 2);
+    const custom = { ...tune, melee: { ...tune.melee, leech_per_hit: 5 } };
+    expect(meleeLeech({ ...s, leech: 1 }, custom)).toBe(5);
+    expect(meleeLeech({ ...s, leech: 1 })).toBe(t.leech_per_hit);
+  });
+
+  it('卡片描述写清本级结果；摘要把选过的攻击向条目列出来', () => {
+    expect(describeNext(s, 'reach', 'melee')).toContain('1.15');
+    expect(describeNext(s, 'spin', 'melee')).toContain('3 刀');
+    expect(describeNext(s, 'wave', 'melee')).toContain('剑气');
+    expect(describeNext(s, 'knock', 'melee')).toContain('击退');
+    expect(describeNext(s, 'leech', 'melee')).toContain('回复');
+    const sum = upgradeSummary({ ...s, reach: 1, behind: 1, wave: 1, knock: 1, leech: 1 }, 'melee');
+    for (const word of ['距离', '背袭', '剑气', '震荡', '嗜血']) expect(sum).toContain(word);
   });
 });

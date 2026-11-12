@@ -262,6 +262,8 @@ export interface WeaponSwapSnapshot {
   /** 提交时给老存档补过 `weapon_ref` 的那件，回滚时也要把字段还原 */
   refUid: string;
   refBefore: string | undefined;
+  /** 提交会同时改「选定武器」，回滚必须一并还原，否则手上和存档会各说各话 */
+  selectedBefore: string | undefined;
 }
 
 export type CommitResult =
@@ -277,6 +279,8 @@ export function rollbackWeaponSwap(save: SaveData, snapshot: WeaponSwapSnapshot)
   }
   save.equipment.weapon = snapshot.weapon;
   save.bag.items = snapshot.bag;
+  if (snapshot.selectedBefore === undefined) delete save.selected_weapon;
+  else save.selected_weapon = snapshot.selectedBefore;
 }
 
 /**
@@ -296,6 +300,7 @@ export function commitWeaponSwap(save: SaveData, plan: WeaponSwapPlan): CommitRe
     bag: save.bag.items.slice(),
     refUid: plan.item.uid,
     refBefore: plan.item.weapon_ref,
+    selectedBefore: save.selected_weapon,
   };
   const rollback = (): void => rollbackWeaponSwap(save, snapshot);
 
@@ -317,6 +322,8 @@ export function commitWeaponSwap(save: SaveData, plan: WeaponSwapPlan): CommitRe
     if (!item.weapon_ref) item.weapon_ref = plan.weaponRef;
     save.bag.items = nextBag;
     save.equipment.weapon = item;
+    // 战斗内背包是玩家主动切换：同步「选定武器」，下一关 / 重试都要拿这把。
+    save.selected_weapon = plan.weaponRef;
     return { ok: true, item, prev: plan.prev, snapshot };
   } catch {
     rollback();

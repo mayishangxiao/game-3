@@ -104,7 +104,19 @@
     },
     "melee": {
       "sweep_arc_per_row": 0.25,
-      "cleave_damage": 0.25
+      "cleave_damage": 0.25,
+      "reach_per_level": 0.15,
+      "reach_max_level": 2,
+      "rear_arc_scale": 0.8,
+      "omni_sweep_threshold": 1.5,
+      "spin_every": 3,
+      "wave_speed": 300,
+      "wave_damage": 0.85,
+      "wave_pierce": 3,
+      "wave_life": 0.9,
+      "knockback_bonus": 6,
+      "stun_ms": 350,
+      "leech_per_hit": 2
     }
   },
   "enemy_tiers": {

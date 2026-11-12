@@ -87,3 +87,33 @@ export function within(ax: number, ay: number, bx: number, by: number, radius: n
 export function applyDynastyDelta(current: number, delta: number): number {
   return Math.max(0, Math.min(DYNASTY_MAX, current + delta));
 }
+
+/* ============ 开炮提示的显示名（纯文案，不参与任何伤害/冷却判定） ============ */
+
+/** 虎门以外战场的名字：不带地名，天京城墙 / 副本开炮时不该冒出「虎门」 */
+export const CANNON_NAME_GENERIC = '重炮';
+
+export interface CannonSceneRef {
+  /** 当前幕 id；副本不加载幕，为 undefined */
+  actId?: string | null;
+  /** 当前节点 id；副本没有节点 */
+  nodeId?: string | null;
+  /** 是否副本战场（副本即使带着 actId 也不算虎门） */
+  dungeon?: boolean;
+}
+
+/**
+ * 开炮后 toast 上显示的名字。
+ *
+ * 「虎门重炮」是虎门威远炮台的史实称呼，只在鸦片战争幕的虎门炮台守卫战沿用；
+ * 炮键在所有 combat 关都能按（天京陷落、副本同样可用），那些战场统一叫「重炮」。
+ * 判据刻意 fail-safe：幕 / 节点缺失、或在副本里，一律回落到通用名——
+ * 宁可虎门关少一个地名，也不能让别的战场出现「虎门」。
+ *
+ * @param humenName 配置里的史实名（config.json → skills.humen_cannon.name）
+ */
+export function cannonDisplayName(scene: CannonSceneRef, humenName?: string | null): string {
+  const isHumenFort =
+    !scene.dungeon && scene.actId === 'ch00_act1' && /humen/i.test(scene.nodeId ?? '');
+  return isHumenFort ? humenName?.trim() || CANNON_NAME_GENERIC : CANNON_NAME_GENERIC;
+}

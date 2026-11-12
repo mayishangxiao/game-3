@@ -45,6 +45,7 @@ import { MapRenderer } from '../gfx/MapRenderer';
 import { backdropImage, horizonImage, HORIZON_H } from '../gfx/Backdrop';
 import { isFootBlocked, nearestOpenPoint } from '../core/space';
 import { canCompleteEscort } from '../core/escort';
+import { resolveSelectedWeapon } from '../core/weaponSelection';
 import {
   DEFAULT_WAVE_UPGRADE_TUNING,
   UpgradeBook,
@@ -52,10 +53,23 @@ import {
   bonusPierce,
   cleaveDmgMult,
   describeNext,
+  hasRearSlash,
+  hasSpin,
+  hasSwordWave,
   hasteMult,
+  isOmniSlash,
+  meleeEvolutionTuning,
+  meleeHitArcs,
+  meleeKnockbackBonus,
+  meleeLeech,
+  meleeReachMult,
+  meleeStunMs,
   pickUpgradeChoices,
+  shouldSpin,
   sweepArcMult,
+  swordWaveOffsets,
   upgradeClass,
+  upgradeDefs,
   upgradeSummary,
   upgradesExhausted,
   volleyOffsets,
@@ -82,10 +96,11 @@ import {
   type ManageTrack,
   type TextBox,
 } from '../core/management';
-import { addKnowledge, addToBag, markNodeDone } from '../core/SaveManager';
+import { addKnowledge, addToBag, markNodeDone, unlockWeapon } from '../core/SaveManager';
 import {
   DYNASTY_MAX,
   applyDynastyDelta,
+  cannonDisplayName,
   cooldownSeconds,
   planCannonShot,
   within,
@@ -192,6 +207,8 @@ interface Projectile {
   pierce: number;
   life: number;
   crit: boolean;
+  /** v1.8 剑气：伤害不走「当前武器倍率」重算，直接按挥砍时算好的固定值结算 */
+  dmgOverride?: number;
 }
 
 interface FloorItem {
@@ -268,6 +285,8 @@ export class LevelScene extends Phaser.Scene {
    * 武器这一整关再也弹不出卡。
    */
   private readonly upgradeBook = new UpgradeBook();
+  /** 本关近战挥砍计数（老游戏「回旋斩每 3 刀一次」）；换关清零，与强化状态同期。 */
+  private meleeSwingCount = 0;
   /** 强化数值来自 config.json；配置还没加载时用默认值兜底（与旧版弓数值逐字一致） */
   private upgradeTuning(): WaveUpgradeTuning {
     return this.cfg?.wave_upgrade ?? DEFAULT_WAVE_UPGRADE_TUNING;
@@ -531,6 +550,7 @@ export class LevelScene extends Phaser.Scene {
     // 波次强化只在本关内有效：重进关卡必须把**所有武器实例**一起清零，
     // 否则上一关刷满的三行齐射 / ×1.50 横扫会带过来
     this.upgradeBook.clear();
+    this.meleeSwingCount = 0;
     this.upgradeOpen = false;
     this.pendingUpgrade = true;
     this.nodeBusy = false;
@@ -695,6 +715,14 @@ export class LevelScene extends Phaser.Scene {
       /** 当前武器实时参数（字段与 v1.6 `bowInfo` 兼容，旧探针不用改） */
       bowInfo: () => this.debugWeaponInfo(),
       weaponInfo: () => this.debugWeaponInfo(),
+      /** v1.8 排查「开局选刀进局变弓」：解析器 / 手上武器 / 存档真值 / 解锁列表 一次给全 */
+      selectedWeapon: () => ({
+        resolved: this.selectedWeaponId(),
+        inHand: this.player?.weapon?.id ?? null,
+        saved: this.save?.selected_weapon ?? null,
+        unlocked: [...(this.save?.weapons ?? [])],
+        equippedRef: this.save?.equipment?.weapon?.weapon_ref ?? null,
+      }),
       /** 清空当前存活敌人，直接推进到下一次波次判定（省得探针真打） */
       clearWave: () => {
         // 只翻 alive，**不要**自己 destroy rig：`clearDeadEnemies()` 会调 `e.destroy()`
@@ -1469,6 +1497,14 @@ export class LevelScene extends Phaser.Scene {
       arrows: cls === 'bow' ? volleyRows(up) : 1,
       arcMult: sweepArcMult(up, tune),
       cleaveMult: cleaveDmgMult(up, tune),
+      reachMult: meleeReachMult(up, tune),
+      rear: hasRearSlash(up),
+      spin: hasSpin(up),
+      wave: hasSwordWave(up),
+      knock: meleeKnockbackBonus(up, tune),
+      stunMs: meleeStunMs(up, tune),
+      leech: meleeLeech(up, tune),
+      swingCount: this.meleeSwingCount,
       summary: upgradeSummary(up, cls, tune),
     };
   }
@@ -1480,7 +1516,7 @@ export class LevelScene extends Phaser.Scene {
     const cls = this.currentUpgradeClass();
     const state = this.upgradeBook.get(key);
     const tune = this.upgradeTuning();
-    const choices = upgradesExhausted(state) ? [] : pickUpgradeChoices(state, rng, cls);
+    const choices = upgradesExhausted(state, cls, tune) ? [] : pickUpgradeChoices(state, rng, cls, tune);
     if (choices.length === 0) {
       // 兜底：波次推进处已经按当前实例过滤过了。这里**不能**再永久关掉 pendingUpgrade，
       // 否则玩家换一把没满级的武器后，这一关就再也弹不出卡了。
@@ -1550,10 +1586,13 @@ export class LevelScene extends Phaser.Scene {
       if (id) {
         // 写回**弹卡时绑定的那个实例**，不是此刻的 this.currentUpgrades()：
         // 键盘连点或延迟回调里武器可能已被换掉，记错 key 就等于给别人加强化。
-        const next = this.upgradeBook.set(key, applyUpgrade(state, id));
+        const next = this.upgradeBook.set(key, applyUpgrade(state, id, tune));
         // 选完立刻把新数值亮出来，玩家才知道自己刚选的东西生效了
         const sum = upgradeSummary(next, cls, tune);
         emitToast(sum ? `强化：${sum}` : '强化已生效', 1600);
+        // 老游戏的「进化：刃锋延展」头顶飘字：卡片一关掉，玩家还能看到招式变了
+        const def = upgradeDefs(cls).find((u) => u.id === id);
+        if (def) this.spawnEvolveText(def.name);
       }
       this.introOpen = false;
       this.upgradeOpen = false;
@@ -1573,6 +1612,10 @@ export class LevelScene extends Phaser.Scene {
         .setScrollFactor(0)
         .setInteractive({ useHandCursor: true });
       c.add(box);
+      // 老游戏每张进化卡都有自己的主色条，玩家一眼能分出「这次抽到哪几类」
+      c.add(
+        this.add.rectangle(x, cardY - 42, 48, 3, u.color ?? PALETTE.star, 0.95).setScrollFactor(0),
+      );
       c.add(
         this.add
           .text(x, cardY - 30, u.name, {
@@ -1592,14 +1635,28 @@ export class LevelScene extends Phaser.Scene {
             fontSize: '9px',
             color: '#F2EDE4',
             align: 'center',
-            wordWrap: { width: cardW - 16 },
+            // 中文没有空格，Phaser 默认按「词」换行会把长说明整行顶出卡片；
+            // useAdvancedWrap 才会按字符断行（实拍发现「剑气纵横」说明溢出过）
+            wordWrap: { width: cardW - 16, useAdvancedWrap: true },
+          })
+          .setOrigin(0.5)
+          .setScrollFactor(0),
+      );
+      // 老游戏卡面上的「唯一 · 不可再选」/「可强化 ×N」
+      const remain = Math.max(0, u.maxLevel - (state[u.id] ?? 0));
+      c.add(
+        this.add
+          .text(x, cardY + 26, u.unique ? '唯一 · 不可再选' : `可强化 ×${remain}`, {
+            fontFamily: FONT_UI,
+            fontSize: '8px',
+            color: '#8E88A0',
           })
           .setOrigin(0.5)
           .setScrollFactor(0),
       );
       c.add(
         this.add
-          .text(x, cardY + 36, `[${i + 1}] 选择`, {
+          .text(x, cardY + 39, `[${i + 1}] 选择`, {
             fontFamily: FONT_UI,
             fontSize: '9px',
             color: '#C2BCD1',
@@ -1958,7 +2015,7 @@ export class LevelScene extends Phaser.Scene {
     const spawn = { x: (def.spawn.x + 0.5) * TILE, y: (def.spawn.y + 0.5) * TILE };
 
     if (!this.player) {
-      const weaponId = this.bestWeapon();
+      const weaponId = this.selectedWeaponId();
       const weapon = this.cfg.weapons[weaponId];
       this.player = new Player(this, spawn.x, spawn.y, { bodyColor: PALETTE.greenDark, weaponColor: PALETTE.greyLight }, weapon);
     } else {
@@ -2033,24 +2090,24 @@ export class LevelScene extends Phaser.Scene {
     cam.scrollY += (t.y - cam.scrollY) * k;
   }
 
-  private bestWeapon(): string {
-    if (this.save.weapons.includes('wp_bow')) return 'wp_bow';
-    return this.save.weapons[0] ?? 'wp_dao';
+  /**
+   * 玩家当前选定的武器 id。唯一真值在 `save.selected_weapon`（纯函数解析，见
+   * `core/weaponSelection.ts`）。**解锁过弓不等于玩家想用弓** —— 旧版这里写着
+   * `if (save.weapons.includes('wp_bow')) return 'wp_bow'`，是「开局选刀、进局变弓」的根因之一。
+   */
+  private selectedWeaponId(): string {
+    return resolveSelectedWeapon(this.save, this.cfg);
   }
 
   /**
-   * 装备「存在感」P1：武器槽不再只是 +ATK 的数字挂件。
+   * 装备「存在感」P1 + v1.8 武器选择一致性：把**选定武器**真正装到手上。
    *
-   * `items_base.json` 里标了 `weapon_ref` 的武器装备，进关卡时真的换掉手上的武器：
    * 射程 / 攻速 / 倍率 / 近远程形态 / 手中条状物颜色全部跟着 config.json 走。
-   * 老存档与没标字段的装备一律直接返回，`bestWeapon()` 的结果原样保留，零兼容风险。
+   * 所有进关 / 换图 / 重试 / 换装路径都走这里，保证「开局选了什么，整局就是什么」；
+   * 剧情掉落与节点奖励不再碰 `player.weapon`，只往解锁列表里加一项。
    */
   private applyEquippedWeapon(keepCooldown = false): void {
-    const equipped = this.save.equipment.weapon;
-    // 老存档的实例没有 weapon_ref：按 base_id 回模板表补一次。
-    // 面板提交时也会把字段写回实例，这里兜住「玩家从未打开过面板」的情况。
-    const ref = equipped?.weapon_ref ?? (equipped ? dataLoader.findItemBase(equipped.base_id)?.weapon_ref : undefined);
-    if (!ref) return;
+    const ref = this.selectedWeaponId();
     const w = this.cfg.weapons[ref];
     if (!w) return;
     const tint: Record<string, number> = {
@@ -3720,19 +3777,38 @@ export class LevelScene extends Phaser.Scene {
     }
 
     // 近战：扇形判定（重击时判定范围略放大，手感上「扫一圈」）。
-    // 波次强化取**当前近战武器实例**自己的状态：横扫放大扇形、破甲放大伤害，
-    // 火线在 Player 的攻速钩子里生效。0 级时三个倍率都是 1，基础手感一字不变。
+    // 波次强化取**当前近战武器实例**自己的状态：横扫放大扇形、破甲放大伤害、
+    // 火线在 Player 的攻速钩子里生效；v1.8 再叠加老游戏迁来的攻击向进化。
+    // 0 级时所有倍率都是 1、所有附加效果都是空，基础手感一字不变。
     const up = this.currentUpgrades();
     const tune = this.upgradeTuning();
     const sweep = sweepArcMult(up, tune);
     const cleave = cleaveDmgMult(up, tune);
-    const reach = w.range + 8 + (power > 1 ? 6 : 0);
+    const reachMult = meleeReachMult(up, tune);
+    const reach = (w.range + 8 + (power > 1 ? 6 : 0)) * reachMult;
     const heavyMult = power > 1 ? 1.15 : 1;
     const arc = Phaser.Math.DegToRad(w.arc_deg) * sweep * heavyMult;
     const baseAngle = Math.atan2(dirY, dirX);
-    // 刀光必须与真实判定同步变宽，否则玩家看到「扫到了」却没伤害（或反过来）。
-    // 未强化时仍是原来的 82° / 110°，不影响任何既有表现。
-    this.slashFx(baseAngle, reach, power > 1, (power > 1 ? 110 : 82) * sweep);
+    const heavy = power > 1;
+    const evo = meleeEvolutionTuning(tune);
+
+    this.meleeSwingCount += 1;
+    const spin = shouldSpin(up, this.meleeSwingCount, tune);
+    // 回旋刀优先：那一刀走全周 + 八方剑气；其余刀再看「背袭+横扫」的近似全向组合
+    const omni = !spin && isOmniSlash(up, sweep, tune);
+    const spreadDeg = (heavy ? 110 : 82) * sweep;
+
+    // 刀光与真实判定同步：前方弧、背袭反向弧、回旋/全向再加一整圈
+    this.slashFx(baseAngle, reach, heavy, spreadDeg);
+    if (hasRearSlash(up) && !spin && !omni) {
+      this.slashFx(baseAngle + Math.PI, reach, heavy, spreadDeg * evo.rear_arc_scale);
+    }
+    if (spin || omni) this.spinFx(reach);
+
+    const arcs = meleeHitArcs(up, baseAngle, arc, { spin, sweepMult: sweep }, tune);
+    const extraKnock = meleeKnockbackBonus(up, tune);
+    const stunMs = meleeStunMs(up, tune);
+    const leech = meleeLeech(up, tune);
     for (const e of this.enemies) {
       if (!e.alive) continue;
       const dx = e.x - this.player.x;
@@ -3740,11 +3816,66 @@ export class LevelScene extends Phaser.Scene {
       const dist = Math.hypot(dx, dy);
       if (dist > reach) continue;
       const ang = Math.atan2(dy, dx);
-      const diff = Math.abs(Phaser.Math.Angle.Wrap(ang - baseAngle));
-      if (diff <= arc / 2 || dist <= 20) {
-        this.damageEnemy(e, w.mult * power * cleave, DIST_MELEE);
+      const hit =
+        dist <= 20 ||
+        arcs.some(
+          (a) =>
+            a.half >= Math.PI || Math.abs(Phaser.Math.Angle.Wrap(ang - a.center)) <= a.half,
+        );
+      if (!hit) continue;
+      this.damageEnemy(e, w.mult * power * cleave, DIST_MELEE, {
+        knockback: extraKnock,
+        stunMs,
+      });
+      if (leech > 0) this.healPlayer(leech);
+    }
+
+    // 剑气纵横：老游戏的穿透斩击波，与回旋 / 背袭组合成八方环、四向扇、前后双向
+    const waveOffsets = swordWaveOffsets(up, { spin, sweepMult: sweep }, tune);
+    if (waveOffsets.length > 0) {
+      const waveDmg = this.player.atk * w.mult * power * cleave * PLAYER_DMG * evo.wave_damage;
+      for (const off of waveOffsets) {
+        const a = baseAngle + off;
+        const ux = Math.cos(a);
+        const uy = Math.sin(a);
+        const rect = this.add
+          .rectangle(this.player.x + ux * 16, this.player.y - 2 + uy * 16, 14, 4, 0x80f2f2)
+          .setRotation(a)
+          .setDepth(DEPTH.projectile);
+        this.projectiles.push({
+          rect,
+          vx: ux * evo.wave_speed,
+          vy: uy * evo.wave_speed,
+          damage: waveDmg,
+          fromPlayer: true,
+          pierce: evo.wave_pierce,
+          life: evo.wave_life,
+          crit: false,
+          dmgOverride: waveDmg,
+        });
       }
     }
+  }
+
+  /** 老游戏「回旋斩 / 背袭+横扫」的全周弧光：三层青白圆环，0.22 秒淡出 */
+  private spinFx(reach: number): void {
+    const g = this.add.graphics().setDepth(DEPTH.projectile);
+    g.setPosition(this.player.x, this.player.y - 8);
+    g.lineStyle(4, 0x80f2f2, 0.42);
+    g.strokeCircle(0, 0, reach);
+    g.lineStyle(2, PALETTE.paper, 0.85);
+    g.strokeCircle(0, 0, reach * 0.86);
+    g.lineStyle(1, 0xffffff, 0.9);
+    g.strokeCircle(0, 0, reach * 0.78);
+    g.setScale(0.86);
+    this.tweens.add({
+      targets: g,
+      alpha: 0,
+      scale: 1,
+      duration: 220,
+      ease: 'Quad.easeOut',
+      onComplete: () => g.destroy(),
+    });
   }
 
   /**
@@ -3814,7 +3945,12 @@ export class LevelScene extends Phaser.Scene {
     });
   }
 
-  private damageEnemy(e: Enemy, mult: number, kind: 'melee' | 'ranged'): void {
+  private damageEnemy(
+    e: Enemy,
+    mult: number,
+    kind: 'melee' | 'ranged',
+    extra?: { knockback?: number; stunMs?: number },
+  ): void {
     const res = computeDamage(
       {
         atk: this.player.atk,
@@ -3832,7 +3968,10 @@ export class LevelScene extends Phaser.Scene {
     const died = e.takeDamage(res.damage, res.crit, this.cfg);
 
     const fb = this.cfg.combat_feedback;
-    const kb = kind === 'melee' ? fb.knockback_melee : fb.knockback_ranged;
+    // v1.8「震荡强击」：只给近战加额外击退，远程投射物不受影响
+    const kb =
+      (kind === 'melee' ? fb.knockback_melee : fb.knockback_ranged) +
+      (kind === 'melee' ? (extra?.knockback ?? 0) : 0);
     const dx = e.x - this.player.x;
     const dy = e.y - this.player.y;
     const len = Math.hypot(dx, dy) || 1;
@@ -3846,6 +3985,8 @@ export class LevelScene extends Phaser.Scene {
         (tx, ty) => this.enemyFootUnsafe(tx, ty),
       );
     }
+    // 老游戏「震荡强击」的短暂硬直：对首领无效（Boss 不吃控制是既有规则）
+    if (extra?.stunMs && e.alive && e.def.tier !== 'boss') e.stun(extra.stunMs);
     if (res.crit) this.cameras.main.shake(60, fb.screenshake_amp / 1000);
 
     if (died) this.onEnemyDeath(e);
@@ -3883,16 +4024,28 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /**
-   * 虎门重炮：老师要求的核心技能。
+   * 开炮：老师要求的核心技能。
    * 距离最近的目标开火，以它为中心溅射；伤害分档全在 core/cannon.ts 里（有单测）。
    * 冷却中按按钮只给提示，不消耗。
+   *
+   * 提示上的名字按战场区分（core/cannon.ts → cannonDisplayName）：虎门炮台守卫战
+   * 沿用配置里的「虎门重炮」，其它 combat 战场（天京陷落、副本）统一显示「重炮」。
+   * 这里只换字符串，触发条件、位置、样式、时长与所有战斗结算都不动。
    */
   private fireCannon(): void {
     const p = this.cfg.skills?.humen_cannon;
     if (!p) return;
+    const displayName = cannonDisplayName(
+      {
+        actId: this.act?.id,
+        nodeId: this.node?.id,
+        dungeon: !!this.dungeon,
+      },
+      p.name,
+    );
     if (!this.player.alive) return;
     if (this.cannonCd > 0) {
-      emitToast(`虎门重炮冷却中 ${cooldownSeconds(this.cannonCd)} 秒`, 900);
+      emitToast(`${displayName}冷却中 ${cooldownSeconds(this.cannonCd)} 秒`, 900);
       return;
     }
     const alive = this.enemies.filter((e) => e.alive);
@@ -3961,7 +4114,7 @@ export class LevelScene extends Phaser.Scene {
         });
       },
     });
-    emitToast(`${p.name}！`, 1200);
+    emitToast(`${displayName}！`, 1200);
     this.pushHud();
   }
 
@@ -4670,7 +4823,8 @@ export class LevelScene extends Phaser.Scene {
               this.cfg,
               rng,
             );
-            const died = e.takeDamage(res.damage, res.crit, this.cfg);
+            // 剑气自带固定伤害（老游戏是武器伤害的 0.85 倍），其余投射物仍按当前武器倍率算
+            const died = e.takeDamage(p.dmgOverride ?? res.damage, res.crit, this.cfg);
             if (died) this.onEnemyDeath(e);
             if (p.pierce > 0) p.pierce -= 1;
             else {
@@ -4720,11 +4874,10 @@ export class LevelScene extends Phaser.Scene {
     const rewardK = this.node.params.reward_knowledge as string | undefined;
     if (rewardK) this.grantKnowledge(rewardK);
     const rewardW = this.node.params.reward_weapon as string | undefined;
-    if (rewardW && !this.save.weapons.includes(rewardW)) {
-      this.save.weapons.push(rewardW);
+    if (rewardW && unlockWeapon(this.save, rewardW)) {
       const w = this.cfg.weapons[rewardW];
-      emitToast(`解锁武器：${w?.name ?? rewardW}`, 2000);
-      if (w) this.player.setWeapon(w, PALETTE.brown);
+      // v1.8：解锁只进可选池，不再 `setWeapon()` 覆盖开局所选武器。
+      emitToast(`解锁武器：${w?.name ?? rewardW}（可在背包切换）`, 2000);
     }
 
     // 节点经验
@@ -4940,7 +5093,7 @@ export class LevelScene extends Phaser.Scene {
           this.wavePending = true;
           // 每清一波喘口气：甲方反馈「撑不到军舰就没体验」，
           // 给一个可见的正反馈（回 18 血）比单纯砍敌人数更好懂。
-          this.healBetweenWaves(18);
+          this.healPlayer(18);
           emitToast(`第 ${next + 1} 波敌军来袭`, 1500);
           emitObjective(`第 ${next + 1} / ${waves.length} 波`);
           // 设计书 3.3.1：击退第一批登陆英兵后掉落一把白色的弓（仅剧情关卡，副本不给）
@@ -4950,7 +5103,8 @@ export class LevelScene extends Phaser.Scene {
           // 该实例已满级、或武器不参与强化（其它远程）时直接进原节奏，避免多一层延迟。
           // 满级每波实时算，换一把没满级的武器后下一波照样能弹卡。
           const cls = this.currentUpgradeClass();
-          const canUpgrade = cls !== 'other' && !upgradesExhausted(this.currentUpgrades());
+          const canUpgrade =
+      cls !== 'other' && !upgradesExhausted(this.currentUpgrades(), cls, this.upgradeTuning());
           const openUpgrade = !this.dungeon && next > 0 && this.pendingUpgrade && canUpgrade;
           if (openUpgrade) {
             this.showUpgradeCard(() => this.time.delayedCall(1200, () => this.spawnWave(next)));
@@ -5030,20 +5184,14 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  /** 波次之间的喘息：回一点血，并在头顶飘一个绿字，让玩家看得见 */
-  private healBetweenWaves(amount: number): void {
-    if (!this.player || !this.player.alive) return;
-    const before = this.player.hp;
-    const max = this.player.maxHp;
-    if (before >= max) return;
-    this.player.hp = Math.min(max, before + amount);
-    const gain = this.player.hp - before;
-    if (gain <= 0) return;
+  /** 玩家头顶飘字：回血、老游戏「进化：X」共用同一套淡出，仅颜色/字号不同 */
+  private floatPlayerText(text: string, color: string, fontSize = '10px'): void {
+    if (!this.player) return;
     const txt = this.add
-      .text(this.player.x, this.player.y - 26, `+${gain}`, {
+      .text(this.player.x, this.player.y - 26, text, {
         fontFamily: FONT_UI,
-        fontSize: '10px',
-        color: '#8FD08A',
+        fontSize,
+        color,
         fontStyle: 'bold',
       })
       .setOrigin(0.5)
@@ -5058,6 +5206,22 @@ export class LevelScene extends Phaser.Scene {
     });
   }
 
+  /** 回血并飘 +N：波次喘息与 v1.8「嗜血战意」命中回血都走这里 */
+  private healPlayer(amount: number): void {
+    if (!this.player || !this.player.alive) return;
+    const before = this.player.hp;
+    const max = this.player.maxHp;
+    if (before >= max) return;
+    this.player.hp = Math.min(max, before + amount);
+    const gain = this.player.hp - before;
+    if (gain > 0) this.floatPlayerText(`+${gain}`, '#8FD08A');
+  }
+
+  /** 老游戏选完进化卡后玩家头顶的「进化：刃锋延展」 */
+  private spawnEvolveText(name: string): void {
+    this.floatPlayerText(`进化：${name.replace(/\s/g, '')}`, '#8FD8F0', '11px');
+  }
+
   private dropBow(): void {
     const base = dataLoader.findItemBase('eq_wp_bow_white_01');
     if (!base) return;
@@ -5066,29 +5230,13 @@ export class LevelScene extends Phaser.Scene {
     const y = this.player.y;
     // 剧情里掉的那把猎弓也走同一套标记（武器竖条 + 白色），不再是一个孤零零的方块
     const v = this.makeDropVisual(x, y, item);
-    const obj = v.obj;
-    this.floorItems.push({ obj, item, ...(v.glow ? { glow: v.glow } : {}) });
-    emitToast('敌兵丢下一把猎弓', 1600);
-
-    // 走近自动装备
-    const check = this.time.addEvent({
-      delay: 200,
-      loop: true,
-      callback: () => {
-        if (!this.player) return;
-        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, obj.x, obj.y) < 22) {
-          check.remove();
-          const picked = this.floorItems.find((it) => it.obj === obj);
-          if (picked) this.destroyFloorItem(picked);
-          this.floorItems = this.floorItems.filter((it) => it.obj !== obj);
-          const w = this.cfg.weapons.wp_bow as WeaponDef;
-          if (!this.save.weapons.includes('wp_bow')) this.save.weapons.push('wp_bow');
-          this.player.setWeapon(w, PALETTE.brown);
-          emitToast('装备猎弓（远程）', 1500);
-          persist();
-        }
-      },
-    });
+    this.floorItems.push({ obj: v.obj, item, ...(v.glow ? { glow: v.glow } : {}) });
+    // v1.8：以前这里挂了个 200ms 轮询，玩家走到 22px 内就 `setWeapon(wp_bow)` 静默换掉手上的刀，
+    // 还把 wp_bow 写进存档，导致下一局一进关就是弓。现在只解锁 + 提示，捡起来走标准的
+    // `collectNearbyItems` 进背包；要不要用弓，由玩家在背包里主动切换。
+    unlockWeapon(this.save, 'wp_bow');
+    emitToast('敌兵丢下一把猎弓（捡起后可在背包切换）', 1800);
+    persist();
   }
 
   private pushHud(): void {

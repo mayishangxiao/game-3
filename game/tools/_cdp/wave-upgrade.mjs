@@ -231,8 +231,14 @@ try {
   const cardTexts = report.card?.texts ?? [];
   const allText = cardTexts.join('|');
   report.checks.cardShowsMeleeTitle = cardTexts.some((t) => String(t).includes('近 战 精 进'));
+  // v1.8：近战卡池扩到 9 张，每波随机抽 3 张；只断言「恰好 3 张且都来自近战池」
+  const meleeCardNames = [
+    '横 扫', '火 线', '破 甲', '刃锋延展', '背袭之刃', '回旋斩', '剑气纵横', '震荡强击', '嗜血战意',
+  ];
   report.checks.cardShowsThreeChoices =
-    cardTexts.filter((t) => ['横 扫', '火 线', '破 甲'].includes(String(t))).length === 3;
+    cardTexts.filter((t) => meleeCardNames.includes(String(t))).length === 3;
+  report.checks.cardShowsLegacyTag =
+    cardTexts.some((t) => /唯一 · 不可再选|可强化 ×\d/.test(String(t)));
   report.checks.cardShowsCurrentWeapon = allText.includes('当前近战武器');
   report.checks.cardWorldFrozen = (await evaluate('window.__dshGame.scene.getScene("Level").introOpen')) === true;
   report.checks.controlsHiddenDuringCard = await evaluate(

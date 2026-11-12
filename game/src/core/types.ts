@@ -488,6 +488,24 @@ export interface WaveUpgradeTuning {
     sweep_arc_per_row: number;
     /** 破甲满级时的挥砍伤害加成 */
     cleave_damage: number;
+    /* v1.8 老游戏近战进化迁移：以下字段可选，缺省由 meleeEvolutionTuning() 补默认值 */
+    /** 刃锋延展每级的攻击距离倍率 */
+    reach_per_level?: number;
+    reach_max_level?: number;
+    /** 背袭之刃后方扇形的角度比例 */
+    rear_arc_scale?: number;
+    /** 横扫倍率到这个阈值时，背袭+横扫升级为近似全向命中 */
+    omni_sweep_threshold?: number;
+    /** 回旋斩每隔几刀触发一次 */
+    spin_every?: number;
+    wave_speed?: number;
+    /** 剑气伤害相对武器伤害的倍率 */
+    wave_damage?: number;
+    wave_pierce?: number;
+    wave_life?: number;
+    knockback_bonus?: number;
+    stun_ms?: number;
+    leech_per_hit?: number;
   };
 }
 
@@ -565,6 +583,12 @@ export interface SaveData {
   /** 强化用零件，来自拆解装备与副本结算 */
   scrap: number;
   weapons: string[];
+  /**
+   * 玩家当前选定的武器（`config.json → weapons` 的 id），开局为 `wp_dao`。
+   * **只有装备界面 / 战斗内背包能改**；剧情掉落与节点奖励只往 `weapons` 里解锁，不改这里。
+   * v1.8 新增，老存档缺字段时由 `migrate()` 从武器槽补齐（见 `core/weaponSelection.ts`）。
+   */
+  selected_weapon?: string;
   skills: string[];
   knowledge: string[];
   quiz: Record<string, { best: number; passed: boolean }>;
