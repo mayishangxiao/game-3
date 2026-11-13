@@ -31,6 +31,8 @@ python tools/pack_deploy.py
 python tools/deploy_ecs.py 39.103.58.244
 ```
 
+> ⚠️ **部署脚本不要再 `rm -rf` 整个 `/var/www/dsp`**：早期版本每次部署都清空站点再解包，会把上一版的哈希化 bundle（`index-*.js` / `boot-*.js`）一起删掉。玩家浏览器一旦缓存了旧 `index.html`（移动端尤其会无视 `no-cache` 长期保留），它就指向一个已删除的 bundle → 404 → 游戏主模块永远加载不出来，玩家只看到静态的「正在唤醒一八四〇年 / 点击屏幕开始」加载层，**主菜单（标题画面）永远不出现**。这是 2026-11-13「主菜单消失」投诉的根因。现在的 `deploy_ecs.py` 改为「解包到临时目录再 `cp -r` 覆盖式合并」、`index.html` 设 `Cache-Control: no-store`、并按 mtime 清 30 天前的旧 bundle。**回退这条时务必保留「不删旧资源」与 `no-store`，否则问题会复发。**
+
 > 本机没有 `pnpm`：上面是标准环境的写法，本机等价命令是 `./node_modules/.bin/tsc --noEmit` / `./node_modules/.bin/vitest run` / `./node_modules/.bin/vite build`（在 `game/` 目录下跑），打包与部署两步不变。
 
 **捷径**：改完代码后，上面 2-6 步可以合成一条命令（tsc 过了才 build/deploy）：

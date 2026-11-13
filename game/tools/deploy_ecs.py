@@ -47,10 +47,10 @@ NGINX_CONF = """server {
         add_header Cache-Control "public";
     }
     location = /index.html {
-        add_header Cache-Control "no-cache";
+        add_header Cache-Control "no-store";
     }
     location = /game/index.html {
-        add_header Cache-Control "no-cache";
+        add_header Cache-Control "no-store";
     }
 
     location /game/ {
@@ -112,10 +112,18 @@ def main() -> int:
         sftp.put(LOCAL_ZIP, REMOTE_ZIP)
     print(f"上传 {size/1024/1024:.2f} MB 用时 {time.time()-t0:.1f}s")
 
-    step("解包到 " + WWW)
+    step("解包到 " + WWW + "（保留旧资源，避免清掉旧 bundle 让缓存的旧 index.html 404）")
+    # 关键：不再 `rm -rf {WWW}`。直接把新包解到临时目录再 `cp -r` 覆盖式合并进站点，
+    # 这样旧版本遗留的哈希化 bundle（index-*.js / boot-*.js）会继续留在服务器上。
+    # 玩家浏览器哪怕缓存了旧 index.html，它引用的旧 bundle 也还在，游戏照常能加载，
+    # 不会再出现「主菜单消失、只剩加载层」的缓存击穿现象。
+    # 同时按 mtime 清理 30 天前的旧 bundle，避免体积无限膨胀。
     code, out, err = run(
         client,
-        f"rm -rf {WWW} && mkdir -p {WWW} && unzip -q -o {REMOTE_ZIP} -d {WWW} && "
+        f"mkdir -p {WWW} && rm -rf /tmp/dsp_new && mkdir -p /tmp/dsp_new && "
+        f"unzip -q -o {REMOTE_ZIP} -d /tmp/dsp_new && "
+        f"cp -r /tmp/dsp_new/. {WWW}/ && "
+        f"find {WWW}/assets -maxdepth 1 -name '*.js' -mtime +30 -delete; "
         f"ls {WWW} | head -5 && du -sh {WWW} && test -f {WWW}/index.html && echo INDEX_OK",
     )
     print(out or err)
