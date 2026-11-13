@@ -242,6 +242,9 @@ export class LevelScene extends Phaser.Scene {
   private node!: NodeDef;
 
   private map: MapRenderer | null = null;
+  /** 关卡载入提示（「载入中……」）。只在数据拉取期间存在；用 this 持有引用，
+   *  防止场景复用同一实例时并发 boot 留下孤儿文字，也便于 SHUTDOWN 兜底销毁。 */
+  private loadingLabel: Phaser.GameObjects.Text | null = null;
   private player!: Player;
   private enemies: Enemy[] = [];
   private projectiles: Projectile[] = [];
@@ -797,7 +800,12 @@ export class LevelScene extends Phaser.Scene {
     PLAYER_DMG = this.cfg.player_damage_mult ?? 1;
 
     this.cameras.main.setBackgroundColor(PALETTE.ink);
-    const loading = this.add
+    // 加载提示只在该次数据拉取期间存在：拉到数据就立刻销毁，绝不滞留到建图 / 开场对白 / 战斗里。
+    // 否则若 startNode 构建期抛错、或场景在加载完成后（复用同一实例）被重启，原代码放在 startNode
+    // 之后的 destroy 不会执行，画面中央就会一直挂着「载入中……」。
+    // 用 this 持有引用：并发 boot 时先清掉上一轮的残留文字，SHUTDOWN 再兜底销毁一次。
+    this.loadingLabel?.destroy();
+    this.loadingLabel = this.add
       .text(VIEW_W / 2, VIEW_H / 2, '载入中……', {
         fontFamily: FONT_UI,
         fontSize: '11px',
@@ -814,9 +822,14 @@ export class LevelScene extends Phaser.Scene {
         this.act = await dataLoader.loadAct(data.actId);
       }
     } catch (err) {
-      loading.setText(`关卡数据加载失败\n${String(err)}`);
+      this.loadingLabel.setText(`关卡数据加载失败\n${String(err)}`);
+      this.loadingLabel = null;
       return;
     }
+
+    // 数据已就绪，立即撤掉「载入中」——后面是建图 / 对白 / 波次，都不该再显示加载提示
+    this.loadingLabel.destroy();
+    this.loadingLabel = null;
 
     this.dialogue = new DialogueBox(this, this.cfg.ui.dialog_speed, this.cfg.ui.portraits ?? {});
     this.scene.launch('UI');
@@ -824,6 +837,9 @@ export class LevelScene extends Phaser.Scene {
     // 离开关卡时同样得自己收 DOM：暂停菜单「回主菜单」经常是在对白没播完时走的，
     // 不收就会把整个对白框（含立绘）留在长廊/标题上，和场景里的字叠成一片。
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      // 兜底：任何异常路径下只要场景关闭，残留的「载入中」文字都必须清掉
+      this.loadingLabel?.destroy();
+      this.loadingLabel = null;
       // 面板可能在节点结算 / 暂停返回主菜单时还开着，先把全局界面状态还回去
       this.closeWeaponBag('auto');
       setWeaponBagVisible(false);
@@ -846,7 +862,6 @@ export class LevelScene extends Phaser.Scene {
       this.nodeIndex = data.startNode ?? 0;
       await this.startNode(this.nodeIndex);
     }
-    loading.destroy();
   }
 
   /* ==================== 副本模式（可重复刷） ==================== */
