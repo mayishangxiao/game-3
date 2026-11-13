@@ -37,6 +37,12 @@ import {
   type WeaponOption,
 } from '../core/weaponSwap';
 import { DEFEAT_TEXT } from '../core/defeat';
+import {
+  CRIT_SHAKE_DURATION_MS,
+  critShakeIntensity,
+  nextCritShakeReadyAt,
+  shouldCritShake,
+} from '../core/critShake';
 import { DefeatCinematic } from '../systems/DefeatCinematic';
 import { controls } from '../systems/InputSystem';
 import { DialogueBox } from '../systems/DialogueBox';
@@ -290,6 +296,11 @@ export class LevelScene extends Phaser.Scene {
   private readonly upgradeBook = new UpgradeBook();
   /** 本关近战挥砍计数（老游戏「回旋斩每 3 刀一次」）；换关清零，与强化状态同期。 */
   private meleeSwingCount = 0;
+  /**
+   * 暴击震屏的下一次可触发时刻（场景时钟 ms）。敌群里一次横扫/剑气能连出多个暴击，
+   * 靠这个窗口把一串 shake 合并成一次轻震。重进关卡必须复位，否则新关第一次暴击会哑火。
+   */
+  private critShakeReadyAt = 0;
   /** 强化数值来自 config.json；配置还没加载时用默认值兜底（与旧版弓数值逐字一致） */
   private upgradeTuning(): WaveUpgradeTuning {
     return this.cfg?.wave_upgrade ?? DEFAULT_WAVE_UPGRADE_TUNING;
@@ -554,6 +565,7 @@ export class LevelScene extends Phaser.Scene {
     // 否则上一关刷满的三行齐射 / ×1.50 横扫会带过来
     this.upgradeBook.clear();
     this.meleeSwingCount = 0;
+    this.critShakeReadyAt = 0;
     this.upgradeOpen = false;
     this.pendingUpgrade = true;
     this.nodeBusy = false;
@@ -3960,6 +3972,24 @@ export class LevelScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * 暴击命中的一次轻微震屏。数值与合并规则都在 `core/critShake.ts`（可单测），
+   * 场景这边只负责取配置值、判冷却、调一次 shake。
+   *
+   * 不要把这里的强度改大去「找手感」：太平天国战场一串暴击会连着触发，单看一帧不明显，
+   * 连起来就是甲方反馈的「震动力度过大」。要调只改 core 里的常量或 config.json 的
+   * screenshake_amp，且换算后必须落在 CRIT_SHAKE_MIN/MAX_INTENSITY 之间。
+   */
+  private critShake(): void {
+    const now = this.time.now;
+    if (!shouldCritShake(now, this.critShakeReadyAt)) return;
+    this.critShakeReadyAt = nextCritShakeReadyAt(now);
+    this.cameras.main.shake(
+      CRIT_SHAKE_DURATION_MS,
+      critShakeIntensity(this.cfg.combat_feedback.screenshake_amp),
+    );
+  }
+
   private damageEnemy(
     e: Enemy,
     mult: number,
@@ -4002,7 +4032,7 @@ export class LevelScene extends Phaser.Scene {
     }
     // 老游戏「震荡强击」的短暂硬直：对首领无效（Boss 不吃控制是既有规则）
     if (extra?.stunMs && e.alive && e.def.tier !== 'boss') e.stun(extra.stunMs);
-    if (res.crit) this.cameras.main.shake(60, fb.screenshake_amp / 1000);
+    if (res.crit) this.critShake();
 
     if (died) this.onEnemyDeath(e);
   }

@@ -231,7 +231,7 @@
     "flash_ms": 60,
     "knockback_melee": 18,
     "knockback_ranged": 8,
-    "screenshake_amp": 2
+    "screenshake_amp": 1
   },
   "ui": {
     "dialog_speed": 40,

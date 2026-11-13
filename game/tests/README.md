@@ -2,7 +2,7 @@
 
 > 测试在这个项目里不是「覆盖率作业」，而是**把设计意图钉住的钉子**。凡是「看起来像 bug、其实是有意为之」的地方，都有一条测试写着原因，防止后来的人（包括我自己）把它「修」掉。
 >
-> 现状：**15 个文件 / 312 条测试**，全在 node 环境跑（不 import Phaser），`pnpm test` 3 秒内跑完。
+> 现状：**18 个文件 / 381 条测试**，全在 node 环境跑（不 import Phaser），`pnpm test` 3 秒内跑完。
 
 ## 怎么跑
 
@@ -13,7 +13,7 @@ pnpm exec vitest run tests/dungeon.test.ts   # 只跑一个文件
 ```
 
 - 配置在 `vitest.config.ts`：`include: tests/**/*.test.ts`，`environment: 'node'`。
-- 因此**测试里不能 import Phaser**：被测模块必须是 `src/core/` 下那 16 个不依赖 Phaser 的文件（见 `src/README.md` 的硬性约束）。要测场景/渲染就得靠 `tools/cdp-*.mjs` 的真实浏览器端到端。
+- 因此**测试里不能 import Phaser**：被测模块必须是 `src/core/` 下那 19 个不依赖 Phaser 的文件（见 `src/README.md` 的硬性约束）。要测场景/渲染就得靠 `tools/cdp-*.mjs` 的真实浏览器端到端。
 - 读数据文件用 `process.cwd()` 拼路径（不是 `__dirname`），因为 vitest 以工程根为 cwd。
 - 解析 JSON 记得拆包装层（`{events:[]}` / `{cards:[]}` / `{dungeons:[]}`…），详见 `public/data/README.md`。
 
@@ -38,6 +38,8 @@ pnpm exec vitest run tests/dungeon.test.ts   # 只跑一个文件
 | `escort.test.ts` | `src/core/escort.ts` | 护送完成门禁 9 条：抵达终点才结算；切节点中 / 已结算 / 节点数据已换 / 模式残留 / 战士已清空 / 终点未初始化一律拒绝；最后一条直接复现「护送 → 天京经营」串幕现场（甲方截图「这一幕怎么闪一下就没了」）。场景侧由 `tools/_cdp/management-flash.mjs` 实拍断言经营面板稳定停留 ≥3 秒、不跳内讧幕。 |
 | `weaponSelection.test.ts` | `src/core/weaponSelection.ts` / `src/core/SaveManager.ts` / `src/core/weaponSwap.ts` | v1.8「开局选刀进局变弓」10 条：新档开局腰刀、解锁任意武器都不改选定值（复刻旧 bug 的存档）、只有主动切换才改且能换回、非法 id 拒绝并回退、三条兜底顺序、老存档缺字段时沿用武器槽 / 回到腰刀、已有字段原样保留、`equipItem` 同步、战斗背包提交与回滚同步。场景侧由 `tools/_cdp/weapon-selection.mjs` 实拍验证进关与剧情掉弓后仍是刀。 |
 | `weaponSwap.test.ts` | `src/core/weaponSwap.ts` | 战斗内换武器（4.3.8）：门禁的 11 类拒绝分支各有中文文案、护送算战斗而探索/过场不算；列表「当前装备排第一且不可重复选」、老存档按模板补 `weapon_ref`、缺 ref / 配置缺失标灰、脏存档同 uid 不重复、空槽差值等于净加成；计划是纯函数不改存档；背包放不下提前拒绝、提交前后数据漂移判 `stale_option`；提交后装备槽/背包/weapon_ref 三者同步、同一件重复提交安全拒绝、快照回滚不留半状态。场景侧冻结与即时生效由 `tools/_cdp/weapon-swap.mjs` 实拍。 |
+
+| `critShake.test.ts` | `src/core/critShake.ts` / `public/data/config.json` | 暴击震屏「轻微但不为零」11 条：修复前的 `amp=2 → 0.002` 现在被上限压住（不会再晃飞）、**真实 config.json** 算出的强度 `>0` 且 `≤0.0012`、配置值已不再是 2、填 `0`/负数/`NaN`/`Infinity`/`undefined` 也不会把震动关掉（下限 >0）、上限挡住误填、正常区间单调且 `amp=1 → 0.001`；合并窗口 5 条：窗口内连暴只震 1 次、边界一到就恢复、模拟一次横扫连中 5 个全暴击只落 1 次且隔窗能再震、时长短于窗口且比旧的 60ms 更短。守的是「顺手把效果删了」和「顺手把强度改回去」这两个方向；太平天国战场实拍由 `tools/_cdp/crit-shake.mjs` 验证 |
 
 ## 写新测试的约定
 
