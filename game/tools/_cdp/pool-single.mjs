@@ -1,16 +1,19 @@
-// 虎门销烟池「只有一个大长方体」实拍探针（v1.8.8，2026-11-14 截图反馈）
+// 虎门销烟池实拍探针（v1.8.8 单一大长方体 + v1.8.9 林则徐不被遮挡）
 //
-// 修复前画面里有两个长方体：地面层 6/7 瓦片画的大砖池 + obj_pool 画的 40×26 小池。
-// 修复后地面装饰删除，obj_pool 放大成 7×4 格（112×64）的唯一大长方体并与碰撞区对齐。
+// v1.8.8：修复前画面里有两个长方体（地面层 6/7 瓦片画的大砖池 +
+// obj_pool 画的 40×26 小池）；修复后地面装饰删除，只剩 7×4 格（112×64）的大池。
+// v1.8.9：林则徐旧站位 (15,12) 的头顶插进池子、层级又低于池水/池沿，被盖掉半个头；
+// 现在人物走实体层 entityDepth(脚底y) 并挪到 (17,13.5)，整个人形出池区。
 //
 // 断言：
 //   1) 地面层无 6/7 瓦片、碰撞层 28 格池沿仍完整（池子依旧挡人）；
 //   2) 场景里只有一个面积够大的矩形，且尺寸/中心与 HUMEN_POOL 一致，没有旧的 40×26；
 //   3) 地面 canvas 纹理的池区没有被 paintWalls 刷出石墙墙皮（那会像第二个长方体）；
-//   4) 8 个鸦片箱 / 林则徐 / 出口的坐标与数量不变；
-//   5) 玩家站在池子四周任意一边都能选中「投入销烟池」，远处不误触发；
-//   6) 真实走一次 handleInteract()，投递计数 +1、抱箱状态清空；
-//   7) 控制台零异常。
+//   4) 8 个鸦片箱 / 出口坐标未变，林则徐是唯一被挪动的物件（新坐标 17,13.5）；
+//   5) 林则徐贴图可见、层级高于池子所有部件、包围盒完全在池下沿之外（v1.8.9）；
+//   6) 玩家站在池子四边能投箱、站在林则徐旁能选中「与林则徐交谈」、远处不误触发；
+//   7) 真实走一次 handleInteract()，投递计数 +1、抱箱状态清空；
+//   8) 控制台零异常。
 //
 // 用法：node tools/_cdp/pool-single.mjs "<edgePath>" [staticDir|baseUrl] [outDir]
 import { spawn } from 'node:child_process';
@@ -158,10 +161,29 @@ try {
                    fill: o.fillColor, alpha: o.alpha, visible: o.visible }));
     const big = rects.filter(r => r.w >= 100 && r.h >= 60);
     const small = rects.filter(r => r.w === 40 && r.h === 26);
-    const objs = lvl.worldObjects.map(o => ({
-      id: o.def.id, kind: o.def.kind, gx: o.def.x, gy: o.def.y,
-      rx: o.rect.x, ry: o.rect.y, w: o.rect.width, h: o.rect.height,
-    }));
+    const objs = lvl.worldObjects.map(o => {
+      const b = o.rect.getBounds();
+      return {
+        id: o.def.id, kind: o.def.kind, gx: o.def.x, gy: o.def.y,
+        rx: o.rect.x, ry: o.rect.y, w: o.rect.width, h: o.rect.height,
+        depth: o.rect.depth, visible: o.rect.visible,
+        tex: o.rect.texture ? o.rect.texture.key : null,
+        bounds: { x: b.x, y: b.y, w: b.width, h: b.height },
+        extraDepths: (o.extra || []).map(e => e.depth),
+      };
+    });
+    const npc = objs.find(o => o.id === 'obj_linzexu');
+    const poolObj = objs.find(o => o.id === 'obj_pool');
+    const npcMark = lvl.npcMark ? { x: lvl.npcMark.x, y: lvl.npcMark.y, depth: lvl.npcMark.depth } : null;
+    const layout = npc && poolObj ? {
+      npcDepth: npc.depth,
+      poolMaxDepth: Math.max(poolObj.depth, ...(poolObj.extraDepths || [])),
+      npcBounds: npc.bounds,
+      poolBottom: poolObj.bounds.y + poolObj.bounds.h,
+      npcTex: npc.tex,
+      npcVisible: npc.visible,
+      npcTextureLoaded: !!(npc.tex && g.textures.exists(npc.tex)),
+    } : null;
     // 地面 canvas 纹理：池区里如果出现 paintWalls 的墙皮色，说明第二个长方体还在
     let wallSkin = 0, texW = 0, texH = 0;
     const key = mr.groundKey;
@@ -188,7 +210,7 @@ try {
       groundPoolTiles, poolCells: poolCells.length, strayCells,
       solidPoolCells: poolCells.length,
       rectCount: rects.length, big, small,
-      objs, wallSkin, texW, texH,
+      objs, layout, npcMark, wallSkin, texW, texH,
       canvas: { left: cr.left, top: cr.top, width: cr.width, height: cr.height },
       crateTarget: lvl.crateTarget,
     };
@@ -207,21 +229,48 @@ try {
   const expected = {
     obj_crate_1: [7,11], obj_crate_2: [10,12], obj_crate_3: [13,11], obj_crate_4: [23,7],
     obj_crate_5: [10,13], obj_crate_6: [9,12], obj_crate_7: [7,14], obj_crate_8: [25,6],
-    obj_linzexu: [15,12], obj_exit_fort: [27,4],
+    obj_exit_fort: [27,4],
   };
   // NPC 用的是立绘 Image（origin 0.5/1，脚在格心 +8），不是居中的 Rectangle；
   // 这个 +8 是它本来的渲染规则，别把它当成「被本次改动挪动」。
+  const placed = (id, x, y) => {
+    const o = m.objs.find((v) => v.id === id);
+    if (!o || o.gx !== x || o.gy !== y || o.rx !== (x + 0.5) * 16) return false;
+    return o.ry === (y + 0.5) * 16 + (o.kind === 'npc' ? 8 : 0);
+  };
   report.checks.otherObjectsUnchanged = m.objs.length === 11 &&
-    Object.entries(expected).every(([id, [x, y]]) => {
-      const o = m.objs.find((v) => v.id === id);
-      if (!o || o.gx !== x || o.gy !== y || o.rx !== (x + 0.5) * 16) return false;
-      const expectRy = (y + 0.5) * 16 + (o.kind === 'npc' ? 8 : 0);
-      return o.ry === expectRy;
-    });
+    Object.entries(expected).every(([id, [x, y]]) => placed(id, x, y));
+  // v1.8.9 唯一被挪动的物件：林则徐 (15,12) → (17,13.5)，整个人形出池区
+  report.checks.npcMovedOutOfPool = placed('obj_linzexu', 17, 13.5);
   report.checks.poolObjectCentered = (() => {
     const p = m.objs.find((o) => o.id === 'obj_pool');
     return !!p && p.gx === 18 && p.gy === 9.5 && p.rx === 296 && p.ry === 160 &&
       p.w === 112 && p.h === 64;
+  })();
+
+  // ---- v1.8.9：林则徐完整可见，不被销烟池 / 其它物件覆盖 ----
+  const lay = m.layout;
+  report.snapshots.layout = lay;
+  report.checks.npcTextureLoaded = !!lay && lay.npcVisible &&
+    lay.npcTex === 'lin_zexu_down' && lay.npcTextureLoaded;
+  report.checks.npcAbovePoolDecorations = !!lay && lay.npcDepth > lay.poolMaxDepth;
+  report.checks.npcFullyOutsidePool = !!lay &&
+    lay.npcBounds.y >= lay.poolBottom + 4 &&      // 池沿下沿那条 2px 暗线也要让开
+    lay.npcBounds.y + lay.npcBounds.h <= 256;     // 底部 HUD 顶边，脚不能被切
+  // 头顶提示「!」不能漂进池水：文字半高 8 + tween 上浮 4，留 12px 余量
+  report.checks.npcMarkOutsidePool = !!lay && !!m.npcMark &&
+    m.npcMark.y - 12 >= lay.poolBottom && m.npcMark.depth > lay.npcDepth;
+  report.checks.npcNotCoveredByOtherObjects = (() => {
+    if (!lay) return false;
+    const b = lay.npcBounds;
+    return m.objs.every((o) => {
+      if (o.id === 'obj_linzexu') return true;
+      const q = o.bounds;
+      const ox = Math.min(b.x + b.w, q.x + q.w) - Math.max(b.x, q.x);
+      const oy = Math.min(b.y + b.h, q.y + q.h) - Math.max(b.y, q.y);
+      // 要么不重叠，要么层级比人物低（画在人物下面）
+      return ox <= 0 || oy <= 0 || o.depth < lay.npcDepth;
+    });
   })();
 
   // 交互：池子放大后玩家只能站在池沿外，四周任意一边都应能选中「投入销烟池」
@@ -237,12 +286,15 @@ try {
     return {
       south: at(296, 200), north: at(296, 120),
       west: at(232, 160), east: at(360, 160),
+      // 站在林则徐左脚边（格 16,14），交互候选仍应是「与林则徐交谈」
+      npc: at(264, 232),
       faraway: at(100, 100),
     };
   })()`);
   report.snapshots.near = near;
   report.checks.reachableFromAllSides = ['south', 'north', 'west', 'east'].every((k) => near[k] === 'obj_pool');
-  report.checks.noFarawayFalseTrigger = near.faraway !== 'obj_pool';
+  report.checks.npcStillInteractive = near.npc === 'obj_linzexu';
+  report.checks.noFarawayFalseTrigger = near.faraway !== 'obj_pool' && near.faraway !== 'obj_linzexu';
 
   const deposit = await evaluate(`(() => {
     const lvl = window.__dshGame.scene.getScene('Level');
@@ -257,15 +309,22 @@ try {
   report.checks.depositStillWorks = deposit.before === 0 && deposit.after === 1 && deposit.carrying === false;
 
   await shot('pool-single-full.png');
-  // 池区局部：逻辑 (240,128)-(352,192)，画布可能按 960/480 放大并居中
+  // 池区 + 池前林则徐：逻辑 (210,110)-(385,250)，画布可能按 960/480 放大并居中
   const sc = m.canvas.width / 480;
   const clip = {
     x: m.canvas.left + 210 * sc,
-    y: m.canvas.top + 100 * sc,
+    y: m.canvas.top + 110 * sc,
     width: 175 * sc,
-    height: 120 * sc,
+    height: 140 * sc,
   };
   await shot('pool-single-closeup.png', clip);
+  // 人物特写：逻辑 (252,186)-(308,244)，肉眼确认头 / 官服 / 脚都没被盖
+  await shot('pool-single-npc.png', {
+    x: m.canvas.left + 252 * sc,
+    y: m.canvas.top + 186 * sc,
+    width: 56 * sc,
+    height: 58 * sc,
+  });
 
   report.checks.noConsoleErrors = report.errors.length === 0;
   const failed = Object.entries(report.checks).filter(([, v]) => v !== true).map(([k]) => k);

@@ -104,6 +104,13 @@ export const TILE = 16;
 export const CHAR_W = 24;
 export const CHAR_H = 32;
 
+/**
+ * 剧情 NPC 小人的脚底相对「格中心」的偏移：`spawnWorldObject()` 把 24×32 贴图
+ * 以 `origin(0.5, 1)` 放在 `(格心 x, 格心 y + 8)`，也就是脚踩在格心下方半格。
+ * 它决定人物包围盒的上沿（脚底 - CHAR_H），改这里要同步 `tests/humenPool.test.ts`。
+ */
+export const NPC_FOOT_OFFSET_Y = 8;
+
 /** 战场区格数 */
 export const FIELD_COLS = VIEW_W / TILE; // 30
 export const FIELD_ROWS = FIELD_H / TILE; // 16
@@ -230,6 +237,17 @@ export const DEPTH = {
   hud: 100,
   overlay: 110,
 } as const;
+
+/**
+ * 站着的人物（玩家 / 敌人 / 剧情 NPC）统一按脚底 y 排序的深度。
+ *
+ * 静态布景一律在 `DEPTH.deco + N`（10—13），所以人物永远不会被池水、白沫、
+ * 池沿之类的装饰盖住；人物彼此之间仍按 y 正确地前后遮挡。
+ * v1.8.9 之前 NPC 小人用 `DEPTH.deco + 1`(11)，站在销烟池边时被 12/13 的
+ * 池水与池沿盖掉整个头。与 `Player` / `Enemy` / `CharacterRig` 里的
+ * `20 + y * 0.01` 是同一条公式，这里收成唯一真值。
+ */
+export const entityDepth = (footY: number): number => DEPTH.entityBase + footY * 0.01;
 
 /** 存档键名与版本 */
 export const SAVE_KEY = 'dsp_save_v1';

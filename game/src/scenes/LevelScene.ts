@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CROWD_SCALE, CROWD_TEX, DEPTH, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, MELEE_RANGE_MAX, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -2692,11 +2692,18 @@ export class LevelScene extends Phaser.Scene {
     if (obj.kind === 'npc' && NPC_ART[obj.id]) {
       // NPC 也要有小人：以前林则徐是 12×12 深蓝方块，玩家以为那是块石头。
       // 有贴图就用兵种贴图那一套（`art/units/<unit>_down.png`），没有才退回方块。
+      //
+      // v1.8.9 层级修复：小人必须与玩家 / 敌人同属「按脚底 y 排序的实体层」。
+      // 之前用 `DEPTH.deco + 1`(11)，而销烟池的池水 / 白沫 / 池沿是 12/13，
+      // 林则徐站在池边时整个头被深色池水盖住，只剩身体和腿（实拍已见）。
+      // 静态布景不该压在人物身上，所以统一走 `entityDepth(脚底y)`。
       const tex = `${NPC_ART[obj.id]}_down`;
-      const shade = this.add.ellipse(x, y + 6, 18, 6, PALETTE.ink, 0.28).setDepth(DEPTH.deco);
+      const footY = y + NPC_FOOT_OFFSET_Y;
+      const depth = entityDepth(footY);
+      const shade = this.add.ellipse(x, y + 6, 18, 6, PALETTE.ink, 0.28).setDepth(depth - 0.02);
       const rect = this.textures.exists(tex)
-        ? markPixel(this.add.image(x, y + 8, tex).setOrigin(0.5, 1).setDepth(DEPTH.deco + 1))
-        : this.add.rectangle(x, y, 14, 18, color).setStrokeStyle(1, PALETTE.star).setDepth(DEPTH.deco + 1);
+        ? markPixel(this.add.image(x, footY, tex).setOrigin(0.5, 1).setDepth(depth))
+        : this.add.rectangle(x, y, 14, 18, color).setStrokeStyle(1, PALETTE.star).setDepth(depth);
       const label = this.add
         .text(x, y - 34, obj.label, {
           fontFamily: FONT_UI,
@@ -2998,8 +3005,11 @@ export class LevelScene extends Phaser.Scene {
     this.npcDialogueRef = cfg.dialogue;
     this.npcTalked = false;
     this.npcMark?.destroy();
+    // v1.8.9：原来固定悬在 `rect.y - 50`（头顶 50px 外）。林则徐挪到池子正下方后，
+    // 那个位置正好落进深色池水里，看起来像池中央漂了个孤立标记。现在贴到人物
+    // 右肩上方：y = 脚底 - 贴图高 + 12，文字连同上下浮动都严格在池下沿之外。
     const mark = this.add
-      .text(entry.rect.x, entry.rect.y - 50, '!', {
+      .text(entry.rect.x + 18, entry.rect.y - CHAR_H + 12, '!', {
         fontFamily: FONT_UI,
         fontSize: '16px',
         color: '#F0C419',
@@ -3111,7 +3121,7 @@ export class LevelScene extends Phaser.Scene {
         a.rig.y += (dy / len) * step;
       }
       a.rig.tick(dtMs, len > 6);
-      a.rig.setDepth(20 + a.rig.y * 0.01);
+      a.rig.setDepth(entityDepth(a.rig.y));
     }
     const aliveCount = this.allies.filter((a) => a.alive).length;
     if (aliveCount !== this.escortSurvivors) {

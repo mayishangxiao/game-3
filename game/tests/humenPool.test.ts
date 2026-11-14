@@ -16,7 +16,10 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { HUMEN_POOL, TILE } from '../src/core/constants';
+import {
+  CHAR_H, CHAR_W, CONTROL_HIT_PAD, CONTROL_LAYOUT, DEPTH, entityDepth,
+  HUMEN_POOL, NPC_FOOT_OFFSET_Y, TILE,
+} from '../src/core/constants';
 
 const DATA = join(process.cwd(), 'public', 'data');
 
@@ -105,12 +108,13 @@ describe('虎门销烟池：唯一的大长方体与碰撞区严格对齐', () =
 });
 
 describe('虎门销烟池：场景里其它物件没被挪动', () => {
-  it('8 个鸦片箱 / 林则徐 / 出口仍在原坐标', () => {
+  it('8 个鸦片箱 / 出口仍在原坐标；林则徐是唯一为「不被遮挡」而挪动的物件', () => {
     const snapshot: Record<string, [number, number]> = {
       obj_crate_1: [7, 11], obj_crate_2: [10, 12], obj_crate_3: [13, 11],
       obj_crate_4: [23, 7], obj_crate_5: [10, 13], obj_crate_6: [9, 12],
       obj_crate_7: [7, 14], obj_crate_8: [25, 6],
-      obj_linzexu: [15, 12], obj_exit_fort: [27, 4],
+      // v1.8.9：旧 (15,12) 的头顶插进池子被池水盖掉；见下一组断言
+      obj_linzexu: [17, 13.5], obj_exit_fort: [27, 4],
     };
     for (const [id, [x, y]] of Object.entries(snapshot)) {
       const o = map.objects.find((m) => m.id === id);
@@ -122,5 +126,83 @@ describe('虎门销烟池：场景里其它物件没被挪动', () => {
       (o) => o.id !== 'obj_pool' && o.x >= X0 && o.x <= X1 && o.y >= Y0 && o.y <= Y1,
     );
     expect(inPool.map((o) => o.id)).toEqual([]);
+  });
+});
+
+/**
+ * v1.8.9「林则徐被销烟池挡住半个人」的数据契约。
+ *
+ * 两层原因：① **层级**——NPC 小人原来用 `DEPTH.deco + 1`(11)，而池水 / 白沫 /
+ * 池沿是 12/13，静态布景压在人物身上；现在人物统一走 `entityDepth(脚底y)`。
+ * ② **定位**——旧 `(15,12)` 的 24×32 贴图上沿落在 y=176，正好插进池子
+ * (128..192)；现在整个人形包围盒都在池下沿之外。
+ *
+ * 尺寸（池 112×64、人物 24×32）与碰撞层 28 格都没动：它们各有自己的真值，
+ * 为「让人露出来」去缩池子会把玩家能站的位置一起改坏。
+ */
+describe('林则徐完整可见：层级关系 / 站位 / 尺寸', () => {
+  const npc = map.objects.find((o) => o.id === 'obj_linzexu')!;
+  const pool = pools[0];
+  const cx = (npc.x + 0.5) * TILE;
+  const footY = (npc.y + 0.5) * TILE + NPC_FOOT_OFFSET_Y;
+  const bounds = {
+    left: cx - CHAR_W / 2, right: cx + CHAR_W / 2,
+    top: footY - CHAR_H, bottom: footY,
+  };
+  const pcx = (pool.x + 0.5) * TILE;
+  const pcy = (pool.y + 0.5) * TILE;
+  const poolRect = {
+    left: pcx - HUMEN_POOL.w / 2, right: pcx + HUMEN_POOL.w / 2,
+    top: pcy - HUMEN_POOL.h / 2, bottom: pcy + HUMEN_POOL.h / 2,
+  };
+
+  it('尺寸仍是各自的真值：池 112×64、人物 24×32（不为露脸去缩池子）', () => {
+    expect([HUMEN_POOL.w, HUMEN_POOL.h]).toEqual([112, 64]);
+    expect([CHAR_W, CHAR_H]).toEqual([24, 32]);
+    expect(poolRect).toEqual({ left: 240, right: 352, top: 128, bottom: 192 });
+    expect([bounds.right - bounds.left, bounds.bottom - bounds.top]).toEqual([24, 32]);
+  });
+
+  it('人形包围盒完全在池子之外，且离池下沿留出呼吸空间', () => {
+    // 池沿下沿那条 2px 暗线会占到 y=193，所以要求 ≥4px 而不是「相切即可」
+    expect(bounds.top).toBeGreaterThanOrEqual(poolRect.bottom + 4);
+    expect(bounds.bottom).toBeLessThan(256); // 底部 HUD 顶边，人物不能被 HUD 切掉脚
+  });
+
+  it('NPC 层级高于池子所有静态装饰，但仍在特效/HUD 之下', () => {
+    const d = entityDepth(footY);
+    expect(d).toBeGreaterThan(DEPTH.deco + 3); // 池水 12 / 白沫·池沿 13
+    expect(d).toBeLessThan(DEPTH.projectile);
+    expect(d).toBeLessThan(DEPTH.hud);
+    // 与 Player / Enemy / CharacterRig 的 20 + y*0.01 是同一条公式
+    expect(d).toBeCloseTo(DEPTH.entityBase + footY * 0.01, 10);
+  });
+
+  it('站位可走，且没压在任何虚拟按键命中圈上', () => {
+    expect(collision[Math.floor(npc.y)][Math.floor(npc.x)]).toBe(0);
+    for (const [name, b] of Object.entries(CONTROL_LAYOUT)) {
+      const dist = Math.hypot(cx - b.x, footY - b.y);
+      expect(dist, `${name} 键会盖住林则徐`).toBeGreaterThan(b.r + CONTROL_HIT_PAD);
+    }
+  });
+
+  it('不与其它物件（箱子 / 出口）包围盒重叠', () => {
+    for (const o of map.objects) {
+      if (o.id === npc.id || o.kind === 'deposit') continue;
+      const ox = (o.x + 0.5) * TILE;
+      const oy = (o.y + 0.5) * TILE;
+      const half = o.kind === 'exit' ? 7 : 10;
+      const overlapX = Math.min(bounds.right, ox + half) - Math.max(bounds.left, ox - half);
+      const overlapY = Math.min(bounds.bottom, oy + half) - Math.max(bounds.top, oy - half);
+      expect(overlapX <= 0 || overlapY <= 0, `${o.id} 与林则徐重叠`).toBe(true);
+    }
+  });
+
+  it('玩家仍走得到并触发交谈（26px 交互半径内有可走格）', () => {
+    const stand = { x: 16, y: 14 };
+    const px = (stand.x + 0.5) * TILE;
+    const py = (stand.y + 0.5) * TILE;
+    expect(Math.hypot(px - cx, py - footY)).toBeLessThan(26);
+    expect(collision[stand.y][stand.x]).toBe(0);
   });
 });

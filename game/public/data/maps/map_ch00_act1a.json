@@ -1140,8 +1140,8 @@
     {
       "id": "obj_linzexu",
       "kind": "npc",
-      "x": 15,
-      "y": 12,
+      "x": 17,
+      "y": 13.5,
       "label": "与林则徐交谈",
       "color": "#1B3A6B",
       "dialogue_ref": "dlg_ch00_act1_intro"

@@ -177,3 +177,10 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 - **碰撞层仍保留 6/7**：这是池沿的 28 格实心，池子依旧挡人。`MapRenderer.paintWalls()` 现在同时看地面层与碰撞层的 6/7 才跳过墙皮——只看地面层会把池区刷成紫灰石墙，从池沿透出「第二个矩形」。
 - `objects.obj_pool` 的坐标 `(18, 9.5)` 就是池区几何中心；画出来的尺寸由 `core/constants.ts → HUMEN_POOL`（7×4 格 = 112×64）决定。碰撞层范围、`obj_pool` 坐标、`HUMEN_POOL` 三者必须一起改，判据在 `tests/humenPool.test.ts`，实拍在 `tools/_cdp/pool-single.mjs`。
 - `tools/gen_maps.py` 已同步（只写碰撞层、不再写地面层），但脚本里的箱子坐标是历史值，**别整表重跑覆盖**这张已手工调过的地图。
+
+### 林则徐不被销烟池遮挡（v1.8.9）
+
+- `objects.obj_linzexu` 从 `(15, 12)` 挪到 `(17, 13.5)`。NPC 贴图 24×32、`origin(0.5,1)` 放在格心 +8（真值 `NPC_FOOT_OFFSET_Y`），旧站位的人形上沿落在 y=176，正好插进池区 (128..192)；新站位包围盒是 x=268..292 / y=200..232，离池下沿 7px。
+- **不能只下移到 (15,13)**：那里距 `interact` 虚拟按键 (240,240) 只有 25.3px，会落进它的 26px 命中圈，人物又被圆按钮盖住。`tests/humenPool.test.ts` 拿 `CONTROL_LAYOUT` + `CONTROL_HIT_PAD` 逐个量了所有按键。
+- 层级不靠调坐标硬躲：站着的人（玩家 / 敌人 / 剧情 NPC）统一用 `core/constants.ts → entityDepth(脚底y)`，静态布景 `DEPTH.deco + N` 永远压不到人物身上。头顶「!」提示也从「固定 rect.y-50」改成贴人物右肩，否则会漂在池水中央。
+- 池子尺寸 `HUMEN_POOL` (112×64) 与碰撞层 28 格**都没动**——为露脸去缩池子会把玩家能站的位置一起改坏。
