@@ -32,6 +32,17 @@ interface NodeView {
   collected: boolean;
 }
 
+/**
+ * 右下「返回」按钮的几何 —— **canvas 底板和 DOM 文字必须共用这一组数值**。
+ *
+ * 2026-11-13「右下角字体没对齐」：底板画在 (VIEW_W-44, VIEW_H-26)、尺寸 72×16，
+ * 而 #dom-overlay 里的「返回」另写死 left:378px / top:244px / width:72px。
+ * 两层都按 480×270 逻辑坐标，但数值差了一截：文字中心偏左 22px、偏下 8px，
+ * 盒下缘还掉出底板压到底部提示上，画布放大后尤其明显。
+ * 现在底板与文字都从下面算，文字再套同一个盒用 flex 居中，改一处即可两边同步。
+ */
+const BACK_BTN = { cx: VIEW_W - 44, cy: VIEW_H - 26, w: 72, h: 16 } as const;
+
 export class GraphScene extends Phaser.Scene {
   private cards: EventCard[] = [];
   private nodes: NodeView[] = [];
@@ -77,6 +88,10 @@ export class GraphScene extends Phaser.Scene {
   private hintText = '已收集的事件才能连线。Esc 返回长廊。';
 
   private renderOverlay(): void {
+    const backLeft = BACK_BTN.cx - BACK_BTN.w / 2;
+    const backTop = BACK_BTN.cy - BACK_BTN.h / 2;
+    // 底部提示只用按钮左侧的地带居中：原来 width:100% 时，通关那句长文案
+    // 真实文字会伸到 x≈413，钻进「返回」底板（左边界 400）下方。
     const nodeHtml = this.nodes
       .map((n) => {
         const c = n.collected ? '#C2BCD1' : '#4A4468';
@@ -88,16 +103,16 @@ export class GraphScene extends Phaser.Scene {
     showOverlay(
       `<div style="position:absolute;left:14px;top:8px;font-size:16px;color:#F2EDE4;font-weight:bold;">知识图谱</div>
        <div style="position:absolute;left:14px;top:26px;font-size:11px;color:#6B6489;">点两个事件，把它们之间的因果连起来</div>
-       <div style="position:absolute;right:14px;top:10px;font-size:14px;color:#F0C419;text-align:right;">${this.progressText}</div>
+       <div data-graph-progress="1" style="position:absolute;right:14px;top:10px;font-size:14px;color:#F0C419;text-align:right;">${this.progressText}</div>
        ${nodeHtml}
-       <div style="position:absolute;left:0;top:252px;width:100%;text-align:center;font-size:11px;color:#6B6489;">${this.hintText}</div>
-       <div style="position:absolute;left:378px;top:244px;width:72px;text-align:center;font-size:12px;color:#F2EDE4;">返回</div>`,
+       <div data-graph-hint="1" style="position:absolute;left:0;top:252px;width:${backLeft - 8}px;text-align:center;font-size:11px;color:#6B6489;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.hintText}</div>
+       <div data-graph-back="1" style="position:absolute;left:${backLeft}px;top:${backTop}px;width:${BACK_BTN.w}px;height:${BACK_BTN.h}px;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;color:#F2EDE4;">返回</div>`,
     );
   }
 
   private buildHeader(): void {
     const back = this.add
-      .rectangle(VIEW_W - 44, VIEW_H - 26, 72, 16, PALETTE.plumMid, 0.95)
+      .rectangle(BACK_BTN.cx, BACK_BTN.cy, BACK_BTN.w, BACK_BTN.h, PALETTE.plumMid, 0.95)
       .setStrokeStyle(1, PALETTE.ink)
       .setDepth(DEPTH.hud + 1)
       .setInteractive({ useHandCursor: true });

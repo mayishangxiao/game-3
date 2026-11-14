@@ -55,7 +55,7 @@ main.ts
 | `scenes/CodexScene.ts` | 132 | 知识图鉴，展示收集加成（每 10 张 +2%，上限 +20%） | — | 只读存档 |
 | `scenes/QuizScene.ts` | 414 | 章末测验：抽 5 题 → 逐题解释 → 判分 → 四档评价 → 写 `progress.completion` | — | 选项高亮用 `optionRects` 数组定位（踩过：索引错位） |
 | `scenes/EquipmentScene.ts` | 536 | 五槽位装备 + 12 件一页背包 + 装备/卸下、拆解、强化、选中详情 | `items` `equipSelected` `salvageSelected` `enhanceSelected` `back` | 所有行都要能点（触屏）；强化上限 +5 写在 `balance.enhanceCost` 侧 |
-| `scenes/GraphScene.ts` | 300 | 知识图谱：事件按年份蛇形排开，点两个节点连线，连满解锁成就 | `pickNode` `redraw` `saveGraph` `dottedLine` | 节点命中区 32×32（触摸）；**不要给字段起名 `events`**（与 `Phaser.Scene.events` 冲突，TS2416） |
+| `scenes/GraphScene.ts` | 314 | 知识图谱：事件按年份蛇形排开，点两个节点连线，连满解锁成就 | `pickNode` `redraw` `saveGraph` `dottedLine` | 节点命中区 32×32（触摸）；**不要给字段起名 `events`**（与 `Phaser.Scene.events` 冲突，TS2416）；右下「返回」的 canvas 底板与 DOM 文字必须共用 `BACK_BTN` 几何，别再各写一套 px（2026-11-13「右下角字体没对齐」） |
 
 `main.ts` 只做一件事：**先把 Phaser 取来，再动态 `import('./boot')`**（引擎没到位时，场景类的 `extends Phaser.Scene` 会直接抛错 → 黑屏）。`boot.ts` 才是原来的入口：`Phaser.Game` 配置 + 场景注册顺序 `[Boot, Title, Hub, Level, UI, Codex, Quiz, Equipment, Graph]` + 挂 `window.__dshGame` 调试钩子（E2E 脚本靠它）。新场景必须注册到这里，否则 `scene.start` 静默失败。
 

@@ -56,6 +56,8 @@ tools/_cdp/*/
 !tools/_cdp/title-flow.mjs
 # 暴击震屏回归探针（太平天国战场：强度舒适区 / 一串暴击合并 / 效果未被删）
 !tools/_cdp/crit-shake.mjs
+# 知识图谱右下角对齐探针（canvas 底板与 DOM 文字共用几何 / 长提示不钻到按钮下）
+!tools/_cdp/graph-align.mjs
 
 # 发布 staging / 打包产物：由 DEPLOY.md 的流程从 dist 重建，纯产物，不入库。
 # 历史版本曾被误提交，用 `git rm -r --cached tools/_stage` 移出索引即可（工作区保留）。
