@@ -173,7 +173,7 @@ Remove-Item -Recurse -Force tools/_cdp*, tools/_smoke, tools/__pycache__, __pyca
 ## 验证方式
 
 ```bash
-pnpm test                                        # 261 个单元测试
+pnpm test                                        # 408 个单元测试
 
 # 起静态服务器
 node tools/serve.mjs dist 4173 &
@@ -203,10 +203,11 @@ HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser
 
 验证脚本：`node tools/_cdp/domstale.mjs "<msedge.exe>" <url> <out>` —— 走 Hub→Level→Hub→Level 四跳，逐跳把 `#dom-ui` 的子元素列出来（第二跳之后是关键，隐式钩子的坑只在第二次离开时暴露）。本地与线上四跳均干净、`errors: []`；`touch.mjs` 7/7、`salvo.mjs` ALL PASS。右上两枚按钮的专项是 `node tools/_cdp/top-buttons-label.mjs "<msedge.exe>" [staticDir] <out>`（45 项断言，含缩放对齐、暂停/背包往返、场景停建与 DOM 清理）。
 
-### 单元测试锁定了什么（19 个文件 / 398 条）
+### 单元测试锁定了什么（20 个文件 / 408 条）
 
 | 文件 | 数量 | 锁定内容 |
 | --- | --- | --- |
+| `sceneDialogue.test.ts` | 10 | **v1.8.7 场景对白完整性**：逐句说话人 / 在场人物的纯函数判据；每段对白每句都有说话人且能查到显示名；9 个剧情节点 + 3 个副本都有不相同的开场与收尾对白、`participants` 与两段实际说话人集合一致；11 张事件卡 `figures` 非空（清单见 `design/14_scene_dialogue_roster.md`） |
 | `balance.test.ts` | 38 | 等级属性、经验曲线、关卡系数、伤害公式（暴击/弱点/等级压制/保底）、词条与掉落、知识加成、装备差值与强化收益 |
 | `save.test.ts` | 18 | 存档迁移不清档、紫装背包满不丢失、完成度权重归一化、五槽位进度 |
 | `quiz.test.ts` | 15 | 抽题不重复、通过线、知识卡复习列表、四档评价、题库数据完整性 |

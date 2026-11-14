@@ -99,6 +99,14 @@ try {
   await sleep(900);
   // 防御：万一有开场卡挡着
   for (let i=0;i<8 && await evaluate('!!window.__dshLevel.introOpen');i++){ await evaluate('(function(){var l=window.__dshGame.scene.getScene("Level"); if(l.pendingCardTap) l.pendingCardTap(); return 1;})()'); await sleep(250); }
+  // v1.8.7：每个场景都有开场对白，对白期间 setInputEnabled(false) 会挡住虚拟按键。
+  // 本探针测的是按键几何与点击，先把台词读完再量，别把「对话门禁」误判成「按键点不动」。
+  for (let i=0;i<40;i++){
+    const active = await evaluate(`!!window.__dshGame.scene.getScene('Level').dialogue?.isActive`);
+    if (!active) break;
+    await evaluate(`window.__dshGame.scene.getScene('Level').dialogue.advance()`);
+    await sleep(120); // DialogueBox.advance() 有 90ms 防连点，且首次点击只补全打字机
+  }
   report.checks.battleReady = true;
 
   // 给三个键的回调挂计数器（保留原行为，只额外记录）

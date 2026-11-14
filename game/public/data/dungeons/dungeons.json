@@ -53,7 +53,14 @@
     "blue": 40,
     "purple": 15
    },
-   "unique_drop": "eq_acc_concession_blue_01"
+   "unique_drop": "eq_acc_concession_blue_01",
+   "participants": [
+    "narrator",
+    "xiangmin",
+    "lin_zexu"
+   ],
+   "intro_dialogue_ref": "dlg_dg01_intro",
+   "outro_dialogue_ref": "dlg_dg01_outro"
   },
   {
    "id": "dg02_bandit",
@@ -117,7 +124,13 @@
     "blue": 42,
     "purple": 18
    },
-   "unique_drop": "eq_wp_dao_bandit_blue_01"
+   "unique_drop": "eq_wp_dao_bandit_blue_01",
+   "participants": [
+    "narrator",
+    "taiping_bing"
+   ],
+   "intro_dialogue_ref": "dlg_dg02_intro",
+   "outro_dialogue_ref": "dlg_dg02_outro"
   },
   {
    "id": "dg03_dock",
@@ -186,7 +199,13 @@
     "blue": 42,
     "purple": 18
    },
-   "unique_drop": "eq_leg_dock_blue_01"
+   "unique_drop": "eq_leg_dock_blue_01",
+   "participants": [
+    "narrator",
+    "shuiyong"
+   ],
+   "intro_dialogue_ref": "dlg_dg03_intro",
+   "outro_dialogue_ref": "dlg_dg03_outro"
   }
  ]
 }

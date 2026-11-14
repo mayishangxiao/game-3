@@ -1,15 +1,21 @@
 /**
  * 对话框 —— 底部浮层 + 打字机效果（设计书 6.9.1 / 6.9.2）。
  * 每行最多 18 个汉字、最多 3 行；点击或按 E/Enter 推进。
+ *
+ * v1.8.7：说话人归属改为**逐句**。`lines[].speaker` 覆盖 `block.speaker`，
+ * 每推进一句就同步换名字与立绘；右上角的「在场」列出本场全部对话人物。
+ * 老数据没写逐句 speaker / participants 时，一律回落到块级默认，行为与以前一致。
  */
 
 import Phaser from 'phaser';
 import { DEPTH, PALETTE } from '../core/constants';
+import { castLabel, lineSpeaker, resolveDialogueCast } from '../core/sceneDialogue';
 import { setInputEnabled } from '../core/EventBus';
 import type { DialogueAction, DialogueBlock, DialogueLine } from '../core/types';
 import {
   hideDialogue,
   setDialogueBody,
+  setDialogueCast,
   setDialogueSpeaker,
   setDialogueTyping,
   showDialogue,
@@ -28,6 +34,7 @@ export class DialogueBox {
   private portraits: Record<string, string> = {};
 
   private lines: DialogueLine[] = [];
+  private block: DialogueBlock | null = null;
   private index = 0;
   private typed = 0;
   private typing = false;
@@ -40,6 +47,7 @@ export class DialogueBox {
   private scene: Phaser.Scene;
   private lastAdvance = 0;
   private currentSpeaker = '';
+  private speakerLabel = '';
 
   constructor(scene: Phaser.Scene, charDelayMs = 40, portraits: Record<string, string> = {}) {
     this.charDelay = charDelayMs;
@@ -67,35 +75,42 @@ export class DialogueBox {
     onAction: (a: DialogueAction) => void,
     onDone: () => void,
   ): void {
+    this.block = block;
     this.lines = block.lines;
     this.index = 0;
     this.speakerNames = speakerNames;
-    this.speakerLabel = speakerNames[block.speaker] ?? block.speaker;
-    this.currentSpeaker = block.speaker;
     this.onAction = onAction;
     this.onDone = onDone;
     this.active = true;
+    // 强制首行重画立绘：上一段对白可能停在同一说话人上，画框状态不能直接复用。
+    this.currentSpeaker = '';
     this.container.setVisible(true);
     showDialogue();
+    // 这一场的参与人物整段固定，只设一次；逐句切换的是「谁在说」，不是「谁在场」。
+    setDialogueCast(castLabel(resolveDialogueCast(block), speakerNames));
     setInputEnabled(false);
-    this.applyPortrait(block.speaker);
     this.renderLine();
   }
 
   private renderLine(): void {
     const line = this.lines[this.index];
-    if (!line) {
+    if (!line || !this.block) {
       this.finish();
       return;
     }
-    void this.speakerNames;
-    setDialogueSpeaker(this.speakerLabel, !!this.portraits[this.currentSpeaker]);
+    const speaker = lineSpeaker(this.block, this.index);
+    this.speakerLabel = this.speakerNames[speaker] ?? speaker;
+    // 同一人连说几句时别反复销毁/重建立绘（异步加载的贴图会闪）。
+    if (speaker !== this.currentSpeaker) {
+      this.currentSpeaker = speaker;
+      this.applyPortrait(speaker);
+    }
+    setDialogueSpeaker(this.speakerLabel, !!this.portraits[speaker]);
     setDialogueBody('');
     this.typed = 0;
     this.typing = true;
     this.typeTimer = 0;
     setDialogueTyping(true);
-    void line;
   }
 
   /**
@@ -120,7 +135,9 @@ export class DialogueBox {
     }
     const key = `portrait_${speaker}`;
     const place = () => {
-      if (!this.scene.textures.exists(key)) return;
+      // 贴图是异步到的，这期间玩家可能已经把对白推进到别人（或整段关掉）。
+      // 不校验就会把上一个人的头像贴到下一句的名字旁边。
+      if (!this.active || this.currentSpeaker !== speaker || !this.scene.textures.exists(key)) return;
       // 底板留着当画框（深色画在深色底上会看不出边界），立绘缩进 2px 盖在上面
       this.portrait.setVisible(true).setStrokeStyle(1, PALETTE.star);
       this.portraitImg = this.scene.add
@@ -139,8 +156,6 @@ export class DialogueBox {
     this.scene.load.once(Phaser.Loader.Events.COMPLETE, place);
     this.scene.load.start();
   }
-
-  private speakerLabel = '';
 
   /** 每帧驱动打字机 */
   update(deltaMs: number): void {
@@ -206,6 +221,7 @@ export class DialogueBox {
     this.active = false;
     this.container.setVisible(false);
     hideDialogue();
+    setDialogueCast('');
     setInputEnabled(true);
     const cb = this.onDone;
     this.onDone = null;

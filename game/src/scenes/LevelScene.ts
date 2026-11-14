@@ -127,6 +127,7 @@ import {
   recordDungeonClear,
   shouldGrantUnique,
 } from '../core/dungeon';
+import { shouldPlayOutro } from '../core/sceneDialogue';
 import { getSave, persist } from './BootScene';
 import type {
   ActDef,
@@ -380,6 +381,12 @@ export class LevelScene extends Phaser.Scene {
   private dungeon: DungeonDef | null = null;
   private runDrops: ItemInstance[] = [];
   private dungeonResultOpen = false;
+  /** 本趟副本是否已经播过收尾对白（「再刷一次」会重开一趟，须复位） */
+  private dungeonOutroPlayed = false;
+  /** 已播过收尾对白的节点 id：同一节点重试 / 二次结算不重复念一遍台词 */
+  private outroPlayedFor: string | null = null;
+  /** 已真正结算过的节点 id：多条完成路径撞在一起时只发一次奖励 */
+  private settledNodeFor: string | null = null;
   /** 剧情关卡战败面板是否开着：开着时冻结世界更新，等玩家点「再试一次」 */
   private storyFailOpen = false;
 
@@ -934,6 +941,7 @@ export class LevelScene extends Phaser.Scene {
       this.spawnedTotal = 0;
       this.runDrops = [];
       this.dungeonResultOpen = false;
+      this.dungeonOutroPlayed = false;
       this.waveIndex = -1;
       this.wavePending = false;
       this.bossSpawned = false;
@@ -967,7 +975,16 @@ export class LevelScene extends Phaser.Scene {
 
       this.waveIndex = 0;
       this.wavePending = true;
-      this.time.delayedCall(900, () => this.spawnWave(0));
+      // 副本也要有开场人物与说话人：读完对白才放第一波，敌人不会在对话条后面推进来。
+      // 短（2~3 句），重复刷也播，保证「每一场都有人在交代这一趟是去干什么」。
+      const introRef = d.intro_dialogue_ref ?? null;
+      if (introRef) {
+        this.playDialogue(introRef, () => {
+          this.time.delayedCall(500, () => this.spawnWave(0));
+        });
+      } else {
+        this.time.delayedCall(900, () => this.spawnWave(0));
+      }
       this.nodeBusy = false;
       setControlsVisible(true);
       this.pushHud();
@@ -976,7 +993,7 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  /** 副本结算：收拢掉落、更新保底计数、弹出面板 */
+  /** 副本结算：先播本场人物的收尾对白，再做掉落与面板结算 */
   private finishDungeon(): void {
     this.closeWeaponBag('auto');
     const d = this.dungeon;
@@ -984,6 +1001,21 @@ export class LevelScene extends Phaser.Scene {
     this.nodeBusy = true;
     this.dungeonResultOpen = true;
     setControlsVisible(false);
+
+    // 战斗刚结束先有一段角色对话，然后才轮到手工结算面板（v1.8.7）。
+    // 一趟副本可能被「无 Boss 结算」与「Boss 阶段清空」两条路径点名，闸门保证只念一次。
+    if (shouldPlayOutro(d.outro_dialogue_ref, d.id, this.dungeonOutroPlayed ? d.id : null)) {
+      this.dungeonOutroPlayed = true;
+      this.playDialogue(d.outro_dialogue_ref as string, () => this.settleDungeon());
+      return;
+    }
+    this.settleDungeon();
+  }
+
+  /** 结算主体：收拢掉落、更新保底计数、弹出面板 */
+  private settleDungeon(): void {
+    const d = this.dungeon;
+    if (!d) return;
 
     const gained: ItemInstance[] = [...this.runDrops];
     for (const f of [...this.floorItems]) {
@@ -2040,6 +2072,9 @@ export class LevelScene extends Phaser.Scene {
     }
     this.node = node;
     this.nodeIndex = index;
+    // 新场景（含同一节点重试）都从「还没念收尾台词」开始，收尾闸门只在本节点内生效。
+    this.outroPlayedFor = null;
+    this.settledNodeFor = null;
     // 换图是 await：模式必须在这个异步窗口之前切过去，否则让出的一帧里
     // updateWorld 仍会按上一幕的模式跑完成判定（护送 → 经营串幕的根因）。
     this.mode = ((node.params.mode as Mode) ?? 'explore') as Mode;
@@ -2122,14 +2157,11 @@ export class LevelScene extends Phaser.Scene {
       case 'escort':
         this.setupEscort();
         break;
-      case 'management':
-        this.setupManagement();
-        break;
+      // 过场自己负责「开场对白 → 结算」；经营 / 抉择的面板会盖住对白框，
+      // 两者都等开场对白读完再登场（见下面的 showPanel），不在这里立刻建。
       case 'cutscene':
-        this.setupCutscene();
-        break;
+      case 'management':
       case 'choice':
-        this.setupChoice();
         break;
     }
 
@@ -2139,13 +2171,21 @@ export class LevelScene extends Phaser.Scene {
     // 「炮」只在战斗幕出现（甲方要求：别的场景不该留一个按不动的技能键）
     setCannonVisible(this.mode === 'combat' && !!this.cfg.skills?.humen_cannon);
 
-    // 节点自身的开场对话。
-    // 有开场情境卡时，对白要等卡片关掉再开始——否则对白框会被卡片盖住，
-    // 名字与「▼ 继续」还从卡片边上露出来（截图已见到）。
+    // 每个场景都要有开场对白，并且明确「这一场有谁、这句是谁说的」（v1.8.7）。
+    // 面板类场景原先直接把对白框盖住（经营是 DOM 面板、抉择是全屏遮罩），
+    // 所以把它们延后到对白读完；有情境卡时则等卡片关掉再读，避免三层叠在一起。
     const dref = node.dialogue_ref as string | undefined;
     const hasBanner = !!node.banner;
-    if (dref && !hasBanner && this.mode !== 'cutscene' && this.mode !== 'choice') {
-      this.playDialogue(dref);
+    const showPanel = () => {
+      if (this.mode === 'management') this.setupManagement();
+      else if (this.mode === 'choice') this.setupChoice();
+    };
+    if (this.mode === 'cutscene') {
+      // 过场：开场对白读完 → 结算（结算里还会播本场的收尾对白）
+      this.setupCutscene();
+    } else if (!hasBanner) {
+      if (dref) this.playDialogue(dref, showPanel);
+      else showPanel();
     }
 
     // 战斗开场情境卡：时间 / 地点 / 双方兵力（甲方要求「背景上写清这三样」）。
@@ -2170,7 +2210,7 @@ export class LevelScene extends Phaser.Scene {
             this.spawnWave(0);
           });
         };
-        if (dref && this.mode !== 'cutscene' && this.mode !== 'choice') {
+        if (dref && this.mode !== 'cutscene') {
           this.playDialogue(dref, startWaves);
         } else {
           startWaves();
@@ -5127,6 +5167,28 @@ export class LevelScene extends Phaser.Scene {
       this.finishDungeon();
       return;
     }
+
+    // 战斗 / 玩法一结束，先让本场人物把话收完，再记完成、发奖励、切下一节点（v1.8.7）。
+    // 闸门统一放在结算入口：护送抵达、搬箱投池、经营 8 月、抉择、Boss 清空、
+    // 过场结束、战败链……所有这些路径都不会再「打完就跳手工处理 / 没一句角色台词」。
+    // 同一节点只播一次；重试会由 startNodeInner 清空标记，重新走完整套开场 + 收尾。
+    const outroRef = this.node.outro_dialogue_ref ?? null;
+    if (shouldPlayOutro(outroRef, this.node.id, this.outroPlayedFor)) {
+      this.outroPlayedFor = this.node.id;
+      this.nodeBusy = true;
+      setControlsVisible(false);
+      this.playDialogue(outroRef as string, () => this.settleNode());
+      return;
+    }
+    this.settleNode();
+  }
+
+  /** 节点结算主体：标记完成、发奖励、推进到下一节点 / 回长廊 */
+  private settleNode(): void {
+    if (!this.node) return;
+    // 多条完成路径（例如战败链 force=true 与波次判定）撞在一起时只结算一次。
+    if (this.settledNodeFor === this.node.id) return;
+    this.settledNodeFor = this.node.id;
     this.nodeBusy = true;
 
     markNodeDone(this.save, this.node.id);

@@ -162,3 +162,11 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 **不会卡关**（节点的 `defeat_continues` 为真）。它不是普通伤害：护盾、闪避、无敌帧一律不生效，因为这不是数值，是剧情。
 
 > 改这几项时**不要只改一面**：光把敌人调快一点、玩家调慢一点，玩家会觉得是 bug 而不是史实——所以开场卡上要有 `banner.power` 的战力对比把话说明白。
+
+### 场景对白与参与人物（v1.8.7）
+
+- `dialogues/dlg_ch00.json`：`npcs` 是**唯一显示名表**；每个块写 `participants`，**每一行**都写 `speaker`（多人对话靠它标归属，缺一句 `tests/sceneDialogue.test.ts` 就红）。老块没写 `participants` 时由逐句 speaker 兜底，但新增块一律写全。
+- `nodes/nodes_ch00.json`：`dialogue_ref` = 开场、`outro_dialogue_ref` = 收尾、`participants` = 两段人物的并集。少任何一个，场景就会退回「只在开头两句、打完直接跳手工处理」。
+- `dungeons/dungeons.json`：副本同样是这三件套；开场对白读完才放第一波，通关结算面板之前必播收尾对白。
+- `events/events_ch00.json`：`figures` 不许为空，人物 id 都要能在 `npcs` 查到显示名。
+- 逐场清单、说话顺序与改动摘要见 `design/14_scene_dialogue_roster.md`。

@@ -9,7 +9,8 @@
    "place": "广州虎门（今广东东莞虎门镇）",
    "figures": [
     "lin_zexu",
-    "guan_tianpei"
+    "guan_tianpei",
+    "xiangmin"
    ],
    "document": "",
    "result": "林则徐在虎门海滩公开销毁鸦片 237 万余斤，历时 23 天，向全世界表明了中国人民反抗外来侵略的坚强意志。",
@@ -33,7 +34,9 @@
    "date": "1840.6",
    "place": "广东海面",
    "figures": [
-    "lin_zexu"
+    "lin_zexu",
+    "charles_elliot",
+    "guan_tianpei"
    ],
    "document": "",
    "result": "英国以武力打开中国大门，中国开始沦为半殖民地半封建社会，中国近代史由此开端。",
@@ -57,7 +60,8 @@
    "date": "1841.2.26",
    "place": "虎门威远炮台（今广东东莞）",
    "figures": [
-    "guan_tianpei"
+    "guan_tianpei",
+    "shuiyong"
    ],
    "document": "",
    "result": "关天培率部孤军奋战，壮烈殉国。炮台失守，广州门户洞开。",
@@ -80,7 +84,10 @@
    "title": "三元里抗英",
    "date": "1841.5.30",
    "place": "广州三元里（今广州白云区）",
-   "figures": [],
+   "figures": [
+    "wei_shaoguang",
+    "xiangmin"
+   ],
    "document": "",
    "result": "三元里一带乡民自发组织起来抗击英军，是近代中国人民反侵略斗争的先声。",
    "archetype": "F",
@@ -102,7 +109,11 @@
    "title": "《南京条约》签订",
    "date": "1842.8.29",
    "place": "南京下关江面英舰皋华丽号",
-   "figures": [],
+   "figures": [
+    "qiying",
+    "pottinger",
+    "lin_zexu"
+   ],
    "document": "《南京条约》",
    "result": "中国近代史上第一个不平等条约。割香港岛、赔款 2100 万银元、开放五处通商口岸。",
    "archetype": "J",
@@ -126,7 +137,8 @@
    "place": "广西桂平金田村（今广西桂平市）",
    "figures": [
     "hong_xiuquan",
-    "yang_xiuqing"
+    "yang_xiuqing",
+    "li_xiucheng"
    ],
    "document": "",
    "result": "洪秀全等在金田村起义，建号太平天国。此后两年间转战数省，队伍迅速扩大。",
@@ -150,7 +162,9 @@
    "date": "1853.3",
    "place": "南京（改称天京）",
    "figures": [
-    "hong_xiuquan"
+    "hong_xiuquan",
+    "yang_xiuqing",
+    "hong_renxuan"
    ],
    "document": "《天朝田亩制度》",
    "result": "太平军攻占南京并定都于此，改称天京，建立起与清王朝对峙的农民政权。《天朝田亩制度》提出了平均分配土地的方案。",
@@ -173,7 +187,12 @@
    "title": "天京事变",
    "date": "1856.9",
    "place": "天京",
-   "figures": [],
+   "figures": [
+    "hong_xiuquan",
+    "yang_xiuqing",
+    "wei_changhui",
+    "shi_dakai"
+   ],
    "document": "",
    "result": "领导集团内部自相残杀，东王杨秀清、北王韦昌辉相继被杀，翼王石达开出走，太平天国由盛转衰。",
    "archetype": "J",
@@ -196,7 +215,8 @@
    "date": "1859",
    "place": "天京",
    "figures": [
-    "hong_renxuan"
+    "hong_renxuan",
+    "hong_xiuquan"
    ],
    "document": "《资政新篇》",
    "result": "洪仁玕提出学习西方、发展工商业、改革内政的方案，是中国最早的系统性近代化纲领之一，但因缺乏条件未能实行。",
@@ -220,7 +240,9 @@
    "date": "1864.7",
    "place": "天京",
    "figures": [
-    "li_xiucheng"
+    "li_xiucheng",
+    "zeng_guofan",
+    "taiping_bing"
    ],
    "document": "",
    "result": "湘军攻破天京，太平天国运动失败。李秀成被俘后就义。",
@@ -243,7 +265,11 @@
    "title": "农民阶级的局限性",
    "date": "1864",
    "place": "",
-   "figures": [],
+   "figures": [
+    "li_xiucheng",
+    "hong_renxuan",
+    "narrator"
+   ],
    "document": "",
    "result": "太平天国运动是中国历史上规模最大的农民战争，沉重打击了中外反动势力；但它没有科学理论指导，没有先进阶级领导，不能领导中国革命走向胜利。",
    "archetype": "I",

@@ -93,7 +93,12 @@ export interface NodeDef {
   archetype: string;
   type: NodeType;
   params: Record<string, unknown>;
+  /** 开场对白 */
   dialogue_ref?: string | null;
+  /** 收尾对白（v1.8.7）：节点结算前必播，战斗一结束不再是「直接跳手工面板 / 无角色对话」 */
+  outro_dialogue_ref?: string | null;
+  /** 本场景参与对话的全部人物 id（开场 + 收尾去重），用于清单与单测 */
+  participants?: string[];
   enemy_ref?: string | null;
   map_ref?: string | null;
   /** 左上角 HUD 显示的「这一场叫什么」。缺省时退回幕名。 */
@@ -219,6 +224,8 @@ export interface DialogueAction {
 
 export interface DialogueLine {
   text: string;
+  /** 逐句说话人（v1.8.7）：不写则继承 `DialogueBlock.speaker`。同一段里多人对话靠它标归属。 */
+  speaker?: string;
   emotion?: string;
   action?: DialogueAction;
   next?: string;
@@ -230,7 +237,10 @@ export interface DialogueLine {
 
 export interface DialogueBlock {
   id: string;
+  /** 默认说话人；逐句可用 `lines[].speaker` 覆盖 */
   speaker: string;
+  /** 本段参与对话的全部人物 id，顺序按首次出场；场景清单与测试据此校验「谁在场」 */
+  participants?: string[];
   lines: DialogueLine[];
 }
 
@@ -538,6 +548,12 @@ export interface DungeonDef {
   quality_weights: Record<Quality, number>;
   /** 首通必掉的独特装备 */
   unique_drop: string | null;
+  /** 本场景参与对话的人物（v1.8.7） */
+  participants?: string[];
+  /** 首通开场对白；重复刷不再强制读台词 */
+  intro_dialogue_ref?: string | null;
+  /** 首通收尾对白；在结算面板之前播放 */
+  outro_dialogue_ref?: string | null;
 }
 
 /** 单个副本的持久化进度 */

@@ -280,7 +280,13 @@ async function main() {
     const samples = [];
     const t0 = Date.now();
     for (let i = 0; i < 48; i++) {
-      samples.push({ t: Date.now() - t0, ...(await evaluate(SNAPSHOT)) });
+      const s = await evaluate(SNAPSHOT);
+      samples.push({ t: Date.now() - t0, ...s });
+      // v1.8.7：护送结算前会先播一段收尾对白（本场人物交代结果）。
+      // 采样时模拟玩家逐句点掉，否则节点停在收尾对白上，永远等不到经营面板。
+      if (s.dialogueActive) {
+        await evaluate("(function(){var l=window.__dshGame.scene.getScene('Level'); if(l.dialogue&&l.dialogue.isActive) l.dialogue.advance(); return 1;})()");
+      }
       if (i === 28) await shot('management-hold.png');
       await sleep(100);
     }

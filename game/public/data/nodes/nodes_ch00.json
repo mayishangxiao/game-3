@@ -6,6 +6,8 @@
       "archetype": "F",
       "type": "dialog",
       "dialogue_ref": "dlg_ch00_act1_intro",
+      "outro_dialogue_ref": "dlg_ch00_act1_intro_outro",
+      "participants": ["narrator", "lin_zexu", "guan_tianpei", "xiangmin", "shuiyong"],
       "enemy_ref": null,
       "map_ref": "map_ch00_act1a",
       "params": {
@@ -28,6 +30,8 @@
       "archetype": "F",
       "type": "dialog",
       "dialogue_ref": "dlg_ch00_act1_pool",
+      "outro_dialogue_ref": "dlg_ch00_act1_pool_outro",
+      "participants": ["narrator", "lin_zexu", "guan_tianpei", "xiangmin"],
       "enemy_ref": null,
       "map_ref": "map_ch00_act1a",
       "params": {
@@ -46,6 +50,8 @@
       "archetype": "C",
       "type": "combat",
       "dialogue_ref": "dlg_ch00_act1_fort_intro",
+      "outro_dialogue_ref": "dlg_ch00_act1_fort_outro",
+      "participants": ["guan_tianpei", "shuiyong", "lin_zexu", "narrator"],
       "enemy_ref": null,
       "map_ref": "map_ch00_act1b",
       "params": {
@@ -130,6 +136,8 @@
       "archetype": "I",
       "type": "choice",
       "dialogue_ref": "dlg_ch00_act1_nanjing",
+      "outro_dialogue_ref": "dlg_ch00_act1_nanjing_outro",
+      "participants": ["narrator", "pottinger", "qiying", "lin_zexu"],
       "enemy_ref": null,
       "map_ref": null,
       "params": {
@@ -158,6 +166,8 @@
       "archetype": "C",
       "type": "dialog",
       "dialogue_ref": "dlg_ch00_act2_intro",
+      "outro_dialogue_ref": "dlg_ch00_act2_intro_outro",
+      "participants": ["narrator", "hong_xiuquan", "yang_xiuqing", "li_xiucheng", "taiping_bing"],
       "enemy_ref": null,
       "map_ref": "map_ch00_tp_village",
       "params": {
@@ -214,6 +224,8 @@
       "archetype": "G",
       "type": "management",
       "dialogue_ref": "dlg_ch00_act2_tianjing",
+      "outro_dialogue_ref": "dlg_ch00_act2_tianjing_outro",
+      "participants": ["hong_xiuquan", "yang_xiuqing", "hong_renxuan", "narrator"],
       "enemy_ref": null,
       "map_ref": "map_ch00_tp_city",
       "params": {
@@ -232,6 +244,8 @@
       "archetype": "J",
       "type": "cutscene",
       "dialogue_ref": "dlg_ch00_act2_intrigue",
+      "outro_dialogue_ref": "dlg_ch00_act2_intrigue_outro",
+      "participants": ["narrator", "yang_xiuqing", "hong_xiuquan", "wei_changhui", "shi_dakai", "hong_renxuan", "li_xiucheng"],
       "enemy_ref": null,
       "map_ref": null,
       "params": {
@@ -247,7 +261,9 @@
       "event_id": "ev_1864_tianjing_fall",
       "archetype": "C",
       "type": "combat",
-      "dialogue_ref": null,
+      "dialogue_ref": "dlg_ch00_act2_fall_intro",
+      "outro_dialogue_ref": "dlg_ch00_act2_fall_outro",
+      "participants": ["narrator", "zeng_guofan", "li_xiucheng", "taiping_bing"],
       "enemy_ref": null,
       "map_ref": "map_ch00_tp_battlefield",
       "params": {
@@ -316,6 +332,8 @@
       "archetype": "I",
       "type": "choice",
       "dialogue_ref": "dlg_ch00_act2_fall",
+      "outro_dialogue_ref": "dlg_ch00_act2_limit_outro",
+      "participants": ["narrator", "li_xiucheng", "hong_renxuan"],
       "enemy_ref": null,
       "map_ref": null,
       "params": {

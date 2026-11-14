@@ -14,6 +14,8 @@ let dlg: HTMLDivElement | null = null;
 let dlgName: HTMLDivElement | null = null;
 let dlgBody: HTMLDivElement | null = null;
 let dlgHint: HTMLDivElement | null = null;
+/** 对白框右上角的「在场：A · B」——本场参与对话的人物（v1.8.7） */
+let dlgCast: HTMLDivElement | null = null;
 let hudScene: HTMLDivElement | null = null;
 let hudObjective: HTMLDivElement | null = null;
 let hudPanel: HTMLDivElement | null = null;
@@ -36,6 +38,7 @@ function ensure(): void {
   dlgName = ui.querySelector('#dom-dlg-name') as HTMLDivElement;
   dlgBody = ui.querySelector('#dom-dlg-body') as HTMLDivElement;
   dlgHint = ui.querySelector('#dom-dlg-hint') as HTMLDivElement;
+  dlgCast = ui.querySelector('#dom-dlg-cast') as HTMLDivElement;
   hudScene = ui.querySelector('#dom-hud-scene') as HTMLDivElement;
   hudObjective = ui.querySelector('#dom-hud-objective') as HTMLDivElement;
   hudPanel = ui.querySelector('#dom-hud-panel') as HTMLDivElement;
@@ -84,6 +87,17 @@ export function setDialogueSpeaker(speaker: string, hasPortrait: boolean): void 
   dlgName.style.paddingLeft = pad;
   dlgBody.style.paddingLeft = pad;
   dlgName.style.display = speaker ? 'block' : 'none';
+}
+
+/**
+ * 本场参与对话的人物。整段对白期间固定不变，所以由 `DialogueBox.show()` 设置一次；
+ * 空串时整行收起，不给只有旁白的旧对白凭空加一行小字。
+ */
+export function setDialogueCast(text: string): void {
+  ensure();
+  if (!dlgCast) return;
+  dlgCast.textContent = text;
+  dlgCast.style.display = text ? 'block' : 'none';
 }
 
 export function setDialogueBody(text: string): void {

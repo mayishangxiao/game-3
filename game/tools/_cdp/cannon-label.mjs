@@ -280,6 +280,13 @@ try {
           'dungeon map',
         );
         await sleep(1200);
+        // v1.8.7：副本开场对白读完才放第一波，先把台词推进完再等敌人。
+        for (let i=0;i<40;i++){
+          const active = await evaluate(`!!window.__dshGame.scene.getScene('Level').dialogue?.isActive`);
+          if (!active) break;
+          await evaluate(`window.__dshGame.scene.getScene('Level').dialogue.advance()`);
+          await sleep(120);
+        }
         await waitFor(() => evaluate('window.__dshLevel.allEnemies().length > 0'), 25000, 'dungeon enemies');
       } else {
         await enterLevel(s.init);

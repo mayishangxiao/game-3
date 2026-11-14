@@ -17,13 +17,14 @@ main.ts
 ```
 
 **硬性约束：`core/` 里的 20 个模块（balance / cannon / constants / critShake / DataLoader / defeat / dungeon / escort / EventBus / graph / management / orientation / quiz / SaveManager / space / types / upgradeSelection / waveUpgrade / weaponSelection / weaponSwap）不 import Phaser。**
-这条线是单元测试能跑在 node 环境的前提（`vitest.config.ts` 里 `environment: 'node'`）。往这些文件里加 `import Phaser` 会让 19 个测试文件全部炸掉。
+这条线是单元测试能跑在 node 环境的前提（`vitest.config.ts` 里 `environment: 'node'`）。往这些文件里加 `import Phaser` 会让 20 个测试文件全部炸掉。
 需要渲染的东西一律往 `scenes/` 或 `gfx/` 放。
 
 ## core/ —— 纯逻辑层（可单元测试）
 
 | 文件 | 行数 | 职责 | 主要导出 | 改动波及 |
 | --- | --- | --- | --- | --- |
+| `core/sceneDialogue.ts` | 66 | **场景对白共用的判据**（v1.8.7）：在场人物（声明优先、逐句 speaker 兜底）、某一句归谁说、「在场：A · B」标签、收尾对白只播一次的闸门 | `resolveDialogueCast` `sceneCast` `lineSpeaker` `castLabel` `shouldPlayOutro` | `DialogueBox` 用它逐句换名字/立绘和显示参与人物；`LevelScene.completeNode()` / `finishDungeon()` 用它拦结算播收尾；`tests/sceneDialogue.test.ts` 用它核对 `participants` 是否等于开场∪收尾的实际说话人。**别把「谁在场」和「谁在说」合成一个字段**：前者整段固定，后者逐句变 |
 | `core/constants.ts` | 564 | 全局常量：内部分辨率 480×270、瓦片 16、角色 24×32、24 色锁定调色板、`darkerOf/lighterOf`、`DEPTH`、`SAVE_KEY`、`DATA_ROOT`、`CONTROL_LAYOUT`/`CONTROL_HIT_PAD`（虚拟按键圆心与半径）、`ART`/`SHIP_TEX`/`TEX_CRATE`/`SHIP_FRAME`/`BG_TEX`/`SCAR_TEX`/`UNIT_ART`/`unitArtOf`/`HORIZON_ROWS`（正式美术路径、纹理 key、兵种→贴图映射）、`FX_TEX`/`FX_CANNON_FRAMES`/`FX_FRAME_MS`（炮火特效帧数与每帧时长）、**`RENDER_SCALE`/`GAME_W`/`GAME_H`**（后缓冲超采样倍数与真实画布尺寸；`pickRenderScale()` = `round(画布CSS高 × dpr / 270)`，夹在 1..5 且受 2.2 MP 像素预算限制；**这三个是 `export let`**，`boot.ts` 在 resize 时调 `refreshRenderScale()` 重算；验证时可用 `localStorage.DSH_FORCE_RS` 或 `?rs=` 钉死倍数，用来同一份构建做 A/B 对照） | 常量 + 两个配色函数 | 全部文件。改 `VIEW_W/H` 要同步 `FIELD_COLS/ROWS` 与 UIScene 布局；**`VIEW_W/H` 是逻辑坐标、`GAME_W/H` 才是画布像素，两者之比就是 `RENDER_SCALE`——凡把「屏幕/画布像素」换算回「逻辑坐标」的地方都必须除以它**（`InputSystem.toLogical`、`OrientationGate` 的指针反算、`DefeatCinematic` 的独立摄像机）；改 `SAVE_KEY` 等于清档；改 `CONTROL_LAYOUT` 要跑 `tests/data.test.ts` + `tests/art.test.ts`（后者断言 8 个鸦片箱不在按钮命中圈内，曾被玩家反馈「第八个鸦片找不到」）；改 `ART` 里的路径要跑 `tests/art.test.ts`（会真的读 PNG 头校验尺寸，含炮火特效的 48 帧 × 96×96） |
 | `core/types.ts` | 604 | 与设计书 5.2 节 JSON Schema 一一对应的接口定义 | 全部接口 | 编译器会把影响面直接指出来，改字段名很安全。`NodeDef.title` / `NodeDef.year` 只服务左上角战役条（数据里有则不写代码也能改显示名）。`ChapterMeta` 里**没有 `acts_planned`**——本期只有 ch00 两幕，别再把它加回来 |
 | `core/balance.ts` | 423 | 数值公式：等级属性、经验曲线、伤害（减法防御 + 暴击 + 弱点 ×2.5 + 等级压制）、掉落品质、词条、强化/拆解价值、`effectiveStats` | `levelStats` `expToNext` `applyExp` `computeDamage` `rollQuality` `makeItemInstance` `enhanceCost` `salvageValue` `knowledgeBonus` `aggregateEquipment` `effectiveStats`；v1.5 新增纯函数 `compareWithEquipped` `statDeltaParts` `formatStatDelta` `enhanceGain` `firstGainfulEnhance`（只做展示与判定，不改任何公式） | `tests/balance.test.ts` 用设计书表格断言。改数值必须同步设计书 4.4 / 4.3 表格，否则测试红 |

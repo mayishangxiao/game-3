@@ -1,257 +1,311 @@
 {
+  "npcs": {
+    "narrator": "旁白",
+    "lin_zexu": "林则徐",
+    "guan_tianpei": "关天培",
+    "shuiyong": "水勇",
+    "xiangmin": "乡民",
+    "qiying": "耆英",
+    "pottinger": "璞鼎查",
+    "charles_elliot": "义律",
+    "wei_shaoguang": "韦绍光",
+    "li_xiucheng": "李秀成",
+    "hong_xiuquan": "洪秀全",
+    "hong_renxuan": "洪仁玕",
+    "yang_xiuqing": "杨秀清",
+    "wei_changhui": "韦昌辉",
+    "shi_dakai": "石达开",
+    "taiping_bing": "太平军战士",
+    "zeng_guofan": "曾国藩"
+  },
   "dialogues": [
     {
       "id": "dlg_ch00_act1_intro",
       "speaker": "narrator",
+      "participants": ["narrator", "lin_zexu", "guan_tianpei", "xiangmin"],
       "lines": [
-        {
-          "text": "从这片海滩起：\n先听林大人吩咐，再搬箱入池；\n末了守炮台，走到江边才收场。",
-          "emotion": "neutral"
-        },
-        {
-          "text": "道光十九年六月，虎门海滩。\n钦差大臣林则徐到了广东。",
-          "emotion": "neutral"
-        },
-        {
-          "text": "他在奏折里写道：\n“若犹泄泄视之，数十年后，\n中原几无可以御敌之兵。”",
-          "emotion": "worried"
-        },
-        {
-          "text": "缴来的烟土共一万九千一百八十七箱，\n都堆在海滩上——\n要全部投进销烟池。",
-          "emotion": "neutral",
-          "action": {
-            "type": "flag",
-            "value": "pool_started"
-          }
-        }
+        { "speaker": "narrator", "text": "道光十九年六月，\n钦差大臣林则徐\n到了广东虎门。" },
+        { "speaker": "lin_zexu", "text": "若犹泄泄视之，\n数十年后，中原\n几无可以御敌之兵。" },
+        { "speaker": "guan_tianpei", "text": "水师已封住海口，\n缴来的烟土\n都堆在滩上。" },
+        { "speaker": "xiangmin", "text": "一万九千多箱，\n要销到什么时候？" },
+        { "speaker": "lin_zexu", "text": "先听吩咐，再搬箱；\n末了守炮台。", "action": { "type": "flag", "value": "pool_started" } }
       ]
     },
     {
       "id": "dlg_ch00_act1_pool",
       "speaker": "narrator",
+      "participants": ["narrator", "lin_zexu", "guan_tianpei", "xiangmin"],
       "lines": [
-        {
-          "text": "海水浸泡，再加石灰。\n池水沸腾，烟土化尽——\n退潮时随潮水入海，不留一星。",
-          "emotion": "neutral"
-        },
-        {
-          "text": "二十三天，销烟二百三十七万余斤。\n要让洋人看清楚：\n中国人不是好欺的。",
-          "emotion": "neutral"
-        },
-        {
-          "text": "“若鸦片一日未绝，\n本大臣一日不回。”",
-          "emotion": "neutral",
-          "action": {
-            "type": "knowledge",
-            "item": "kc_1839_humen"
-          }
-        },
-        {
-          "text": "可是海面上，英国的兵船\n已经来了。",
-          "emotion": "worried",
-          "action": {
-            "type": "end"
-          }
-        }
+        { "speaker": "narrator", "text": "海水浸泡，再加石灰。\n池水沸腾，烟土化尽。" },
+        { "speaker": "lin_zexu", "text": "若鸦片一日未绝，\n本大臣一日不回。", "action": { "type": "knowledge", "item": "kc_1839_humen" } },
+        { "speaker": "xiangmin", "text": "二十三天，\n销烟二百三十七万余斤。" },
+        { "speaker": "guan_tianpei", "text": "要让洋人看清楚：\n中国人不是好欺的。" },
+        { "speaker": "narrator", "text": "可是海面上，\n英国的兵船已经来了。", "action": { "type": "end" } }
       ]
     },
     {
       "id": "dlg_ch00_act1_pool_lin",
       "speaker": "lin_zexu",
+      "participants": ["lin_zexu", "shuiyong", "narrator"],
       "lines": [
-        {
-          "text": "鸦片一日未绝，本大臣一日不回。",
-          "emotion": "proud"
-        },
-        {
-          "text": "这滩上两万余箱烟土，\n一箱不留，全数销尽。",
-          "emotion": "neutral"
-        },
-        {
-          "text": "你们把箱子搬进池里，\n浇上海水与石灰便是。\n动手罢。",
-          "emotion": "neutral"
-        }
+        { "speaker": "lin_zexu", "text": "鸦片一日未绝，\n本大臣一日不回。" },
+        { "speaker": "shuiyong", "text": "大人，箱子都齐了。" },
+        { "speaker": "lin_zexu", "text": "这滩上两万余箱，\n一箱不留，全数销尽。" },
+        { "speaker": "lin_zexu", "text": "浇上海水与石灰便是。\n动手罢。" }
       ]
     },
     {
       "id": "dlg_ch00_act1_fort_intro",
       "speaker": "guan_tianpei",
+      "participants": ["guan_tianpei", "shuiyong", "narrator", "lin_zexu"],
       "lines": [
-        {
-          "text": "我是广东水师提督关天培。\n威远炮台，就交给我了。",
-          "emotion": "neutral"
-        },
-        {
-          "text": "炮台修了三年，招募水勇三千。\n可朝廷的军费，一年比一年少。",
-          "emotion": "worried"
-        },
-        {
-          "text": "炮弹不多，火枪更少。\n手里的刀，还是老样子。",
-          "emotion": "neutral"
-        },
-        {
-          "text": "守住这里。",
-          "emotion": "proud",
-          "action": {
-            "type": "bgm",
-            "value": "bgm_battle"
-          }
-        }
+        { "speaker": "guan_tianpei", "text": "我是广东水师提督\n关天培。威远炮台，\n就交给我了。" },
+        { "speaker": "shuiyong", "text": "军费又减了，\n炮弹只剩三十几发。" },
+        { "speaker": "guan_tianpei", "text": "炮台修了三年，\n招募水勇三千。" },
+        { "speaker": "narrator", "text": "英舰的铁壳，\n旧式前装炮打不穿。" },
+        { "speaker": "lin_zexu", "text": "关军门，\n广东就托付你了。" },
+        { "speaker": "guan_tianpei", "text": "守住这里。", "action": { "type": "bgm", "value": "bgm_battle" } }
       ]
     },
     {
       "id": "dlg_ch00_act1_cannon",
       "speaker": "guan_tianpei",
+      "participants": ["guan_tianpei", "shuiyong"],
       "lines": [
-        {
-          "text": "这门炮，还能打。\n弹药库里只剩三十几发。",
-          "emotion": "worried"
-        },
-        {
-          "text": "省着用。",
-          "emotion": "neutral"
-        }
+        { "speaker": "guan_tianpei", "text": "这门炮，还能打。\n弹药库里只剩三十几发。" },
+        { "speaker": "shuiyong", "text": "提督，省着用。" },
+        { "speaker": "guan_tianpei", "text": "瞄准船身与桅杆。" }
       ]
     },
     {
       "id": "dlg_ch00_act1_nanjing",
       "speaker": "narrator",
+      "participants": ["narrator", "pottinger", "qiying", "lin_zexu"],
       "lines": [
-        {
-          "text": "道光二十二年七月，\n英舰皋华丽号泊在南京下关江面。",
-          "emotion": "sad"
-        },
-        {
-          "text": "条约的条款已经拟好：\n割香港岛，赔款两千一百万银元，\n开广州、厦门、福州、宁波、上海五口。",
-          "emotion": "sad"
-        },
-        {
-          "text": "这是中国近代史上\n第一个不平等条约。\n——也是此后一百年的开端。",
-          "emotion": "sad",
-          "action": {
-            "type": "knowledge",
-            "item": "kc_1842_nanjing"
-          }
-        },
-        {
-          "text": "旧中国的第一次失败，\n记在了这里。",
-          "emotion": "sad",
-          "action": {
-            "type": "end"
-          }
-        }
+        { "speaker": "narrator", "text": "道光二十二年七月，\n英舰皋华丽号\n泊在南京下关江面。" },
+        { "speaker": "pottinger", "text": "条款已经拟好：\n割地、赔款、五口通商。" },
+        { "speaker": "qiying", "text": "朝廷准了。\n签罢，便退兵。" },
+        { "speaker": "narrator", "text": "割香港岛，\n赔款两千一百万银元，\n开五口通商。", "action": { "type": "knowledge", "item": "kc_1842_nanjing" } },
+        { "speaker": "lin_zexu", "text": "海防一日不修，\n这样的约还会有。" },
+        { "speaker": "narrator", "text": "第一个不平等条约，\n此后一百年的开端。", "action": { "type": "end" } }
       ]
     },
     {
       "id": "dlg_ch00_act2_intro",
-      "speaker": "li_xiucheng",
+      "speaker": "narrator",
+      "participants": ["narrator", "hong_xiuquan", "yang_xiuqing", "li_xiucheng", "taiping_bing"],
       "lines": [
-        {
-          "text": "先随我杀出金田：\n且战且走，护住身边的人；\n往后不止刀兵，须一一走过。",
-          "emotion": "neutral"
-        },
-        {
-          "text": "我是李秀成。\n从金田村出来的那一天，\n我们只有两万人。",
-          "emotion": "neutral"
-        },
-        {
-          "text": "清军在后面追。\n带着这三个弟兄走，\n一个都不能少。",
-          "emotion": "worried"
-        },
-        {
-          "text": "往东。",
-          "emotion": "proud",
-          "action": {
-            "type": "bgm",
-            "value": "bgm_battle"
-          }
-        }
+        { "speaker": "narrator", "text": "咸丰元年正月，\n广西桂平金田村。" },
+        { "speaker": "hong_xiuquan", "text": "拜上帝会的弟兄，\n今日起义。" },
+        { "speaker": "yang_xiuqing", "text": "清军从后山压来，\n辎重先走。" },
+        { "speaker": "li_xiucheng", "text": "我是李秀成。\n带这三个弟兄走，\n一个都不能少。" },
+        { "speaker": "taiping_bing", "text": "往东，跟紧了！", "action": { "type": "bgm", "value": "bgm_battle" } }
       ]
     },
     {
       "id": "dlg_ch00_act2_tianjing",
       "speaker": "hong_xiuquan",
+      "participants": ["hong_xiuquan", "yang_xiuqing", "hong_renxuan", "narrator"],
       "lines": [
-        {
-          "text": "定都天京了。\n从今往后，这里就是\n太平天国的都城。",
-          "emotion": "proud"
-        },
-        {
-          "text": "粮草、兵员、民心。\n三件事，每月只有六点可分。",
-          "emotion": "neutral"
-        },
-        {
-          "text": "《天朝田亩制度》上写着\n“无人不饱暖”。\n你去分分看。",
-          "emotion": "worried",
-          "action": {
-            "type": "knowledge",
-            "item": "kc_1853_tianjing"
-          }
-        }
+        { "speaker": "hong_xiuquan", "text": "定都天京了。\n从今往后，这里就是\n太平天国的都城。" },
+        { "speaker": "yang_xiuqing", "text": "粮草、兵员、民心，\n每月只有六点可分。" },
+        { "speaker": "hong_renxuan", "text": "《天朝田亩制度》\n写着无人不饱暖。", "action": { "type": "knowledge", "item": "kc_1853_tianjing" } },
+        { "speaker": "narrator", "text": "纸上写得周全，\n田里未必分得下去。" },
+        { "speaker": "hong_xiuquan", "text": "你去分分看。" }
       ]
     },
     {
       "id": "dlg_ch00_act2_intrigue",
       "speaker": "narrator",
+      "participants": ["narrator", "yang_xiuqing", "wei_changhui", "shi_dakai", "hong_xiuquan"],
       "lines": [
-        {
-          "text": "咸丰六年八月，天京。",
-          "emotion": "sad"
-        },
-        {
-          "text": "东王杨秀清被杀，\n北王韦昌辉被处死，\n翼王石达开带兵出走。",
-          "emotion": "sad"
-        },
-        {
-          "text": "几个月前还是\n“无处不均匀”的天京，\n如今血流在宫墙下。",
-          "emotion": "sad"
-        },
-        {
-          "text": "不是哪一个人的错。\n是这个政权\n没有办法约束自己。",
-          "emotion": "sad",
-          "action": {
-            "type": "knowledge",
-            "item": "kc_1856_intrigue"
-          }
-        }
+        { "speaker": "narrator", "text": "咸丰六年八月，天京。" },
+        { "speaker": "yang_xiuqing", "text": "东王理政，\n天京事无巨细，\n皆决于我。" },
+        { "speaker": "hong_xiuquan", "text": "天无二日，\n这道理你也该懂。" },
+        { "speaker": "wei_changhui", "text": "奉天王密诏，\n今夜收东王府。" },
+        { "speaker": "shi_dakai", "text": "自相残杀至此，\n我还留得下么？" },
+        { "speaker": "narrator", "text": "数月前还说着\n无处不均匀的天京，\n如今血流在宫墙下。", "action": { "type": "knowledge", "item": "kc_1856_intrigue" } },
+        { "speaker": "narrator", "text": "不是哪一个人的错。\n是这个政权\n没有办法约束自己。" }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act2_fall_intro",
+      "speaker": "narrator",
+      "participants": ["narrator", "zeng_guofan", "li_xiucheng", "taiping_bing"],
+      "lines": [
+        { "speaker": "narrator", "text": "同治三年六月，\n天京城墙被轰开缺口。" },
+        { "speaker": "zeng_guofan", "text": "湘军掘地道填火药，\n城墙塌了三十丈。" },
+        { "speaker": "li_xiucheng", "text": "粮仓早就空了。\n守住天王府，\n护住幼主。" },
+        { "speaker": "taiping_bing", "text": "将军，城墙守不住了！" },
+        { "speaker": "narrator", "text": "最后一战，开始。", "action": { "type": "bgm", "value": "bgm_battle" } }
       ]
     },
     {
       "id": "dlg_ch00_act2_fall",
-      "speaker": "li_xiucheng",
+      "speaker": "narrator",
+      "participants": ["narrator", "li_xiucheng", "hong_renxuan"],
       "lines": [
-        {
-          "text": "同治三年六月，天京。\n城墙被轰开的时候，\n粮仓早就空了。",
-          "emotion": "sad"
-        },
-        {
-          "text": "十四年，从金田到天京。\n我们打过很多胜仗。",
-          "emotion": "sad"
-        },
-        {
-          "text": "可我们终究没能\n走出一条新路。",
-          "emotion": "sad",
-          "action": {
-            "type": "knowledge",
-            "item": "kc_1864_tianjing_fall"
-          }
-        },
-        {
-          "text": "把这件事记下来。\n后来的人会明白，\n光靠农民，是不行的。",
-          "emotion": "neutral",
-          "action": {
-            "type": "end"
-          }
-        }
+        { "speaker": "narrator", "text": "同治三年六月，天京。\n城墙被轰开的时候，\n粮仓早就空了。" },
+        { "speaker": "li_xiucheng", "text": "十四年，从金田到天京。\n我们打过很多胜仗。" },
+        { "speaker": "hong_renxuan", "text": "《资政新篇》写好了，\n却没人能推行它。" },
+        { "speaker": "li_xiucheng", "text": "可我们终究没能\n走出一条新路。", "action": { "type": "knowledge", "item": "kc_1864_tianjing_fall" } },
+        { "speaker": "narrator", "text": "把这件事记下来。\n后来的人会明白，\n光靠农民，是不行的。", "action": { "type": "end" } }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act1_intro_outro",
+      "speaker": "shuiyong",
+      "participants": ["shuiyong", "lin_zexu", "guan_tianpei", "narrator"],
+      "lines": [
+        { "speaker": "shuiyong", "text": "箱子都搬进池了，\n大人。" },
+        { "speaker": "lin_zexu", "text": "销烟不是终点。\n海口还要人守。" },
+        { "speaker": "guan_tianpei", "text": "我去威远炮台，\n炮位再校一遍。" },
+        { "speaker": "narrator", "text": "滩上的烟散了，\n海面的船没有走。" }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act1_pool_outro",
+      "speaker": "xiangmin",
+      "participants": ["xiangmin", "lin_zexu", "guan_tianpei", "narrator"],
+      "lines": [
+        { "speaker": "xiangmin", "text": "潮水退了，\n一星烟土也没剩。" },
+        { "speaker": "lin_zexu", "text": "奏折今日发出，\n京城该有回音了。" },
+        { "speaker": "guan_tianpei", "text": "英国兵船仍在口外，\n炮台不能撤防。" },
+        { "speaker": "narrator", "text": "道光二十年四月，\n鸦片战争爆发。" }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act1_fort_outro",
+      "speaker": "narrator",
+      "participants": ["narrator", "shuiyong", "guan_tianpei", "lin_zexu"],
+      "lines": [
+        { "speaker": "narrator", "text": "炮声停了。\n威远炮台的旗\n还立在硝烟里。" },
+        { "speaker": "shuiyong", "text": "提督，弹药尽了。" },
+        { "speaker": "guan_tianpei", "text": "吾今有死而已，\n尔等可去。" },
+        { "speaker": "lin_zexu", "text": "史书会记下：\n关提督力战殉国。" },
+        { "speaker": "narrator", "text": "英舰溯江而上，\n直逼南京下关。" }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act1_nanjing_outro",
+      "speaker": "narrator",
+      "participants": ["narrator", "pottinger", "qiying", "lin_zexu"],
+      "lines": [
+        { "speaker": "pottinger", "text": "条约已换文，\n五口即日开埠。" },
+        { "speaker": "qiying", "text": "此事，\n只能如此了。" },
+        { "speaker": "lin_zexu", "text": "虎门的潮声，\n我仍记着。" },
+        { "speaker": "narrator", "text": "旧中国的第一次失败，\n记在了这里。" }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act2_intro_outro",
+      "speaker": "taiping_bing",
+      "participants": ["taiping_bing", "li_xiucheng", "yang_xiuqing", "narrator"],
+      "lines": [
+        { "speaker": "taiping_bing", "text": "三个弟兄，\n一个都没丢。" },
+        { "speaker": "li_xiucheng", "text": "清军还堵在前面，\n不能停。" },
+        { "speaker": "yang_xiuqing", "text": "到永安建制，\n再定名分。" },
+        { "speaker": "narrator", "text": "咸丰三年三月，\n太平军攻下江宁。" }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act2_tianjing_outro",
+      "speaker": "hong_renxuan",
+      "participants": ["hong_renxuan", "yang_xiuqing", "hong_xiuquan", "narrator"],
+      "lines": [
+        { "speaker": "hong_renxuan", "text": "八个月，\n粮、兵、民心\n总有一项亏着。" },
+        { "speaker": "yang_xiuqing", "text": "制度写在纸上，\n分不到田里。" },
+        { "speaker": "hong_xiuquan", "text": "天国的事，\n容后再议。" },
+        { "speaker": "narrator", "text": "宫墙之内，\n裂痕已经生出来了。" }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act2_intrigue_outro",
+      "speaker": "shi_dakai",
+      "participants": ["shi_dakai", "hong_renxuan", "li_xiucheng", "narrator"],
+      "lines": [
+        { "speaker": "shi_dakai", "text": "翼王带兵出走，\n从此不回天京。" },
+        { "speaker": "hong_renxuan", "text": "我来总理朝政，\n可兵不在我手里。" },
+        { "speaker": "li_xiucheng", "text": "往后守城，\n只能靠我们自己。" },
+        { "speaker": "narrator", "text": "从此太平军，\n再没能合兵一处。" }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act2_fall_outro",
+      "speaker": "taiping_bing",
+      "participants": ["taiping_bing", "zeng_guofan", "li_xiucheng", "narrator"],
+      "lines": [
+        { "speaker": "taiping_bing", "text": "城破了，\n天王府也烧起来了。" },
+        { "speaker": "zeng_guofan", "text": "湘军入城，\n十四年至此收场。" },
+        { "speaker": "li_xiucheng", "text": "我护幼主出城，\n其余的，我来担。" },
+        { "speaker": "narrator", "text": "天京陷落，\n太平天国运动失败。" }
+      ]
+    },
+    {
+      "id": "dlg_ch00_act2_limit_outro",
+      "speaker": "hong_renxuan",
+      "participants": ["hong_renxuan", "li_xiucheng", "narrator"],
+      "lines": [
+        { "speaker": "hong_renxuan", "text": "没有新的生产力，\n撑不起新制度。" },
+        { "speaker": "li_xiucheng", "text": "农民能揭竿，\n却建不起新朝廷。" },
+        { "speaker": "narrator", "text": "这一课，\n要留给后来的人。" },
+        { "speaker": "narrator", "text": "觉醒年代，到此收卷。", "action": { "type": "end" } }
+      ]
+    },
+    {
+      "id": "dlg_dg01_intro",
+      "speaker": "narrator",
+      "participants": ["narrator", "xiangmin", "lin_zexu"],
+      "lines": [
+        { "speaker": "narrator", "text": "租界暗巷，\n竹尖坑与铜锣。" },
+        { "speaker": "xiangmin", "text": "巡捕刚过去，\n走巷子别踩响竹签。" },
+        { "speaker": "lin_zexu", "text": "用地形，\n别硬拼。" }
+      ]
+    },
+    {
+      "id": "dlg_dg01_outro",
+      "speaker": "xiangmin",
+      "participants": ["xiangmin", "narrator"],
+      "lines": [
+        { "speaker": "xiangmin", "text": "巷子清静了，\n多谢。" },
+        { "speaker": "narrator", "text": "捡起地上的物件，\n回长廊看看。" }
+      ]
+    },
+    {
+      "id": "dlg_dg02_intro",
+      "speaker": "narrator",
+      "participants": ["narrator", "taiping_bing"],
+      "lines": [
+        { "speaker": "narrator", "text": "广州城外匪寨，\n寨门广场与高台。" },
+        { "speaker": "taiping_bing", "text": "弩手在高台上，\n先绕开正面。" }
+      ]
+    },
+    {
+      "id": "dlg_dg02_outro",
+      "speaker": "taiping_bing",
+      "participants": ["taiping_bing", "narrator"],
+      "lines": [
+        { "speaker": "taiping_bing", "text": "头目倒了，\n寨子散了。" },
+        { "speaker": "narrator", "text": "把缴获收好，\n回长廊复命。" }
+      ]
+    },
+    {
+      "id": "dlg_dg03_intro",
+      "speaker": "narrator",
+      "participants": ["narrator", "shuiyong"],
+      "lines": [
+        { "speaker": "narrator", "text": "沪上码头，\n货栈与跳板。" },
+        { "speaker": "shuiyong", "text": "跳板窄，\n当心被人堵住。" }
+      ]
+    },
+    {
+      "id": "dlg_dg03_outro",
+      "speaker": "shuiyong",
+      "participants": ["shuiyong", "narrator"],
+      "lines": [
+        { "speaker": "shuiyong", "text": "码头安静了，\n这趟没白来。" },
+        { "speaker": "narrator", "text": "潮水正涨，\n该回去了。" }
       ]
     }
-  ],
-  "npcs": {
-    "lin_zexu": "林则徐",
-    "guan_tianpei": "关天培",
-    "narrator": "旁白",
-    "li_xiucheng": "李秀成",
-    "hong_xiuquan": "洪秀全",
-    "hong_renxuan": "洪仁玕"
-  }
+  ]
 }
