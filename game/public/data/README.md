@@ -170,3 +170,10 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 - `dungeons/dungeons.json`：副本同样是这三件套；开场对白读完才放第一波，通关结算面板之前必播收尾对白。
 - `events/events_ch00.json`：`figures` 不许为空，人物 id 都要能在 `npcs` 查到显示名。
 - 逐场清单、说话顺序与改动摘要见 `design/14_scene_dialogue_roster.md`。
+
+### 虎门销烟池只有一个大长方体（v1.8.8）
+
+- `maps/map_ch00_act1a.json` 的**地面层不再写 6/7**：x=15..21 / y=8..11 那 28 格已改回沙地 `1`。修之前地面层的 6(木框)/7(石灰) 被材质画成一块大砖池，`obj_pool` 又在 y=12 另画 40×26 小池，玩家看到的是两个长方体。
+- **碰撞层仍保留 6/7**：这是池沿的 28 格实心，池子依旧挡人。`MapRenderer.paintWalls()` 现在同时看地面层与碰撞层的 6/7 才跳过墙皮——只看地面层会把池区刷成紫灰石墙，从池沿透出「第二个矩形」。
+- `objects.obj_pool` 的坐标 `(18, 9.5)` 就是池区几何中心；画出来的尺寸由 `core/constants.ts → HUMEN_POOL`（7×4 格 = 112×64）决定。碰撞层范围、`obj_pool` 坐标、`HUMEN_POOL` 三者必须一起改，判据在 `tests/humenPool.test.ts`，实拍在 `tools/_cdp/pool-single.mjs`。
+- `tools/gen_maps.py` 已同步（只写碰撞层、不再写地面层），但脚本里的箱子坐标是历史值，**别整表重跑覆盖**这张已手工调过的地图。

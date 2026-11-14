@@ -69,6 +69,8 @@ export class MapRenderer {
   private decoGfx: Phaser.GameObjects.Graphics;
   /** 地面层数据（残破化时用来跳过水面，见 isSeaPixel） */
   private groundData: number[][] | null = null;
+  /** 碰撞层数据（销烟池池沿的 6/7 实心格要跳过墙皮，见 paintWalls） */
+  private collisionData: number[][] | null = null;
   /** 每个实例一张纹理：见 drawGround 的注释（共用 key 会在场景切换那一帧炸渲染） */
   private static seq = 0;
 
@@ -101,7 +103,10 @@ export class MapRenderer {
       // 玩家看到的就是「地图全黑，只有石头和血迹飘着」。
       // 碰撞层只负责登记 `grid.solid`，不参与绘制。
       else if (layer.name !== 'collision') this.drawGround(layer);
-      if (layer.collidable) this.markCollision(layer);
+      if (layer.collidable) {
+        this.collisionData = layer.data;
+        this.markCollision(layer);
+      }
     }
     // tp_act2 的每个实心格本身就是一张画好的建筑/山林/掩体瓦片 PNG，
     // 再刷一层紫灰石墙会把美术整个盖掉；旧图仍需要 paintWalls 补「撞得住但看不见」的空气墙。
@@ -160,9 +165,14 @@ export class MapRenderer {
     for (let y = Math.max(1, skyRows); y < rows - 1; y++) {
       for (let x = 1; x < cols - 1; x++) {
         if (!this.grid.solid[y][x]) continue;
-        // 销烟池的木框(6)/石灰(7)本身就是画好的装饰实心，不刷紫灰墙皮，否则池子被盖住
+        // 销烟池池沿是碰撞层里 6(木框)/7(石灰) 标出的实心格，不能刷紫灰墙皮。
+        // v1.8.8 起地面层那块「装饰池」已删除，只剩 obj_pool 画的唯一大长方体，
+        // 所以判定必须同时看碰撞层：只看 groundData 会让这 28 格被刷成石墙、
+        // 从池子边缘透出一圈墙皮，看起来又变成第二个长方体。
+        // 保留 groundData 的 6/7 分支，兼容仍把池子画在地面层的旧地图。
         const poolTile = this.groundData?.[y]?.[x];
-        if (poolTile === 6 || poolTile === 7) continue;
+        const solidTile = this.collisionData?.[y]?.[x];
+        if (poolTile === 6 || poolTile === 7 || solidTile === 6 || solidTile === 7) continue;
         // 只有「下面还有可走地面」的格子才需要提示玩家：贴边的实心块本来就是画面边界
         const openBelow = y + 1 < rows - 1 && !this.grid.solid[y + 1][x];
         const openAbove = y - 1 >= 0 && !this.grid.solid[y - 1][x];

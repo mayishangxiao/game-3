@@ -17,7 +17,7 @@ main.ts
 ```
 
 **硬性约束：`core/` 里的 20 个模块（balance / cannon / constants / critShake / DataLoader / defeat / dungeon / escort / EventBus / graph / management / orientation / quiz / SaveManager / space / types / upgradeSelection / waveUpgrade / weaponSelection / weaponSwap）不 import Phaser。**
-这条线是单元测试能跑在 node 环境的前提（`vitest.config.ts` 里 `environment: 'node'`）。往这些文件里加 `import Phaser` 会让 20 个测试文件全部炸掉。
+这条线是单元测试能跑在 node 环境的前提（`vitest.config.ts` 里 `environment: 'node'`）。往这些文件里加 `import Phaser` 会让 21 个测试文件全部炸掉。
 需要渲染的东西一律往 `scenes/` 或 `gfx/` 放。
 
 ## core/ —— 纯逻辑层（可单元测试）

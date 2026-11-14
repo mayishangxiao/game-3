@@ -108,6 +108,22 @@ export const CHAR_H = 32;
 export const FIELD_COLS = VIEW_W / TILE; // 30
 export const FIELD_ROWS = FIELD_H / TILE; // 16
 
+/**
+ * 虎门销烟池：全场唯一的那一个长方体，7 × 4 格。
+ *
+ * v1.8.8 之前是「两个长方体」：地面层 6/7 瓦片画了一块木框石灰池（7×4），
+ * `obj_pool` 又在池子下方另画了一个 40×26 的小池，玩家看着像两个池子。
+ * 现在地面装饰已删除，只剩 `obj_pool` 画的这一个；尺寸与碰撞层那 28 个
+ * 6/7 实心格严格对齐（x=15..21, y=8..11），中心即 `obj_pool` 的格坐标。
+ * 改这里要同步 `map_ch00_act1a.json` 的碰撞层与 `tests/humenPool.test.ts`。
+ */
+export const HUMEN_POOL = {
+  cols: 7,
+  rows: 4,
+  w: 7 * TILE,
+  h: 4 * TILE,
+} as const;
+
 /** 24 色锁定调色板 v2（户外明亮版，2026-11）
  *  key名保持不变以兼容现有代码；色值已更新为星露谷风明亮户外色盘。
  *  设计书 design/10_art_spec_opium.md 第5节为唯一色盘表。

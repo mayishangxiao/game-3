@@ -207,7 +207,6 @@ describe('正式美术资源', () => {
         layers: { name: string; data: number[][] }[];
       };
       const col = map.layers.find((l) => l.name === 'collision')!.data;
-      const ground = map.layers.find((l) => l.name === 'ground')!.data;
       const rowOpen = (y: number) =>
         Array.from({ length: map.width - 2 }, (_, i) => col[y][i + 1]).every((v) => v === 0);
       let top = 0;
@@ -216,7 +215,11 @@ describe('正式美术资源', () => {
       const open: [number, number][] = [];
       for (let y = top + 1; y < map.height - 1; y++) {
         for (let x = 1; x < map.width - 1; x++) {
-          if (col[y][x] !== 0 && ground[y][x] !== 6 && ground[y][x] !== 7) open.push([x, y]);
+          // 销烟池的池沿是**碰撞层**里 6(木框)/7(石灰) 标出的 7×4 格实心，
+          // v1.8.8 起地面层那块装饰瓦片已删除（只剩 obj_pool 画的一个大长方体），
+          // 所以豁免要看碰撞层，不能再拿 ground 的色号认池子，否则 28 格全被当成空气墙。
+          const isPoolRim = col[y][x] === 6 || col[y][x] === 7;
+          if (col[y][x] !== 0 && !isPoolRim) open.push([x, y]);
         }
       }
       expect(open, `${file} 场地内部仍有空气墙：${JSON.stringify(open)}`).toEqual([]);

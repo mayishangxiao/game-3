@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CROWD_SCALE, CROWD_TEX, DEPTH, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, MELEE_RANGE_MAX, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CROWD_SCALE, CROWD_TEX, DEPTH, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, MELEE_RANGE_MAX, NPC_ART, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -2759,33 +2759,38 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
 
-    // 销烟池不是一块紫板子：石砌池沿 + 深色池水 + 几点石灰白沫，走过去才有「往池子里倒」的感觉
+    // 唯一的销烟池：一整块 7×4 格的大长方体（石砌池沿 + 深色池水 + 石灰白沫）。
+    // v1.8.8 之前这里画的是 40×26 的小池，而地面层 6/7 瓦片还另有一块木框石灰池，
+    // 玩家看到的是上下两个长方体。现在地面装饰已删，只剩这一个：obj_pool 的格坐标
+    // 就是池中心，尺寸严格对齐碰撞层那 28 个实心格（x=15..21, y=8..11）。
+    // 池子放大后玩家只能站在池沿外，交互判定改看「到矩形边缘的距离」，见 findNearObject。
     const isPool = obj.kind === 'deposit';
-    const w = isPool ? 40 : 12;
-    const h = isPool ? 26 : 12;
+    const w = isPool ? HUMEN_POOL.w : 12;
+    const h = isPool ? HUMEN_POOL.h : 12;
     const rect = this.add
       .rectangle(x, y, w, h, isPool ? PALETTE.greyPlum : color)
       .setStrokeStyle(1, PALETTE.ink)
       .setDepth(DEPTH.deco + 1);
     const extras: WorldExtra[] = [];
     if (isPool) {
+      // 池水内缩一圈露出池沿；池子大了内缩也按比例加宽，不能还是 3px
       const water = this.add
-        .rectangle(x, y + 1, w - 6, h - 7, PALETTE.plumDark)
+        .rectangle(x, y + 1, w - 8, h - 10, PALETTE.plumDark)
         .setStrokeStyle(1, PALETTE.ink)
         .setDepth(DEPTH.deco + 2);
       extras.push(water);
-      // 石灰白沫：一条歪着的碎沫带，别摆成三点（三点会被看成一张脸）
+      // 石灰白沫：按池宽高比例散布的一条歪碎沫带，别摆成三点（三点会被看成一张脸）
       const foam: Array<[number, number, number, number]> = [
-        [-10, -4, 8, 2],
-        [-1, -2, 6, 2],
-        [7, -4, 7, 2],
-        [-6, 4, 9, 2],
-        [3, 5, 6, 2],
+        [-0.30, -0.24, 0.14, 0.05],
+        [-0.04, -0.10, 0.11, 0.05],
+        [0.24, -0.26, 0.13, 0.05],
+        [-0.18, 0.20, 0.16, 0.05],
+        [0.10, 0.24, 0.12, 0.05],
       ];
-      for (const [dx, dy, fw, fh] of foam) {
+      for (const [fx, fy, fw, fh] of foam) {
         extras.push(
           this.add
-            .rectangle(x + dx, y + dy, fw, fh, PALETTE.paper)
+            .rectangle(x + fx * w, y + fy * h, fw * w, fh * h, PALETTE.paper)
             .setDepth(DEPTH.deco + 3)
             .setAlpha(0.72),
         );
@@ -2795,7 +2800,7 @@ export class LevelScene extends Phaser.Scene {
       extras.push(this.add.rectangle(x, y + h / 2, w, 2, PALETTE.ink).setDepth(DEPTH.deco + 3));
     }
     const label = this.add
-      .text(x, y - 16, obj.label, {
+      .text(x, y - (isPool ? h / 2 + 10 : 16), obj.label, {
         fontFamily: FONT_UI,
         fontSize: '8px',
         color: '#FFE08A',
@@ -3884,7 +3889,16 @@ export class LevelScene extends Phaser.Scene {
     let bestDist = 26;
     for (const o of this.worldObjects) {
       if (!o.rect.visible) continue;
-      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, o.rect.x, o.rect.y);
+      let d = Phaser.Math.Distance.Between(this.player.x, this.player.y, o.rect.x, o.rect.y);
+      // 销烟池是 7×4 格的大长方体且池区实心，玩家只能站在池沿外：
+      // 还按「到中心 26px」判，离池心最近也有 40px，抱着箱子会投不进去。
+      // 这里改看「到矩形边缘的距离」——池子四周任意一边都能投，也不会因为池子变大
+      // 就在远处误触发。其它可交互物一律保持原来的中心距离判定。
+      if (o.def.kind === 'deposit') {
+        const dx = Math.max(Math.abs(this.player.x - o.rect.x) - o.rect.width / 2, 0);
+        const dy = Math.max(Math.abs(this.player.y - o.rect.y) - o.rect.height / 2, 0);
+        d = Math.hypot(dx, dy);
+      }
       if (d < bestDist) {
         bestDist = d;
         best = o.def;
@@ -3953,9 +3967,15 @@ export class LevelScene extends Phaser.Scene {
   private poolPuff(obj: MapObject): void {
     const x = (obj.x + 0.5) * TILE;
     const y = (obj.y + 0.5) * TILE;
+    // 池子放大成 7×4 格的长方体后，白沫只从中心 ±15px 冒会像一小簇烟；
+    // 按池宽高铺开，才像整池石灰在化烟土。
     for (let i = 0; i < 8; i++) {
       const p = this.add
-        .rectangle(x + (rng() - 0.5) * 30, y, 3, 3, PALETTE.greyLight, 0.9)
+        .rectangle(
+          x + (rng() - 0.5) * HUMEN_POOL.w * 0.8,
+          y + (rng() - 0.5) * HUMEN_POOL.h * 0.5,
+          3, 3, PALETTE.greyLight, 0.9,
+        )
         .setDepth(DEPTH.fx);
       this.tweens.add({
         targets: p,

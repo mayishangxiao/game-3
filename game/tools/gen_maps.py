@@ -2,6 +2,9 @@
 """
 生成序章第一幕的两张地图 JSON（30 × 16 瓦片）。
 避免手写 480 个格号出错，地图由脚本产出，改布局改这里再跑一次即可。
+
+注意：`map_ch00_act1a.json` 的箱子坐标后来为避开右下虚拟按键手工调过，
+本脚本里那份仍是历史值——**不要整表重跑覆盖**；改池子时按下面的注释同步脚本与 JSON 即可。
 """
 import json, os, sys, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -46,8 +49,8 @@ collision = blank(0)
 #   * 下边界 = 行 15 改成湿沙、整行实心。以前行 15 是一整条空气（走到底就撞看不见的边），
 #     与其说是墙不如说是「漏出来的边角」，改成沙滩边更像海滩；
 #   * 左右边界 = 第 0 / 29 列，地面改成礁石，撞上去有东西可看。
-# 销烟池（16-19 列、9-10 行）原来也是两排实心，现在同样可走：池子在画面里照画，
-# 但玩家能走过去（`spawnWorldObject` 里的 deposit 物件仍可交互）。
+# 例外：销烟池池沿（x=15..21 / y=8..11，7×4 格）仍是有意为之的实心格，
+# 玩家只能站在池边交互；除此之外场地内部没有隐形障碍。
 for y in range(0, 3):
     for x in range(W):
         ground[y][x] = 3
@@ -65,21 +68,19 @@ for y in range(H):
 # 木栈道一条
 for x in range(6, 24):
     ground[6][x] = 4
-# 销烟池（7 宽 × 4 高的木框 + 石灰），位于中偏右——甲方 2026-11 要求「做大、人进不去」：
-# 整圈木框 + 内部石灰全部实心，玩家只能站在池边交互；paintWalls 对 6/7 号砖留了例外，不画墙皮。
+# 销烟池池沿（7 宽 × 4 高，中偏右）：只在**碰撞层**用 6(木框)/7(石灰) 标实心，
+# 玩家只能站在池边交互。v1.8.8 起地面层这 28 格一律保持沙地 `1`——
+# 以前地面层也画 6/7，于是「地面装饰大砖池」+「obj_pool 的 40×26 小池」= 两个长方体。
+# 现在池子只由 obj_pool 画一个 112×64 的大长方体（`core/constants.ts → HUMEN_POOL`）。
+# `MapRenderer.paintWalls()` 同时认地面层和碰撞层的 6/7 并跳过墙皮，否则池沿会透出石墙。
+# 重跑本脚本时这三处（碰撞层 / obj_pool 坐标 / HUMEN_POOL）必须一起对得上。
 for x in range(15, 22):
-    ground[8][x] = 6
-    ground[11][x] = 6
     collision[8][x] = 6
     collision[11][x] = 6
 for y in range(9, 11):
-    ground[y][15] = 6
-    ground[y][21] = 6
     collision[y][15] = 6
     collision[y][21] = 6
-for y in range(9, 11):
     for x in range(16, 21):
-        ground[y][x] = 7
         collision[y][x] = 7
 
 map_a = {
@@ -114,7 +115,8 @@ map_a = {
             "id": "obj_pool",
             "kind": "deposit",
             "x": 18,
-            "y": 12,
+            # 池区 x=15..21 / y=8..11 的几何中心；渲染尺寸见 HUMEN_POOL (7×4 格)
+            "y": 9.5,
             "label": "投入销烟池",
             "color": "#948DAB",
             "payload": "pool",

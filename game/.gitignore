@@ -64,6 +64,8 @@ tools/_cdp/*/
 !tools/_cdp/upgrade-confirm.mjs
 # 场景对白流程探针（逐句说话人 / 在场人物 / 收尾先于结算 / 面板延后 / 副本两阶段）
 !tools/_cdp/scene-dialogue.mjs
+# 虎门销烟池「只有一个大长方体」探针（地面装饰已删 / 大矩形尺寸 / 四周可投 / 其它物件未动）
+!tools/_cdp/pool-single.mjs
 
 # 发布 staging / 打包产物：由 DEPLOY.md 的流程从 dist 重建，纯产物，不入库。
 # 历史版本曾被误提交，用 `git rm -r --cached tools/_stage` 移出索引即可（工作区保留）。
