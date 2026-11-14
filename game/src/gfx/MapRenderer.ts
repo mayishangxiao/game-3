@@ -105,7 +105,10 @@ export class MapRenderer {
     }
     // tp_act2 的每个实心格本身就是一张画好的建筑/山林/掩体瓦片 PNG，
     // 再刷一层紫灰石墙会把美术整个盖掉；旧图仍需要 paintWalls 补「撞得住但看不见」的空气墙。
+    // 但 tp 图不能干脆不画：那些实心瓦片和地面装饰颜色太接近，玩家会一头撞上去
+    // 以为卡住了。改用 paintSolidEdges() 只描边界、不盖图块（见方法注释）。
     if (this.def.tileset !== TP_TILESET_ID) this.paintWalls();
+    else this.paintSolidEdges();
   }
 
   /**
@@ -179,6 +182,73 @@ export class MapRenderer {
       }
     }
     if (painted > 0) tex.refresh();
+  }
+
+  /**
+   * tp_act2 图集专用：给「撞得住但看不清」的实心格补边界，**不盖住原图块**。
+   *
+   * 2026-11-14「空气墙视觉辨识度不足」：`paintWalls()` 会把整格刷成紫灰石墙，
+   * 对 tp 图会毁掉已经画好的建筑 / 山林 / 掩体瓦片，所以构造函数里一直跳过它；
+   * 结果这些实心格只剩和地面装饰同色系的瓦片，边界完全看不出来，玩家反复误判
+   * 能不能走过去（实拍里中间那几组散落的紫灰石块尤其容易误认成地面花纹）。
+   *
+   * 这里只沿「实心 → 可走」的交界画一组硬边，全部取现有 24 色调色板、不用半透明
+   * （设计书 8.1.2）：实心格内侧 2px 浅紫灰亮沿 + 可走格贴边 1px 墨线。
+   * 亮沿勾出不可通行范围，墨线让障碍像凸起的石台而不是贴花；瓦片中间一个像素都不动。
+   * 外圈边界不画（那是屏幕边，不是墙）；旧地图继续走 `paintWalls()`，观感保持原样。
+   */
+  private paintSolidEdges(): void {
+    if (!this.groundKey) return;
+    const tex = this.scene.textures.get(this.groundKey) as Phaser.Textures.CanvasTexture;
+    if (!tex || typeof tex.getContext !== 'function') return;
+    const ctx = tex.getContext();
+    const { cols, rows } = this.grid;
+    const skyRows = this.def.sky_rows ?? 0;
+    const edge = cssOf(PALETTE.greyLight);
+    const shade = cssOf(PALETTE.ink);
+    const maxX = ctx.canvas.width;
+    const maxY = ctx.canvas.height;
+    let marked = 0;
+
+    for (let y = Math.max(1, skyRows); y < rows - 1; y++) {
+      for (let x = 1; x < cols - 1; x++) {
+        if (!this.grid.solid[y][x]) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        const openLeft = !this.grid.solid[y][x - 1];
+        const openRight = !this.grid.solid[y][x + 1];
+        const openUp = !(this.grid.solid[y - 1]?.[x] ?? true);
+        const openDown = !(this.grid.solid[y + 1]?.[x] ?? true);
+        if (!openLeft && !openRight && !openUp && !openDown) continue;
+
+        if (openLeft && px - 1 >= 0) {
+          ctx.fillStyle = shade;
+          ctx.fillRect(px - 1, py, 1, TILE);
+          ctx.fillStyle = edge;
+          ctx.fillRect(px, py, 2, TILE);
+        }
+        if (openRight && px + TILE < maxX) {
+          ctx.fillStyle = shade;
+          ctx.fillRect(px + TILE, py, 1, TILE);
+          ctx.fillStyle = edge;
+          ctx.fillRect(px + TILE - 2, py, 2, TILE);
+        }
+        if (openUp && py - 1 >= 0) {
+          ctx.fillStyle = shade;
+          ctx.fillRect(px, py - 1, TILE, 1);
+          ctx.fillStyle = edge;
+          ctx.fillRect(px, py, TILE, 2);
+        }
+        if (openDown && py + TILE < maxY) {
+          ctx.fillStyle = shade;
+          ctx.fillRect(px, py + TILE, TILE, 1);
+          ctx.fillStyle = edge;
+          ctx.fillRect(px, py + TILE - 2, TILE, 2);
+        }
+        marked += 1;
+      }
+    }
+    if (marked > 0) tex.refresh();
   }
 
   /**

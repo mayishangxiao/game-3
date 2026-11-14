@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONTROL_HIT_PAD, CONTROL_LAYOUT, FIELD_H, SUNNY_PROPS, TILE, VIEW_W } from '../src/core/constants';
+import { CONTROL_HIT_PAD, CONTROL_LAYOUT, FIELD_H, SUNNY_PROPS, TILE, VIEW_H, VIEW_W } from '../src/core/constants';
 
 // vitest 的工作目录就是工程根目录；用 process.cwd() 而不是 __dirname，
 // 以免在 ESM 下没有 __dirname 而报错。
@@ -709,6 +709,33 @@ describe('地图可达性（防止关卡走不通）', () => {
     const noMap = nodes.filter((n) => !n.map_ref);
     for (const n of noMap) {
       expect(['cutscene', 'choice', 'management']).toContain(n.type);
+    }
+  });
+});
+
+describe('虚拟按键布局：右侧「闪」不能被 HUD 或画布裁掉（2026-11-14 截图反馈）', () => {
+  // InputSystem 的命中半径 = CONTROL_LAYOUT.r + CONTROL_HIT_PAD；视觉半径就是 r。
+  // 这两层要分开量：视觉圆压到 HUD 上会「看得见但被盖」，命中区出画布会「点不到」。
+  const hitR = (z: { r: number }) => z.r + CONTROL_HIT_PAD;
+  const { dodge, attack, cannon } = CONTROL_LAYOUT;
+
+  it('「闪」视觉圆完整落在战场内，且不压底部 HUD 条', () => {
+    // HUD 顶边 = FIELD_H（UIScene 的 HUD_Y = VIEW_H - HUD_H = FIELD_H = 256）。
+    // 原来 (440,244) 视觉下缘 262 直接压进血条/武器名那一条，扁视口下还会被裁。
+    expect(dodge.y + dodge.r, '「闪」下缘压进底部 HUD 条会被血条/武器名盖住').toBeLessThan(FIELD_H - 2);
+    expect(dodge.y - dodge.r).toBeGreaterThanOrEqual(0);
+    expect(dodge.x - dodge.r).toBeGreaterThanOrEqual(0);
+    expect(dodge.x + dodge.r, '「闪」右缘超出画布会被裁掉').toBeLessThanOrEqual(VIEW_W - 2);
+    expect(dodge.y + hitR(dodge), '「闪」命中区下缘必须还在画布内').toBeLessThanOrEqual(VIEW_H);
+    expect(dodge.x + hitR(dodge), '「闪」命中区右缘必须还在画布内').toBeLessThanOrEqual(VIEW_W);
+  });
+
+  it('「闪」上移后不能和「攻」/「炮」抢点击', () => {
+    // 只改 y 不够：旧的 x=440 上移 16px 会钻进「攻」的命中圈。
+    // 现在 (452,228) 与「攻」恰好相切（圆心距 60 = 34 + 26），互不吞点。
+    for (const [name, other] of [['攻', attack], ['炮', cannon]] as const) {
+      const gap = Math.hypot(dodge.x - other.x, dodge.y - other.y) - hitR(dodge) - hitR(other);
+      expect(gap, `「闪」与「${name}」命中圈重叠 ${(-gap).toFixed(1)}px，会互相抢点击`).toBeGreaterThanOrEqual(0);
     }
   });
 });
