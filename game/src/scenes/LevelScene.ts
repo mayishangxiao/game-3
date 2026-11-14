@@ -84,6 +84,13 @@ import {
   type UpgradeId,
   type UpgradeState,
 } from '../core/waveUpgrade';
+import {
+  canConfirm,
+  cancelUpgrade,
+  confirmUpgrade,
+  emptySelection,
+  selectUpgrade,
+} from '../core/upgradeSelection';
 import { CharacterRig } from '../gfx/CharacterRig';
 import { Player } from '../entities/Player';
 import { Enemy } from '../entities/Enemy';
@@ -317,6 +324,19 @@ export class LevelScene extends Phaser.Scene {
   }
   /** 强化选卡正在显示（期间世界冻结，复用 `pendingCardTap` 作为「有卡可点」信号） */
   private upgradeOpen = false;
+  /**
+   * 当前强化卡的交互句柄（v1.8.6「选中 → 确认」两步流程）。
+   * `showUpgradeCard()` 里赋值、`finish()` 里清空；调试探针用它按索引选中 / 确认 / 取消，
+   * 玩家路径走卡片 pointerdown 与确认按钮，不经过这里。
+   * **`create()` 必须复位**：场景实例复用时，上一张卡的闭包会残留并指向已销毁的显示对象。
+   */
+  private upgradeCard: {
+    choices: UpgradeId[];
+    select: (id: UpgradeId) => void;
+    confirm: () => boolean;
+    cancel: () => void;
+    selection: () => UpgradeId | null;
+  } | null = null;
   /**
    * 清完这一波之后该不该弹强化卡。
    * 用标志位而不是每帧重算，是为了让「玩家点了跳过」只发生一次判定；
@@ -567,6 +587,7 @@ export class LevelScene extends Phaser.Scene {
     this.meleeSwingCount = 0;
     this.critShakeReadyAt = 0;
     this.upgradeOpen = false;
+    this.upgradeCard = null;
     this.pendingUpgrade = true;
     this.nodeBusy = false;
     // 同理：上一轮若在切节点的 await 里被打断，transitioning 会一直是 true，
@@ -721,12 +742,35 @@ export class LevelScene extends Phaser.Scene {
         this.upgradeBook.clear();
         return true;
       },
-      /** 跳过卡片：选第一项（等价于点第一张卡） */
+      /**
+       * E2E 快捷入口：一次 tap = 「选中第一项 + 确认」，等价于玩家完成一次决策。
+       * 30+ 历史探针靠它推进波次；玩家路径（卡片 pointerdown / 确认按钮）不经过这里。
+       */
       pickUpgrade: (i = 0) => {
         void i;
         this.pendingCardTap?.();
         return this.upgradeOpen;
       },
+      /** v1.8.6 两步流程探针接口：按索引**只选中**，不生效、不结算、不关闭界面 */
+      selectUpgrade: (i = 0) => {
+        const id = this.upgradeCard?.choices[i];
+        if (id) this.upgradeCard?.select(id);
+        return this.upgradeCard?.selection() ?? null;
+      },
+      /** 确认当前明确选中的项；未选中时返回 false 且不生效 */
+      confirmUpgrade: () => this.upgradeCard?.confirm() ?? false,
+      /** 取消选择，界面保持打开 */
+      cancelUpgrade: () => {
+        this.upgradeCard?.cancel();
+        return this.upgradeCard?.selection() ?? null;
+      },
+      /** 选中态 / 界面 / 已生效次数快照，供断言「点选不生效、确认才生效」 */
+      upgradeSelection: () => ({
+        selected: this.upgradeCard?.selection() ?? null,
+        cardOpen: this.upgradeOpen,
+        picked: this.currentUpgrades().picked,
+        choices: this.upgradeCard?.choices ?? [],
+      }),
       /** 当前武器实时参数（字段与 v1.6 `bowInfo` 兼容，旧探针不用改） */
       bowInfo: () => this.debugWeaponInfo(),
       weaponInfo: () => this.debugWeaponInfo(),
@@ -1604,21 +1648,49 @@ export class LevelScene extends Phaser.Scene {
     const gap = 12;
     const totalW = cardW * choices.length + gap * (choices.length - 1);
     const startX = VIEW_W / 2 - totalW / 2 + cardW / 2;
-    const cardY = VIEW_H / 2 + 6;
+    // 卡片整体上移 4px，给下方「当前选中 / 确认」区留出空间
+    const cardY = VIEW_H / 2 + 2;
 
+    /**
+     * v1.8.6 两步流程（甲方「快速点击时误选、不清楚已选内容」）：
+     *   点卡 / 数字键 → 只记录 selected，给出明显选中态与效果说明，**不生效、不结算、不关闭**；
+     *   ENTER / 确认按钮 → 唯一的生效入口，把当前明确选中的那项提交并给出生效反馈。
+     * 状态迁移全部走 `core/upgradeSelection.ts` 的纯函数，单测钉死「连点永不生效」。
+     */
+    let sel = emptySelection();
     let closed = false;
+    // 确认键防连点：一次确认后 260ms 内不再接受第二次触发
+    let confirmReadyAt = 0;
+    const kbHandlers: Array<[string, () => void]> = [];
+
+    // 每张卡的可变部件留引用，refreshSelection() 统一改，避免 hover 把选中态擦掉
+    const boxes: Phaser.GameObjects.Rectangle[] = [];
+    const badges: Phaser.GameObjects.Text[] = [];
+    const keyHints: Phaser.GameObjects.Text[] = [];
+    // 下方说明与按钮先声明，refreshSelection() 只在它们建好之后才被调用
+    let selTitle!: Phaser.GameObjects.Text;
+    let selDesc!: Phaser.GameObjects.Text;
+    let confirmBox!: Phaser.GameObjects.Rectangle;
+    let confirmLabel!: Phaser.GameObjects.Text;
+    let cancelBtn!: Phaser.GameObjects.Text;
+
     const finish = (id: UpgradeId | null) => {
       if (closed) return;
       closed = true;
+      // 键盘监听必须逐个 off：旧版用 once，选了 1 之后 2/3/SPACE 的监听会残留，
+      // 下一张卡弹出来时会被上一次的按键一次性触发（等于绕过确认直接完成）。
+      for (const [ev, fn] of kbHandlers) this.input.keyboard?.off(ev, fn);
+      kbHandlers.length = 0;
+      this.upgradeCard = null;
       if (id) {
         // 写回**弹卡时绑定的那个实例**，不是此刻的 this.currentUpgrades()：
         // 键盘连点或延迟回调里武器可能已被换掉，记错 key 就等于给别人加强化。
         const next = this.upgradeBook.set(key, applyUpgrade(state, id, tune));
-        // 选完立刻把新数值亮出来，玩家才知道自己刚选的东西生效了
         const sum = upgradeSummary(next, cls, tune);
-        emitToast(sum ? `强化：${sum}` : '强化已生效', 1600);
-        // 老游戏的「进化：刃锋延展」头顶飘字：卡片一关掉，玩家还能看到招式变了
         const def = upgradeDefs(cls).find((u) => u.id === id);
+        // 生效结果反馈：明确写出「哪一项已生效」，而不只是叠完的总数值
+        emitToast(`已生效：${def?.name ?? '强化'}${sum ? ` · ${sum}` : ''}`, 1800);
+        // 老游戏的「进化：刃锋延展」头顶飘字：卡片一关掉，玩家还能看到招式变了
         if (def) this.spawnEvolveText(def.name);
       }
       this.introOpen = false;
@@ -1631,6 +1703,57 @@ export class LevelScene extends Phaser.Scene {
       onDone();
     };
 
+    /** 把纯状态机的 selected 渲染成「一眼看得见」的选中态与说明 */
+    const refreshSelection = (): void => {
+      // finish() 之后若还有排队的 pointerout，别再去改已销毁的卡片对象
+      if (closed) return;
+      const picked = sel.selected;
+      boxes.forEach((box, i) => {
+        const on = choices[i].id === picked;
+        box.setStrokeStyle(on ? 3 : 1, on ? 0xf0c419 : 0x6b2330);
+        box.setFillStyle(on ? PALETTE.plumMid : PALETTE.ink, on ? 0.98 : 0.92);
+        badges[i].setVisible(on);
+        keyHints[i].setText(on ? `[${i + 1}] 已 选 ✓` : `[${i + 1}] 选择`);
+        keyHints[i].setColor(on ? '#F0C419' : '#C2BCD1');
+      });
+      const def = choices.find((u) => u.id === picked);
+      selTitle.setText(def ? `当前选中：${def.name}` : '尚未选择 · 点卡片查看效果');
+      selTitle.setColor(def ? '#F0C419' : '#8E88A0');
+      selDesc.setText(
+        def ? describeNext(state, def.id, cls, tune) : '确认前可切换或取消，按「确认强化」才会生效',
+      );
+      selDesc.setColor(def ? '#F2EDE4' : '#8E88A0');
+      confirmBox.setFillStyle(def ? PALETTE.plumMid : PALETTE.night, def ? 0.98 : 0.9);
+      confirmBox.setStrokeStyle(def ? 2 : 1, def ? PALETTE.star : PALETTE.plumLight);
+      confirmLabel.setColor(def ? '#F0C419' : '#8E88A0');
+      cancelBtn.setVisible(!!def);
+    };
+
+    const select = (id: UpgradeId): void => {
+      if (closed) return;
+      sel = selectUpgrade(sel, id);
+      refreshSelection();
+    };
+    const cancel = (): void => {
+      if (closed) return;
+      sel = cancelUpgrade(sel);
+      refreshSelection();
+    };
+    /** 唯一的生效入口：未选中只给提示，绝不替玩家随便定一项 */
+    const confirm = (): boolean => {
+      if (closed) return false;
+      const now = this.time.now;
+      if (now < confirmReadyAt) return false;
+      if (!canConfirm(sel)) {
+        emitToast('请先选择一项强化', 1000);
+        return false;
+      }
+      confirmReadyAt = now + 260;
+      sel = confirmUpgrade(sel);
+      finish(sel.committed);
+      return true;
+    };
+
     choices.forEach((u, i) => {
       const x = startX + i * (cardW + gap);
       const box = this.add
@@ -1639,6 +1762,7 @@ export class LevelScene extends Phaser.Scene {
         .setScrollFactor(0)
         .setInteractive({ useHandCursor: true });
       c.add(box);
+      boxes.push(box);
       // 老游戏每张进化卡都有自己的主色条，玩家一眼能分出「这次抽到哪几类」
       c.add(
         this.add.rectangle(x, cardY - 42, 48, 3, u.color ?? PALETTE.star, 0.95).setScrollFactor(0),
@@ -1681,24 +1805,95 @@ export class LevelScene extends Phaser.Scene {
           .setOrigin(0.5)
           .setScrollFactor(0),
       );
-      c.add(
-        this.add
-          .text(x, cardY + 39, `[${i + 1}] 选择`, {
-            fontFamily: FONT_UI,
-            fontSize: '9px',
-            color: '#C2BCD1',
-          })
-          .setOrigin(0.5)
-          .setScrollFactor(0),
-      );
-      box.on('pointerover', () => box.setStrokeStyle(2, 0xf0c419));
-      box.on('pointerout', () => box.setStrokeStyle(1, 0x6b2330));
-      box.on('pointerdown', () => finish(u.id));
+      const hint = this.add
+        .text(x, cardY + 39, `[${i + 1}] 选择`, {
+          fontFamily: FONT_UI,
+          fontSize: '9px',
+          color: '#C2BCD1',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0);
+      c.add(hint);
+      keyHints.push(hint);
+      // 「✓ 已选」角标：初始隐藏，选中时才亮，避免只靠描边颜色分辨
+      const badge = this.add
+        .text(x + cardW / 2 - 22, cardY - cardH / 2 + 9, '✓ 已选', {
+          fontFamily: FONT_UI,
+          fontSize: '8px',
+          color: '#F0C419',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setVisible(false);
+      c.add(badge);
+      badges.push(badge);
+      box.on('pointerover', () => {
+        if (sel.selected !== u.id) box.setStrokeStyle(2, 0xf0c419);
+      });
+      // 划出去必须回到状态机的选中态，不能直接写死 1px 边框（会把选中描边擦掉）
+      box.on('pointerout', () => refreshSelection());
+      // 关键：点卡只记录选中，绝不 finish()
+      box.on('pointerdown', () => select(u.id));
     });
+
+    // —— 当前选中项 + 效果说明：确认前一直展示，玩家随时看得到自己选了什么 ——
+    selTitle = this.add
+      .text(VIEW_W / 2, 199, '尚未选择 · 点卡片查看效果', {
+        fontFamily: FONT_UI,
+        fontSize: '12px',
+        color: '#8E88A0',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0);
+    c.add(selTitle);
+    selDesc = this.add
+      .text(VIEW_W / 2, 214, '确认前可切换或取消，按「确认强化」才会生效', {
+        fontFamily: FONT_UI,
+        fontSize: '9px',
+        color: '#8E88A0',
+        align: 'center',
+        wordWrap: { width: VIEW_W - 40, useAdvancedWrap: true },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0);
+    c.add(selDesc);
+
+    // —— 确认键：唯一的生效入口。放在卡片下方、物理隔开，避免误触直接完成强化 ——
+    confirmBox = this.add
+      .rectangle(VIEW_W / 2, 236, 132, 20, PALETTE.night, 0.9)
+      .setStrokeStyle(1, PALETTE.plumLight)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
+    c.add(confirmBox);
+    confirmLabel = this.add
+      .text(VIEW_W / 2, 236, '确 认 强 化（回车）', {
+        fontFamily: FONT_UI,
+        fontSize: '10px',
+        color: '#8E88A0',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0);
+    c.add(confirmLabel);
+    confirmBox.on('pointerdown', () => { void confirm(); });
+
+    cancelBtn = this.add
+      .text(VIEW_W / 2 - 108, 236, '取消选择（Esc）', {
+        fontFamily: FONT_UI,
+        fontSize: '9px',
+        color: '#8E88A0',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
+    cancelBtn.on('pointerdown', cancel);
+    c.add(cancelBtn);
 
     // 跳过：不想强化也要能继续打（不能强制玩家选）
     const skip = this.add
-      .text(VIEW_W / 2, VIEW_H - 16, '放弃强化，继续战斗（空格）', {
+      .text(VIEW_W / 2, VIEW_H - 10, '放弃强化，继续战斗（空格）', {
         fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#8E88A0',
@@ -1709,13 +1904,38 @@ export class LevelScene extends Phaser.Scene {
     skip.on('pointerdown', () => finish(null));
     c.add(skip);
 
+    // —— 键盘：1/2/3 只选中，ENTER 才确认，ESC 取消，SPACE 放弃 ——
+    // 统一登记引用，finish() 里逐个 off，避免 once 残留串到下一张卡
+    const onKey = (ev: string, fn: () => void): void => {
+      if (!this.input.keyboard) return;
+      this.input.keyboard.on(ev, fn);
+      kbHandlers.push([ev, fn]);
+    };
     choices.forEach((u, i) => {
-      const key = `keydown-${['ONE', 'TWO', 'THREE'][i]}`;
-      if (key) this.input.keyboard?.once(key, () => finish(u.id));
+      const ev = `keydown-${['ONE', 'TWO', 'THREE'][i]}`;
+      if (ev) onKey(ev, () => select(u.id));
     });
-    this.input.keyboard?.once('keydown-SPACE', () => finish(null));
-    // E2E 靠 tapCard() 推进：它只认 `pendingCardTap`，所以这里指向「选第一项」
-    this.pendingCardTap = () => finish(choices[0].id);
+    onKey('keydown-ENTER', () => { void confirm(); });
+    onKey('keydown-ESC', cancel);
+    onKey('keydown-SPACE', () => finish(null));
+
+    refreshSelection();
+
+    // 调试 / E2E 探针按索引操作选中态；玩家路径不经过这里
+    this.upgradeCard = {
+      choices: choices.map((u) => u.id),
+      select,
+      confirm,
+      cancel,
+      selection: () => sel.selected,
+    };
+    // E2E 的 tapCard() 是「一次完成决策」的快捷入口（30+ 历史探针靠它推进波次）：
+    // 选中第一项 + 立即确认，等价于玩家「选好并按下确认」，不属于玩家点击路径。
+    this.pendingCardTap = () => {
+      if (closed) return;
+      if (this.upgradeCard?.selection() !== choices[0].id) select(choices[0].id);
+      confirm();
+    };
   }
 
   /** 清王朝血条下跌：一根横条从 before 掉到 after，停 1.2 秒后自动继续 */

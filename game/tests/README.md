@@ -2,7 +2,7 @@
 
 > 测试在这个项目里不是「覆盖率作业」，而是**把设计意图钉住的钉子**。凡是「看起来像 bug、其实是有意为之」的地方，都有一条测试写着原因，防止后来的人（包括我自己）把它「修」掉。
 >
-> 现状：**18 个文件 / 383 条测试**，全在 node 环境跑（不 import Phaser），`pnpm test` 3 秒内跑完。
+> 现状：**19 个文件 / 398 条测试**，全在 node 环境跑（不 import Phaser），`pnpm test` 3 秒内跑完。
 
 ## 怎么跑
 
@@ -13,7 +13,7 @@ pnpm exec vitest run tests/dungeon.test.ts   # 只跑一个文件
 ```
 
 - 配置在 `vitest.config.ts`：`include: tests/**/*.test.ts`，`environment: 'node'`。
-- 因此**测试里不能 import Phaser**：被测模块必须是 `src/core/` 下那 19 个不依赖 Phaser 的文件（见 `src/README.md` 的硬性约束）。要测场景/渲染就得靠 `tools/cdp-*.mjs` 的真实浏览器端到端。
+- 因此**测试里不能 import Phaser**：被测模块必须是 `src/core/` 下那 20 个不依赖 Phaser 的文件（见 `src/README.md` 的硬性约束）。要测场景/渲染就得靠 `tools/cdp-*.mjs` 的真实浏览器端到端。
 - 读数据文件用 `process.cwd()` 拼路径（不是 `__dirname`），因为 vitest 以工程根为 cwd。
 - 解析 JSON 记得拆包装层（`{events:[]}` / `{cards:[]}` / `{dungeons:[]}`…），详见 `public/data/README.md`。
 
@@ -40,6 +40,8 @@ pnpm exec vitest run tests/dungeon.test.ts   # 只跑一个文件
 | `weaponSwap.test.ts` | `src/core/weaponSwap.ts` | 战斗内换武器（4.3.8）：门禁的 11 类拒绝分支各有中文文案、护送算战斗而探索/过场不算；列表「当前装备排第一且不可重复选」、老存档按模板补 `weapon_ref`、缺 ref / 配置缺失标灰、脏存档同 uid 不重复、空槽差值等于净加成；计划是纯函数不改存档；背包放不下提前拒绝、提交前后数据漂移判 `stale_option`；提交后装备槽/背包/weapon_ref 三者同步、同一件重复提交安全拒绝、快照回滚不留半状态。场景侧冻结与即时生效由 `tools/_cdp/weapon-swap.mjs` 实拍。 |
 
 | `critShake.test.ts` | `src/core/critShake.ts` / `public/data/config.json` | 暴击震屏「轻微但不为零」11 条：修复前的 `amp=2 → 0.002` 现在被上限压住（不会再晃飞）、**真实 config.json** 算出的强度 `>0` 且 `≤0.0012`、配置值已不再是 2、填 `0`/负数/`NaN`/`Infinity`/`undefined` 也不会把震动关掉（下限 >0）、上限挡住误填、正常区间单调且 `amp=1 → 0.001`；合并窗口 5 条：窗口内连暴只震 1 次、边界一到就恢复、模拟一次横扫连中 5 个全暴击只落 1 次且隔窗能再震、时长短于窗口且比旧的 60ms 更短。守的是「顺手把效果删了」和「顺手把强度改回去」这两个方向；太平天国战场实拍由 `tools/_cdp/crit-shake.mjs` 验证 |
+
+| `upgradeSelection.test.ts` | `src/core/upgradeSelection.ts` | 强化三选一「选中 → 确认」两步流程 15 条：点卡只记录 `selected`、**连点 10 次 / 切换 / 取消都不写 `committed` 也不关界面**（守「快速点击误选」）；再点已选 = 取消、点别的 = 切换；未选中 `canConfirm()` 为假且 `confirmUpgrade()` 原样返回（不会替玩家选一项）；确认是唯一提交入口、提交后界面关闭且 `committed === selected`；重复确认幂等；`skipUpgrade()` 关闭但不提交；状态对象不可变（不原地改入参）。真实鼠标连点 / 选中态 / toast 反馈由 `tools/_cdp/upgrade-confirm.mjs` 端到端覆盖 |
 
 ## 写新测试的约定
 

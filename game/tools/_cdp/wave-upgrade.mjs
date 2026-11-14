@@ -245,6 +245,25 @@ try {
     `document.querySelector('#controls, .controls, #dpad') ? getComputedStyle(document.querySelector('#controls, .controls, #dpad')).display !== 'none' : true`,
   );
 
+  // v1.8.6 两步流程：确认前「点选」只记录，连点 / 切换都不许生效、结算或关界面。
+  // 这里走调试钩子快速点击（真实鼠标连点由 tools/_cdp/upgrade-confirm.mjs 专项覆盖）。
+  await evaluate(`(() => {
+    const H = window.__dshLevel;
+    H.selectUpgrade(0); H.selectUpgrade(1); H.selectUpgrade(0);
+    return true;
+  })()`);
+  await sleep(200);
+  const preConfirm = await evaluate('window.__dshLevel.upgradeSelection()');
+  report.checks.clicksBeforeConfirmNeverCommit =
+    preConfirm?.cardOpen === true && preConfirm?.picked === 0 && preConfirm?.selected !== null;
+  // 取消后按确认必须无效（不能替玩家随便定一项）
+  await evaluate('window.__dshLevel.cancelUpgrade()');
+  report.checks.confirmWithoutSelectionNoop =
+    (await evaluate('window.__dshLevel.confirmUpgrade()')) === false;
+  const afterNoop = await evaluate('window.__dshLevel.upgradeSelection()');
+  report.checks.confirmWithoutSelectionKeepsCard =
+    afterNoop?.cardOpen === true && afterNoop?.picked === 0;
+
   // 连点三次：finish() 的 closed 闸门必须只让第一次生效（重复触发场景）
   await evaluate(`(() => {
     const H = window.__dshLevel;

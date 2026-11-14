@@ -60,6 +60,8 @@ tools/_cdp/*/
 !tools/_cdp/graph-align.mjs
 # 战斗 UI／空气墙探针（「闪」键不被 HUD/画布裁切且可点 / 实心格边界亮沿像素）
 !tools/_cdp/battle-ui.mjs
+# 强化三选一「选中 → 确认」两步流程探针（真实鼠标连点不生效 / 未选中确认无效 / 确认才生效）
+!tools/_cdp/upgrade-confirm.mjs
 
 # 发布 staging / 打包产物：由 DEPLOY.md 的流程从 dist 重建，纯产物，不入库。
 # 历史版本曾被误提交，用 `git rm -r --cached tools/_stage` 移出索引即可（工作区保留）。
