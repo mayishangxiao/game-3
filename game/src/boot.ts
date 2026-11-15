@@ -30,6 +30,7 @@ import { installStartGate } from './systems/OrientationGate';
 import { controls } from './systems/InputSystem';
 import { audio } from './systems/AudioKit';
 import { bgm } from './systems/Bgm';
+import { unitFrameCacheSize, unitFrameSet } from './gfx/UnitFrames';
 
 export function boot(): Phaser.Game {
   // 走到这里引擎必然就绪（main.ts 已经 await 过 loadPhaser）。留个断言，
@@ -119,6 +120,12 @@ export function boot(): Phaser.Game {
   // 音频钩子：探针要证明「这一刻该响哪首」、暂停菜单的开关是不是真的落到播放器上。
   // 无头浏览器没有音箱，能断言的只有播放器状态，所以把两个单例交出去。
   (window as unknown as { __dshAudio?: unknown }).__dshAudio = { bgm, audio };
+  // 兵种帧动画钩子：`unitFrameSet` 是「按腿带切帧」的入口，探针要验证
+  // ① 四朝向都能烘出帧、② 不是人形的图（箱子/舰船）会被拒绝、③ 缓存没有一直涨。
+  (window as unknown as { __dshFrames?: unknown }).__dshFrames = { unitFrameSet, unitFrameCacheSize };
+  // 兵种帧动画钩子：`unitFrameSet` 是「按腿带切帧」的入口，探针要验证
+  // ① 四朝向都能烘出帧、② 不是人形的图（箱子/舰船）会被拒绝、③ 缓存没有一直涨。
+  (window as unknown as { __dshFrames?: unknown }).__dshFrames = { unitFrameSet, unitFrameCacheSize };
 
   // 「点击开始」+ 自动横屏（全屏与方向锁都只能在用户手势里申请）
   installStartGate(game);

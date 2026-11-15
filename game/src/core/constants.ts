@@ -500,6 +500,20 @@ export const UNIT_ART: Record<string, string> = {
   // 剧情 NPC 也用同一套小人贴图（林则徐、关天培）
   lin_zexu: `${ART_ROOT}/units/lin_zexu`,
   guan_tianpei: `${ART_ROOT}/units/guan_tianpei`,
+  // v1.9.1：第二幕与三个副本的兵种（以前没图，战斗里退回纯色方块）。
+  // 全部由 `tools/gen_units.py` 程序生成，尺寸/朝向/调色板由 `tests/unitArt.test.ts` 锁住。
+  xiang_army: `${ART_ROOT}/units/xiang_army`,
+  xiang_rifle: `${ART_ROOT}/units/xiang_rifle`,
+  bandit: `${ART_ROOT}/units/bandit`,
+  bandit_chief: `${ART_ROOT}/units/bandit_chief`,
+  bandit_crossbow: `${ART_ROOT}/units/bandit_crossbow`,
+  patrol: `${ART_ROOT}/units/patrol`,
+  dock_boss: `${ART_ROOT}/units/dock_boss`,
+  informant: `${ART_ROOT}/units/informant`,
+  overseer: `${ART_ROOT}/units/overseer`,
+  thug: `${ART_ROOT}/units/thug`,
+  qing_cavalry: `${ART_ROOT}/units/qing_cavalry`,
+  uk_officer: `${ART_ROOT}/units/uk_officer`,
 };
 
 /**
@@ -507,13 +521,52 @@ export const UNIT_ART: Record<string, string> = {
  * 清军系（湘军/绿营/马队/把总）统一用清军小人。
  */
 export function unitArtOf(enemyId: string): string {
-  if (enemyId === 'en_gough' || enemyId === 'en_uk_officer') return 'gough';
-  if (enemyId === 'en_uk_grenadier') return 'uk_grenadier';
-  if (enemyId === 'en_qing_batou') return 'qing_batou';
-  if (enemyId.startsWith('en_qing') || enemyId.startsWith('en_boss_xiangarmy')) return 'qing_green';
-  if (enemyId === 'en_boss_steamfrigate') return 'uk_infantry';
+  // v1.9.1 起每个敌兵都有自己的脸：以前 `en_bandit` / `en_thug` / `en_concession_patrol`
+  // 这些第二幕角色统统落到 `uk_infantry`（一身红衣），在战场上和英军分不出来。
+  // 判据在 `tests/unitArt.test.ts`：数据里出现的每个敌人 id 都必须映射到**存在**的兵种。
+  switch (enemyId) {
+    case 'en_gough':
+      return 'gough';
+    case 'en_uk_officer':
+      return 'uk_officer';
+    case 'en_uk_grenadier':
+      return 'uk_grenadier';
+    case 'en_qing_batou':
+      return 'qing_batou';
+    case 'en_qing_cavalry':
+      return 'qing_cavalry';
+    case 'en_boss_xiangarmy_a':
+      return 'xiang_army';
+    case 'en_boss_xiangarmy_b':
+      return 'xiang_rifle';
+    case 'en_bandit':
+      return 'bandit';
+    case 'en_boss_bandit_chief':
+      return 'bandit_chief';
+    case 'en_bandit_crossbow':
+      return 'bandit_crossbow';
+    case 'en_concession_patrol':
+      return 'patrol';
+    case 'en_elite_dock':
+      return 'dock_boss';
+    case 'en_elite_informant':
+      return 'informant';
+    case 'en_factory_overseer':
+      return 'overseer';
+    case 'en_gang_thug':
+    case 'en_thug':
+      return 'thug';
+    case 'en_boss_steamfrigate':
+      return 'uk_infantry';
+    default:
+      break;
+  }
+  if (enemyId.startsWith('en_qing')) return 'qing_green';
   return 'uk_infantry';
 }
+
+/** 所有兵种贴图 key（预载与测试共用一份，防止漏图） */
+export const UNIT_KEYS = Object.keys(UNIT_ART);
 
 /**
  * 分件小人（「积木小人」）：头 / 身 / 臂 / 腿 / 兵器 五张图，运行时按锚点拼装、按轴摆动。

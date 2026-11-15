@@ -12,12 +12,40 @@
  *
  * 注意：`resolution` 是**实例级**的，和 `PixelArt.ts` 那种纹理级滤镜互不影响，
  * 所以「像素图保持硬边 + 文字保持清晰」可以同时成立。
+ *
+ * ── v1.9.1 追加：**点阵字**走的是同一条路，只是结论相反 ──
+ * 上面这套超采样是给「小字要清晰」用的；设计书 4.9.2 又要求标题是像素字。
+ * 两者在同一处解决：包装器判一段字的「字号 + 长度」（`core/pixelFont.ts →
+ * shouldPixelate`），命中就把 `resolution` 压成 1、加 1px 描边、纹理标最近邻，
+ * 于是放大 RENDER_SCALE 倍后每格像素成一块方块；其余一律走超采样。
+ * 好处是全工程 140 多处 `add.text` 一行都不用改，风格也不会半新半旧。
+ * 想自己定的时候显式写 `style.resolution` 即可（写了包装器就不插手）。
  */
 
 import Phaser from 'phaser';
+import { parseFontSize, pixelTextStyle, shouldPixelate } from '../core/pixelFont';
+import { markTextPixel, wantsPixelStyle } from './PixelFont';
 import { textResolution } from './TextStyle';
 
 let installed = false;
+
+/**
+ * 把内边距推开的那点位移补回来。
+ *
+ * 包装器给每段文字加了 padding（见下面 `installTextResolution` 的说明），
+ * 而调用点是按「没有内边距」算位置的，所以按 origin 反向补偿。
+ * 只补调用点自己没写 padding 的（写了就是它自己要把墨迹推开的，不用管）。
+ */
+function compensatePadding(obj: Phaser.GameObjects.Text, style: Phaser.Types.GameObjects.Text.TextStyle | undefined): void {
+  if (style?.padding !== undefined) return;
+  const p = obj.padding;
+  const pl = p?.left ?? 0;
+  const pr = p?.right ?? 0;
+  const pt = p?.top ?? 0;
+  const pb = p?.bottom ?? 0;
+  obj.x -= pl - obj.originX * (pl + pr);
+  obj.y -= pt - obj.originY * (pt + pb);
+}
 
 type TextFactory = (
   this: Phaser.GameObjects.GameObjectFactory,
@@ -30,16 +58,7 @@ type TextFactory = (
 /** 给一个 Text 补上栅格（内边距 + resolution），返回是否处理过。 */
 function applyResolution(obj: Phaser.GameObjects.Text, style: Phaser.Types.GameObjects.Text.TextStyle | undefined): void {
   if (!obj || typeof obj.setResolution !== 'function') return;
-  // 让墨迹回到原来的位置（内边距会把原点推开一点，按 origin 反向补偿）
-  const p = obj.padding;
-  const pl = p?.left ?? 0;
-  const pr = p?.right ?? 0;
-  const pt = p?.top ?? 0;
-  const pb = p?.bottom ?? 0;
-  if (style?.padding === undefined) {
-    obj.x -= pl - obj.originX * (pl + pr);
-    obj.y -= pt - obj.originY * (pt + pb);
-  }
+  compensatePadding(obj, style);
   const res = textResolution();
   obj.setResolution(res);
   // 光设 style.resolution 还不够：Phaser 只在 Text **构造时**把
@@ -68,10 +87,39 @@ export function installTextResolution(): void {
     // 顶横和左边的三点水会被画布边缘切掉，HUD 左上角那三行字长期缺笔画。
     // 内边距只改变画布尺寸，不改字号。
     const pad = { x: 1, y: 2 };
-    const padded: Phaser.Types.GameObjects.Text.TextStyle = style
-      ? { ...style, padding: style.padding ?? pad }
-      : { padding: pad };
-    const obj = original.call(this, x, y, text, padded);
+    // 点阵字（设计书 4.9.2 方案 ②）：只给「大字号 + 短文本」，判据与取舍理由
+    // 全在 `core/pixelFont.ts`。正文 / HUD / 对白这些小字继续走下面的清晰栅格——
+    // 甲方 m01507 / m14676 抱怨的正是小字被点阵化后读不出来。
+    // 调用点想自己决定时可以显式写 `resolution`：写了就一律听调用点的。
+    const plain = Array.isArray(text) ? text.join('\n') : String(text ?? '');
+    const explicitRes = style?.resolution !== undefined;
+    const autoPixel = !explicitRes && shouldPixelate(parseFontSize(style?.fontSize), plain);
+    const pixel = autoPixel || wantsPixelStyle(style);
+
+    const merged: Phaser.Types.GameObjects.Text.TextStyle = style ? { ...style } : {};
+    if (autoPixel) {
+      // 字号取整 + 1px 描边 + resolution 1，一次写进构造参数：
+      // 建好之后再改 fontSize 会触发一次多余的 updateText()。
+      const p = pixelTextStyle(merged.fontSize, undefined, { fontStyle: merged.fontStyle });
+      merged.fontSize = p.fontSize;
+      merged.resolution = p.resolution;
+      // 调用点自己配过描边就整套沿用。例：林则徐头顶那个 `!` 是 16px + 3px 深描边，
+      // 为了压在深色池水上也看得清；这里若改成 1px，标记会直接消失在水里。
+      if (merged.stroke === undefined && merged.strokeThickness === undefined) {
+        merged.stroke = p.stroke;
+        merged.strokeThickness = p.strokeThickness;
+      }
+    }
+    merged.padding = merged.padding ?? pad;
+
+    const obj = original.call(this, x, y, text, merged);
+    if (pixel) {
+      // 1 倍栅格已由 style.resolution 定好，这里只把采样换成最近邻：
+      // 渲染器放大 RENDER_SCALE 倍之后，每个栅格像素就是一块方块。
+      compensatePadding(obj, style);
+      markTextPixel(obj);
+      return obj;
+    }
     applyResolution(obj, style);
     return obj;
   };

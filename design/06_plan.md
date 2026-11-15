@@ -19,15 +19,15 @@
 | 程序合成音效（炮火余响 / 城破 / 丧钟） | ✅ | `systems/AudioKit.ts` |
 | 屏幕空间与横竖屏适配 | ✅ | `core/space.ts`、`core/orientation.ts` |
 | BGM 与音效素材 | 🟡 程序合成版已做（v1.9.0） | 见 6.6.2 / 6.6.3；6 首 BGM 谱面在 `game/src/core/bgm.ts`、14 条音效在 `AudioKit`，真人音源到货只换播放层 |
-| 单位行走与攻击动画帧 | ⬜ 未做 | 见 6.3.2 |
-| 第二幕人物贴图与立绘 | 🟡 立绘已做（v1.9.0，14 人） | 见 6.3.2；`tools/gen_portraits.py` 生成的 96×112 胸像，兵种小人贴图仍在 6.3.2 缺口表里 |
-| 像素中文字体 | ⬜ 未做 | 见 4.9.2 |
+| 单位行走与攻击动画帧 | 🟡 从底图切帧（v1.9.1） | 见 6.3.2；`core/unitFrames.ts` 按腿带切出 stepA/stepB/swing 三帧，`gfx/UnitFrames.ts` 烘成派生纹理，对甲方出的老兵种同样生效；两帧步态，不做四帧循环 |
+| 第二幕人物贴图与立绘 | 🟡 立绘 + 兵种贴图都已做（v1.9.0 / v1.9.1） | 见 6.3.2；立绘 `tools/gen_portraits.py`（14 人 96×112），兵种 `tools/gen_units.py`（20 兵种 × 四朝向 24×32）；都是程序生成，等真人美术替换 |
+| 像素中文字体 | 🟡 方案 ② 已做（v1.9.1） | 见 4.9.2；≥16px 短标题走「1 倍栅格 + 1px 描边」点阵化，小字保持清晰（甲方 m01507/m14676），判据 `core/pixelFont.ts`；①开源字库 / ③自绘仍留待定稿后评估 |
 
 ## 7.2 验收（可执行，按顺序跑）
 
 ```bash
 pnpm exec tsc --noEmit          # 类型
-pnpm test                       # 22 个测试文件 / 436 条，见 game/tests/README.md
+pnpm test                       # 25 个测试文件 / 474 条，见 game/tests/README.md
 pnpm build                      # 产物能构建
 node game/tools/serve.mjs       # 起本地服务（另开一个终端）
 node game/tools/cdp-e2e.mjs     # 端到端：首屏 → 第一幕 → 战斗 → 存档

@@ -9,7 +9,8 @@
 
 import Phaser from 'phaser';
 import { CHAR_H, CHAR_W, DEPTH, PALETTE, PART_ART, PartFacing, PartName, partKey, SHIP_FRAME, WEAPON_KIND } from '../core/constants';
-import { markPixel } from './PixelArt';
+import { markPixel, markPixelByKey } from './PixelArt';
+import { unitFrameSet } from './UnitFrames';
 
 /** 舰船一次开炮动作的时长（毫秒）：比人形长一倍，舷炮齐射才看得清 */
 const SHIP_ATTACK_MS = 340;
@@ -78,6 +79,11 @@ export class CharacterRig extends Phaser.GameObjects.Container {
   /** 兵种贴图（24×32 四朝向）。有它时矩形部件全部隐藏，走路改成整体上下浮动 */
   private unitImage: Phaser.GameObjects.Image | null = null;
   private unitKey = '';
+  /**
+   * 当前这张贴图实际用的纹理 key（v1.9.1 起会在底图 / 步态帧 / 出手帧之间切）。
+   * 只写不读，给 CDP 探针判断「帧动画到底有没有在跑」——`_cdp/unit-anim.mjs` 读它。
+   */
+  frameKey = '';
 
   /**
    * 分件小人（「积木小人」）：五张图按锚点拼起来，关节可以真的转。
@@ -323,6 +329,15 @@ export class CharacterRig extends Phaser.GameObjects.Container {
       }
   }
 
+  /** 换贴图帧（去重 + 标像素滤镜 + 记下 key 给探针看） */
+  private setUnitFrame(key: string): void {
+    if (!this.unitImage) return;
+    this.frameKey = key;
+    if (this.unitImage.texture.key === key) return;
+    this.unitImage.setTexture(key);
+    markPixelByKey(this.scene, key);
+  }
+
   /**
    * 铁壳蒸汽炮舰的占位形体：船体 + 炮门 + 甲板 + 烟囱冒烟 + 桅杆旗。
    * 全部用矩形拼，配色取自 24 色盘——目的只是让老师一眼看出「这是条军舰」。
@@ -479,28 +494,35 @@ export class CharacterRig extends Phaser.GameObjects.Container {
     }
 
     if (this.unitImage) {
-      // 贴图小人是一张单帧图，没有骨骼可以掰：甲方问的「怎么一贴图就不流畅了」，
-      // 根因就在这儿——矩形小人会摆腿、甩兵器，贴图小人只剩整体平移。
-      // 这里用三件事把动作补回来（都只动 unitImage，不动容器：容器管碰撞、影子、血条）：
-      //   1. 两拍踏步：走起来左右各歪 2°、抬脚 2px，像素画里这就是「迈步子」；
-      //   2. 站立呼吸：1.5 秒一轮，最高抬 1px；
-      //   3. 攻击三段：先后仰蓄力，再前冲出手——有预备动作，才不像瞬移。
+      // 贴图小人：v1.9.1 起有**真帧**了。`gfx/UnitFrames.ts` 从底图上按腿带切出
+      // 两帧步态（抬左腿 / 抬右腿）与一帧出手（上身朝朝向错 1px），这里只负责选帧：
+      //   1. 走路：stepA / stepB 交替 + 1px 起伏 + 1° 侧倾（幅度比没帧时小一半——
+      //      帧已经动了腿，整体再歪 2° 会像抽搐）；
+      //   2. 站立：底图 + 1px 呼吸；
+      //   3. 出手：蓄力段后仰、前冲段换出手帧、收势回底图；
+      // 拿不到帧（贴图缺失 / 跨域污染 / 形状不像人形）时完全退回旧观感，不会白屏。
       const img = this.unitImage;
       this.idlePhase += dtMs;
+      const dir: 1 | -1 = this.facing === 'left' ? -1 : 1;
+      const baseKey = `${this.unitKey}_${this.facing}`;
+      const frames = unitFrameSet(this.scene, baseKey, dir);
+
+      this.walkPhase = moving ? this.walkPhase + dtMs * 0.020 : 0; // 约 4.5 步/秒
+      const step = moving && Math.floor(this.walkPhase / Math.PI) % 2 === 1;
 
       if (moving) {
-        this.walkPhase += dtMs * 0.020; // 约 4.5 步/秒
-        const step = Math.floor(this.walkPhase / Math.PI) % 2 === 1;
-        img.setY(step ? -2 : 0);
-        img.setAngle(step ? 2.2 : -2.2);
-        img.setX(step ? (this.facing === 'left' ? 1 : -1) : 0);
+        img.setY(step ? (frames ? -1 : -2) : 0);
+        img.setAngle(step ? (frames ? 1.1 : 2.2) : frames ? -1.1 : -2.2);
+        img.setX(frames ? 0 : step ? (this.facing === 'left' ? 1 : -1) : 0);
       } else {
-        this.walkPhase = 0;
         const breathe = Math.sin(this.idlePhase * 0.0042) > 0.6;
         img.setY(breathe ? -1 : 0);
         img.setAngle(0);
         img.setX(0);
       }
+
+      // 想要哪一帧：出手帧 > 步态帧 > 底图（最后统一 setTexture，避免一帧里改两次）
+      let wanted = moving && frames ? (step ? frames.stepB : frames.stepA) : baseKey;
 
       if (this.attackTimer > 0) {
         this.attackTimer -= dtMs;
@@ -512,17 +534,21 @@ export class CharacterRig extends Phaser.GameObjects.Container {
           img.setX(-dirX * k);
           img.setAngle(dirX * k * 1.4);
         } else {
-          // 出手：前冲 6.5px、身体前压
+          // 出手：前冲（有帧时收到 5px，因为帧里上身已经错出去 1px）
           const k = (prog - 0.45) / 0.55;
-          const fwd = Math.sin(k * Math.PI) * 6.5;
+          const fwd = Math.sin(k * Math.PI) * (frames ? 5 : 6.5);
           img.setX(dirX * fwd);
-          img.setAngle(-dirX * fwd * 0.9);
+          img.setAngle(-dirX * fwd * (frames ? 0.6 : 0.9));
         }
+        // 出手帧只在前冲段用：蓄力还在后仰、收势已经回位，强行套帧会「手先出、人后到」
+        if (frames && prog >= 0.3 && prog <= 0.85) wanted = frames.swing;
         if (this.attackTimer <= 0) {
           img.setX(0);
           img.setAngle(0);
+          wanted = baseKey;
         }
       }
+      this.setUnitFrame(wanted);
 
       if (this.flashTimer > 0) {
         this.flashTimer -= dtMs;

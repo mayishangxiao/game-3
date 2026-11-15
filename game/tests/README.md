@@ -2,7 +2,7 @@
 
 > 测试在这个项目里不是「覆盖率作业」，而是**把设计意图钉住的钉子**。凡是「看起来像 bug、其实是有意为之」的地方，都有一条测试写着原因，防止后来的人（包括我自己）把它「修」掉。
 >
-> 现状：**22 个文件 / 436 条测试**，全在 node 环境跑（不 import Phaser），`pnpm test` 3 秒内跑完。
+> 现状：**25 个文件 / 474 条测试**，全在 node 环境跑（不 import Phaser），`pnpm test` 3 秒内跑完。
 
 ## 怎么跑
 
@@ -13,7 +13,7 @@ pnpm exec vitest run tests/dungeon.test.ts   # 只跑一个文件
 ```
 
 - 配置在 `vitest.config.ts`：`include: tests/**/*.test.ts`，`environment: 'node'`。
-- 因此**测试里不能 import Phaser**：被测模块必须是 `src/core/` 下那 21 个不依赖 Phaser 的文件（见 `src/README.md` 的硬性约束）。要测场景/渲染就得靠 `tools/cdp-*.mjs` 的真实浏览器端到端。
+- 因此**测试里不能 import Phaser**：被测模块必须是 `src/core/` 下那 23 个不依赖 Phaser 的文件（见 `src/README.md` 的硬性约束）。要测场景/渲染就得靠 `tools/cdp-*.mjs` 的真实浏览器端到端。
 - 读数据文件用 `process.cwd()` 拼路径（不是 `__dirname`），因为 vitest 以工程根为 cwd。
 - 解析 JSON 记得拆包装层（`{events:[]}` / `{cards:[]}` / `{dungeons:[]}`…），详见 `public/data/README.md`。
 
@@ -45,6 +45,9 @@ pnpm exec vitest run tests/dungeon.test.ts   # 只跑一个文件
 
 | `upgradeSelection.test.ts` | `src/core/upgradeSelection.ts` | 强化三选一「选中 → 确认」两步流程 15 条：点卡只记录 `selected`、**连点 10 次 / 切换 / 取消都不写 `committed` 也不关界面**（守「快速点击误选」）；再点已选 = 取消、点别的 = 切换；未选中 `canConfirm()` 为假且 `confirmUpgrade()` 原样返回（不会替玩家选一项）；确认是唯一提交入口、提交后界面关闭且 `committed === selected`；重复确认幂等；`skipUpgrade()` 关闭但不提交；状态对象不可变（不原地改入参）。真实鼠标连点 / 选中态 / toast 反馈由 `tools/_cdp/upgrade-confirm.mjs` 端到端覆盖 |
 | `bgm.test.ts` | `src/core/bgm.ts` / `public/data/acts/*.json` | **v1.9.0 程序化 BGM 谱面（11 条）**：6 首曲子都在、每轨音符按 step 递增（同轨同拍不叠音）、音符长度不越过循环点（`start + len ≤ steps`，否则最后一小节的尾音会盖到开头）、MIDI 落在 21..108 的可听区间、每首循环 6–30 秒且音符总数 <400（太长/太密会让 lookahead 调度器与手机内存吃紧）、编曲意图（battle 的 bpm 最大 / sorrow 最小）、`midiToHz` 与 `stepSeconds` 的换算、幕数据 `bgm` 字段能映射到曲目且未知值回落 `humen`。守的是「音频代码只在浏览器里跑，谱面数据错了没有任何单元测试之外的手段能发现」这条——播放层由 `tools/_cdp/audio-pause.mjs` 实拍。 |
+| `unitFrames.test.ts` | `src/core/unitFrames.ts` | **v1.9.1 兵种帧动画的像素算法（15 条）**：腿带识别（最下方有墨迹的行算腿带）、抬腿帧只动腿带不动躯干、左右腿互斥（同一帧不能两条腿同时抬）、`swing` 帧上身朝朝向错 1px 且脚底不动、平移越界的像素直接丢弃（不环绕）、长度/人形两道闸（3 行以下的色块、只占画布 4 行高的方块都不认）、`cloneMask` 深拷贝。守的是「帧是从底图切出来的，算法错了不会报错、只会让所有兵种一起瘸」这条 | 真实观感由 `tools/_cdp/unit-anim.mjs` 端到端覆盖（13 条，含 8 倍放大的走路帧截图） |
+| `unitArt.test.ts` | `src/core/constants.ts` / `public/art/units/**` | **v1.9.1 兵种贴图完整性（8 条）**：`UNIT_ART` 里每个兵种四朝向（down/up/left/right）文件都在、尺寸统一 24×32、RGBA 透明底、主体不贴边、左右朝向不是简单镜像（镜像会让武器换边）、`unitArtOf()` 对数据里出现的每个敌人 id 都映射到**存在**的兵种、第二幕与三个副本的新兵种不能退化成 `uk_infantry`。守的是「以前 `en_bandit` / `en_thug` / `en_concession_patrol` 全落到一身红衣的英军，战场上分不出敌我」 | 图由 `tools/gen_units.py` 生成；映射表的实拍由 `tools/_cdp/unit-anim.mjs` 覆盖 |
+| `pixelFont.test.ts` | `src/core/pixelFont.ts` | **v1.9.1 像素中文字的判定规则（15 条，设计书 4.9.2 方案 ②）**：字号解析（px / 数字 / em 一律返回 0 不猜）、≥16px 且 ≤18 码点才点阵化、8–15px 的小字一律不点阵化（甲方 m01507/m14676 投诉的对象）、大字号长段落不点阵化、长度按码点算（扩展区汉字不算两个字）、字号取整夹到下限、样式的 `resolution` 必须是 1 且描边色与文字色不同、纯函数不共享可变对象。守的是「设计书要标题像素字、甲方要文字清晰」这对冲突的**分级线**——门槛改小一个字，卡名与图鉴标题就会一起糊掉 | 实际像素观感由 `tools/_cdp/pixel-font.mjs` 覆盖（14 条，受控 A/B 对照 + 实拍裁图） |
 
 ## 写新测试的约定
 
