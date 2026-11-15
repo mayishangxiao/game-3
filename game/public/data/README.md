@@ -18,7 +18,7 @@
 | `equipment/items_base.json` | 装备模板：`slot` `quality` `stat` `base_value` `quality_multiplier` `source`，武器模板可选 `weapon_ref`（指向 `config.json.weapons`，进关卡真的换武器；见 `design/03_systems.md` 4.3.7） | 16 | `id` |
 | `equipment/drops.json` | 掉落规则：按来源类型的掉率、部位权重、品质权重；`pity` 保底参数 | 5 条规则 | `rules[].source_type` |
 | `dungeons/dungeons.json` | 副本：波次（`waves[]`）、Boss、`quality_weights`、`unique_drop`、`unlock_act` | 3 | `id` |
-| `maps/map_ch00_act1a.json` `maps/map_ch00_act1b.json` `maps/map_ch00_act2a.json` `maps/map_ch00_act2b.json` `maps/map_ch00_tp_village.json` `maps/map_ch00_tp_city.json` `maps/map_ch00_tp_battlefield.json` `maps/map_dg01_alley.json` `maps/map_dg02_bandit.json` `maps/map_dg03_dock.json` | 瓦片地图：`width/height` `tile_colors` `spawn` `layers[]` `objects[]` `triggers[]`（清单见第六节）。`map_ch00_act2a/b` 自 v1.1 起保留为回退素材、不再被引用 | 10 张 | `id` |
+| `maps/map_ch00_act1a.json` `maps/map_ch00_act1b.json` `maps/map_ch00_act2a.json` `maps/map_ch00_act2b.json` `maps/map_ch00_tp_village.json` `maps/map_ch00_tp_city.json` `maps/map_ch00_tp_battlefield.json` `maps/map_ch00_act3_sea.json` `maps/map_dg01_alley.json` `maps/map_dg02_bandit.json` `maps/map_dg03_dock.json` | 瓦片地图：`width/height` `tile_colors` `spawn` `layers[]` `objects[]` `triggers[]`（清单见第六节）。`map_ch00_act2a/b` 自 v1.1 起保留为回退素材、不再被引用 | 11 张 | `id` |
 | `quiz/quiz_ch00.json` | 章末题库：题干/选项/答案/解析/`knowledge_ref` | 22 题（抽 5） | `pool[].id` |
 | `dialogues/dlg_ch00.json` | 对话块 + NPC 表 | 48 块 | `dialogues[].id` |
 
@@ -114,11 +114,17 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 | `maps/map_ch00_tp_village.json` | 太平天国专题 · 村落「金田村」（护送 / 探索），图块集 `tp_act2`；已接入 `nd_1851_jintian_escort` | `tools/gen_taiping_tilemap.py` |
 | `maps/map_ch00_tp_city.json` | 太平天国专题 · 城池「天京城」（经营 / 管理 / 对话）；已接入 `nd_1853_tianjing_manage` | `tools/gen_taiping_tilemap.py` |
 | `maps/map_ch00_tp_battlefield.json` | 太平天国专题 · 战场「天京城墙夜战」（Boss 战，`sky_rows=4` + `battle_scars`）；已接入 `nd_1864_tianjing_fall` | `tools/gen_taiping_tilemap.py` |
+| `maps/map_ch00_act3_sea.json` | 海战专题 · 「黄海 · 大东沟海面」（Boss 战，`tp_sea` 图集 + `sky_rows=4` + `boss_anchor`）；已接入 `nd_1894_jiawu_battle` | `tools/gen_sea_map.py` |
 
 > 上面三张是 `tp_act2` 图块集的**太平天国专题地图**：自 v1.1 起已登记进第二幕三个节点的
 > `map_ref` 与 `acts/ch00_act2.json` 的 `map_refs`，是线上正在跑的关卡地图。
 > 规格见 `design/12_taiping_tilemap_spec.md`，四层编辑源与 36 张瓦片在 `public/art/tiles/tp/`。
 > 三张图的 `tileset` 字段是 `tp_act2`（旧图仍是 `placeholder`，渲染器按该字段切换图集绘制）。
+>
+> **海战图（`map_ch00_act3_sea.json`）是第二套图集，不是 `tp_act2`**：它的 `tileset` 是 `tp_sea`，
+> 瓦片在 `public/art/tiles/sea/`（24 块：海面 / 甲板 / 舷墙 / 舰炮 / 沉船），由 `tools/gen_sea_tiles.py` 生成。
+> 可走区只有中间一条甲板（col 4..19 × row 6..12），四周与上下都是不可走的海面；
+> `boss_anchor` 把松岛舰钉在右舷外，保证玩家近战 60px 够得着它（默认的右端 −100px 会让它飘在 90 多像素外）。
 > **v1.2**：`objects[]` 只放 `kind:'prop'` 静态布景，禁止第一幕的 `pickup/crate` 鸦片箱；
 > 装饰层也不再摆放 `tp_deco_crate` 木箱瓦片。生成器与 `tests/data.test.ts` 双重断言。
 

@@ -15,7 +15,20 @@
  */
 
 import Phaser from 'phaser';
-import { DEPTH, PALETTE, SCAR_TEX, TILE, TP_SHEET_COLS, TP_SHEET_TEX, TP_TILESET_ID, darkerOf, lighterOf } from '../core/constants';
+import {
+  DEPTH,
+  PALETTE,
+  SCAR_TEX,
+  SEA_SHEET_COLS,
+  SEA_SHEET_TEX,
+  SEA_TILESET_ID,
+  TILE,
+  TP_SHEET_COLS,
+  TP_SHEET_TEX,
+  TP_TILESET_ID,
+  darkerOf,
+  lighterOf,
+} from '../core/constants';
 import type { MapDef, MapLayer, MapTrigger } from '../core/types';
 import { markPixel } from './PixelArt';
 
@@ -26,6 +39,33 @@ export interface SolidGrid {
 }
 
 type TileStyle = 'sea' | 'sand' | 'stone' | 'wood' | 'plain';
+
+/** 一套图集：拼版纹理 key + 列数（取帧规则 `col = id % cols`） */
+interface SheetInfo {
+  tex: string;
+  cols: number;
+}
+
+/**
+ * 已知图集登记表 —— `MapDef.tileset` → 拼版。
+ *
+ * 以前这里是三处写死的 `=== TP_TILESET_ID`；第二套图集（海战）进来后，
+ * 每加一套图就要在三处同步改，漏一处的表现是「地图全是乱码地砖」。
+ * 现在只在这张表里加一行，取帧/边界提示/回退策略都跟着走。
+ */
+const SHEETS: Record<string, SheetInfo> = {
+  [TP_TILESET_ID]: { tex: TP_SHEET_TEX, cols: TP_SHEET_COLS },
+  [SEA_TILESET_ID]: { tex: SEA_SHEET_TEX, cols: SEA_SHEET_COLS },
+};
+
+/**
+ * 有图集但**不需要**补边界提示的 tileset。
+ *
+ * `tp_act2` 的实心格和地面装饰太接近，必须描一圈灰亮沿（见 `paintSolidEdges`）；
+ * 海战图的舷墙瓦片自带 4px 墨边、海面本身就是「不可走的蓝」，再描一圈反而像
+ * 给整条船包了层胶带，远看是一张网格。所以这类型直接跳过。
+ */
+const NO_SOLID_HINT: ReadonlySet<string> = new Set<string>([SEA_TILESET_ID]);
 
 /**
  * 按颜色推材质：蓝→海、浅黄→沙、灰→石、棕→木。
@@ -112,16 +152,29 @@ export class MapRenderer {
     // 再刷一层紫灰石墙会把美术整个盖掉；旧图仍需要 paintWalls 补「撞得住但看不见」的空气墙。
     // 但 tp 图不能干脆不画：那些实心瓦片和地面装饰颜色太接近，玩家会一头撞上去
     // 以为卡住了。改用 paintSolidEdges() 只描边界、不盖图块（见方法注释）。
-    if (this.def.tileset !== TP_TILESET_ID) this.paintWalls();
-    else this.paintSolidEdges();
+    // 海战图（tp_sea）两者都不画：舷墙瓦片自带墨边，海面本来就是「蓝=不能走」。
+    if (!this.sheetFor(this.def.tileset)) this.paintWalls();
+    else if (!NO_SOLID_HINT.has(this.def.tileset)) this.paintSolidEdges();
   }
 
   /**
-   * 从 tp_act2 拼版里取一帧画到地面 canvas 上，成功返回 true。
+   * 这套地图该用哪张拼版：tileset 在登记表里、且纹理确实加载到位才返回。
+   *
+   * 纹理没到位（美术缺失 / 本场景没预加载）时返回 null，调用方回退到
+   * `tile_colors` 的程序化材质——宁可画一片色块，也不要留一地空洞。
+   */
+  private sheetFor(tileset: string): SheetInfo | null {
+    const info = SHEETS[tileset];
+    if (!info) return null;
+    return this.scene.textures.exists(info.tex) ? info : null;
+  }
+
+  /**
+   * 从图集里取一帧画到地面 canvas 上，成功返回 true。
    *
    * 帧号就是地图 JSON 的瓦片 id（id 0 恒透明，不会进循环），布局与
-   * `public/art/tiles/tp/tileset.json → columns / sheet_cell` 一致：
-   * `col = id % 8`、`row = ⌊id / 8⌋`。越界（换了图集没同步数据）返回 false，
+   * `public/art/tiles/<图集名>/tileset.json → columns / sheet_cell` 一致：
+   * `col = id % cols`、`row = ⌊id / cols⌋`。越界（换了图集没同步数据）返回 false，
    * 让调用方回退 `tile_colors` 的程序化材质，而不是留一个空白洞。
    */
   private blitSheetTile(
@@ -130,10 +183,11 @@ export class MapRenderer {
     id: number,
     x: number,
     y: number,
+    cols: number,
   ): boolean {
     if (!Number.isInteger(id) || id <= 0) return false;
-    const col = id % TP_SHEET_COLS;
-    const row = Math.floor(id / TP_SHEET_COLS);
+    const col = id % cols;
+    const row = Math.floor(id / cols);
     // 图集加载失败 / 尺寸对不上时宁可回退：drawImage 超界在部分浏览器会静默不画。
     const sw = Number((sheet as HTMLImageElement).width) || 0;
     const sh = Number((sheet as HTMLImageElement).height) || 0;
@@ -281,10 +335,12 @@ export class MapRenderer {
     // 1:1 像素拷贝，别让画布默认的双线性插值把 16×16 瓦片糊掉。
     ctx.imageSmoothingEnabled = false;
 
-    // 太平天国篇章走真图块：LevelScene.preload() 已把拼版挂到纹理管理器。
-    // 旧地图 tileset === 'placeholder'（或图集没加载成功）时 sheet 为 null，原逻辑一行不改。
-    const sheet = this.def.tileset === TP_TILESET_ID && this.scene.textures.exists(TP_SHEET_TEX)
-      ? (this.scene.textures.get(TP_SHEET_TEX).getSourceImage() as CanvasImageSource)
+    // 图集（tp_act2 太平天国 / tp_sea 海战）走真图块：LevelScene.preload() 已把拼版
+    // 挂到纹理管理器。旧地图 tileset === 'placeholder'（或图集没加载成功）时 info 为 null，
+    // 原逻辑一行不改，仍按 tile_colors 推材质。
+    const info = this.sheetFor(this.def.tileset);
+    const sheet = info
+      ? (this.scene.textures.get(info.tex).getSourceImage() as CanvasImageSource)
       : null;
 
     // 顶上 `sky_rows` 行留空（透明），由 LevelScene 在那条带上叠远景条，
@@ -296,7 +352,7 @@ export class MapRenderer {
         const tile = layer.data[y][x];
         if (!tile) continue;
         // 图集优先：拿到帧就不再画程序化材质，避免两套美术叠在一起。
-        if (sheet && this.blitSheetTile(ctx, sheet, Number(tile), x, y)) continue;
+        if (sheet && info && this.blitSheetTile(ctx, sheet, Number(tile), x, y, info.cols)) continue;
         const hex = this.def.tile_colors[String(tile)];
         if (!hex) continue;
         this.paintTile(ctx, x * TILE, y * TILE, hex);

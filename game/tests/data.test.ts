@@ -87,7 +87,15 @@ interface NodeJson {
   /** 史实年份 */
   year?: number;
   /** 战斗开场情境卡：时间 / 地点 / 双方兵力 */
-  banner?: { time: string; place: string; ours?: string; enemy?: string; scene?: string };
+  banner?: {
+    time: string;
+    place: string;
+    ours?: string;
+    enemy?: string;
+    scene?: string;
+    /** 开局战力对比块，三行短句 */
+    power?: { title?: string; ours: string; enemy: string; gap?: string };
+  };
 }
 interface EnemyJson {
   id: string;
@@ -309,6 +317,32 @@ describe('节点引用', () => {
       expect(n.banner.enemy?.trim(), `节点 ${n.id} 的开场卡缺对方兵力`).toBeTruthy();
       if (n.banner.scene) expect(['sea', 'land']).toContain(n.banner.scene);
     }
+  });
+
+  it('开场卡文案长度有上限（写太长会把「点击开始战斗」顶穿）', () => {
+    // v2.1 的坑：海战那句战力对比写到 42 字，整块文字往下长 78px，压住了底部按钮，
+    // 探针 hub-dynasty.mjs 的 introCardNoOverlap 直接红。开场卡是固定高度的 DOM 卡片，
+    // 字数本身就是排版约束，所以在这里卡住——不是「文案尽量短」，是硬上限。
+    const LIMIT = { banner: 28, power: 24 } as const;
+    const tooLong: string[] = [];
+    for (const n of nodes) {
+      const b = n.banner;
+      if (!b) continue;
+      const len = (s?: string) => (s ?? '').replace(/\s/g, '').length;
+      const rows: Array<[string, number, number]> = [
+        ['ours', len(b.ours), LIMIT.banner],
+        ['enemy', len(b.enemy), LIMIT.banner],
+      ];
+      if (b.power) {
+        rows.push(['power.ours', len(b.power.ours), LIMIT.power]);
+        rows.push(['power.enemy', len(b.power.enemy), LIMIT.power]);
+        rows.push(['power.gap', len(b.power.gap), LIMIT.power]);
+      }
+      for (const [field, got, max] of rows) {
+        if (got > max) tooLong.push(`${n.id}.${field} = ${got} 字（上限 ${max}）`);
+      }
+    }
+    expect(tooLong, `开场卡文案过长：\n${tooLong.join('\n')}`).toEqual([]);
   });
 
   it('序章第一幕的守炮台战必须有开场卡（演示版的核心一场）', () => {

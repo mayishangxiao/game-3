@@ -21,6 +21,7 @@
 - `game/src/scenes/HubScene.ts` 长廊按 `acts` 长度生成幕门（现在 5 道），门上年份读 `act.year_label`，顶部血条读 `progress.dynasty`；
 - 国运刻度是**绝对值**（`act.dynasty_after`，0..100），不是增量；一关内战败再叠 `params.dynasty_delta` 扣减；
 - `game/tests/data.test.ts` 断言章节里声明的幕数就是 5，`tests/chronicle.test.ts` 锁死年份递增、国运递减与终局台词。
+- 第三幕的战斗关卡是**黄海海战**，地图是**海洋**（`maps/map_ch00_act3_sea.json`，`tileset: tp_sea`）：可走区只有中间一条定远舰甲板，四周海面撞得住，松岛舰由 `boss_anchor` 钉在右舷外。改这张图请连 `tests/seaMap.test.ts` 与 `tools/_cdp/jiawu-sea.mjs` 一起跑。
 
 所以：**不要"补回"更远的章节（1921 及以后）、不要给 `acts_planned` 之类的字段复活**。要续做第二章，先在 `index.json` 加 `ch01` 再按 `design/00_front.md` 的"不覆盖"清单立项。
 

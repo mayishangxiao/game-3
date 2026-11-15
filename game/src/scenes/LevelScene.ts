@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SEA_SHEET_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -473,6 +473,10 @@ export class LevelScene extends Phaser.Scene {
     // 必须放 preload：buildWorld 里 new MapRenderer() 是同步烘地面纹理的，
     // 等构造时再发起异步加载就已经画完了。缺图时 MapRenderer 自动回退程序化材质。
     if (!this.textures.exists(TP_SHEET_TEX)) this.load.image(TP_SHEET_TEX, ART.tpSheet);
+    // 海战图集（8 列 × 4 行 = 128×64，24 块）：同样必须抢在 buildWorld 之前。
+    // 两个 if 分开写——`textures.exists` 是纹理表查询，不是文件缓存查询，
+    // 合并成一个条件会让「只有海图」的关卡误以为 tp 拼版也在。
+    if (!this.textures.exists(SEA_SHEET_TEX)) this.load.image(SEA_SHEET_TEX, ART.seaSheet);
     ART.shipBossFrames.forEach((path, i) => {
       const key = SHIP_TEX[i] as string;
       if (!this.textures.exists(key)) this.load.image(key, path);
@@ -1522,10 +1526,12 @@ export class LevelScene extends Phaser.Scene {
         </div>`
         : '';
 
-    // 一个容器从 top:118 往下排，不再出现「第二块固定 top」被上一块盖住的情况
+    // 一个容器从 top:110 往下排，不再出现「第二块固定 top」被上一块盖住的情况。
+    // 110 而不是 118：四张卡实测文字块底边都落在 241，离 top:252 的「点击开始战斗」
+    // 留 11px 气口（原来是 3px，视觉上贴着，行数再多一行就压上去了）。
     const infoHtml =
       powerHtml || troopHtml
-        ? `<div style="position:absolute;left:96px;right:38px;top:118px;">${powerHtml}${troopHtml}</div>`
+        ? `<div style="position:absolute;left:96px;right:38px;top:110px;">${powerHtml}${troopHtml}</div>`
         : '';
 
     showOverlay(
@@ -3551,6 +3557,18 @@ export class LevelScene extends Phaser.Scene {
         }
       }
     }
+    // 兜底：这一侧的整条边都是不可走的（海战图右半边全是海，敌人是从敌舰跳帮过来的）。
+    // 从最右往左扫第一条可走列，让「从右侧来」的敌人落在甲板最靠海的那一列，
+    // 否则 spawnEnemy 会退到地图正中，敌兵凭空出现在玩家背后。
+    if (pts.length === 0) {
+      for (let col = g.cols - 2; col >= 1 && pts.length < 8; col--) {
+        for (let ty = topRow; ty < g.rows - 3; ty++) {
+          if (!g.solid[ty][col] && !g.solid[ty + 1][col]) {
+            pts.push({ x: (col + 0.5) * TILE, y: (ty + 0.5) * TILE });
+          }
+        }
+      }
+    }
     return pts;
   }
 
@@ -3625,8 +3643,15 @@ export class LevelScene extends Phaser.Scene {
       const stats = enemyStats(enemyDef, this.enemyLevel, this.cfg);
       const pts = this.spawnPoints('right');
       const base = pts.length > 0 ? pts[pts.length - 1] : { x: (this.map?.pixelWidth ?? VIEW_W) - 90, y: TILE * 8 };
-      const x = (this.map?.pixelWidth ?? VIEW_W) - 100 - slot * 40;
-      const y = Phaser.Math.Clamp(base.y + slot * 34 - 17, TILE * 2, (this.map?.pixelHeight ?? FIELD_H) - TILE * 2);
+      // 地图指定了 Boss 落点就照它放（海战：敌舰必须贴在右舷，见 MapDef.boss_anchor）；
+      // 没指定仍走旧算法（右端 −100px 起，多 Boss 依次错开 40px / 34px）。
+      const anchor = this.map?.def.boss_anchor;
+      const x = anchor
+        ? (anchor.x + 0.5) * TILE + slot * 40
+        : (this.map?.pixelWidth ?? VIEW_W) - 100 - slot * 40;
+      const y = anchor
+        ? Phaser.Math.Clamp((anchor.y + 0.5) * TILE + slot * 34, TILE * 2, (this.map?.pixelHeight ?? FIELD_H) - TILE * 2)
+        : Phaser.Math.Clamp(base.y + slot * 34 - 17, TILE * 2, (this.map?.pixelHeight ?? FIELD_H) - TILE * 2);
       const e = new Enemy(this, x, y, enemyDef, stats);
       // 半血必杀：由实体在跌破一半时回调一次（见 Enemy.checkFinalStrike）
       e.onFinalStrike = (b) => this.startFinalStrike(b);
@@ -5166,6 +5191,11 @@ export class LevelScene extends Phaser.Scene {
     for (let i = 0; i < this.enemies.length; i++) {
       const e = this.enemies[i];
       if (!e.alive) continue;
+      // 军舰是**浮在水上**的：96×48 的脚盒四角必然压着不可走的海面，
+      // 按「脚盒嵌墙」判它会被每帧拽到最近的甲板格上——海战里表现为
+      // 敌舰一点一点爬到我方甲板中间（第一版实拍就是这样，boss.x 从 344 掉到 312）。
+      // 船不参与地形救援：它的位置由 `MapDef.boss_anchor` 钉死。
+      if (e.def.body === 'ship') continue;
       // 只看中心会漏掉「半个脚盒嵌在墙里」的小兵：他哪儿也去不了，
       // 但旧判据一直认为他站得好好的（贴右墙一动不动那两个就是这么来的）。
       if (!this.enemyFootUnsafe(e.x, e.y)) continue;

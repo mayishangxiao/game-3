@@ -1,0 +1,429 @@
+{
+  "name": "tp_sea",
+  "version": "1.0",
+  "description": "序章第三幕「黄海海战」专用图块集：海面 / 甲板 / 舷墙 / 舰炮 / 海面杂物",
+  "engine": "Phaser 3 (MapDef JSON)",
+  "tilewidth": 16,
+  "tileheight": 16,
+  "tilecount": 25,
+  "columns": 8,
+  "image": "tp_sea_sheet.png",
+  "imagewidth": 128,
+  "imageheight": 64,
+  "margin": 0,
+  "spacing": 0,
+  "id_zero": "透明（不画）",
+  "indexing": "col = id % 8, row = id // 8（与 tp_act2 同一规则）",
+  "generator": "tools/gen_sea_tiles.py",
+  "palette": "仅用 src/core/constants.ts → PALETTE 的 24 色，硬边、无半透明渐变",
+  "tiles": [
+    {
+      "id": 1,
+      "name": "sea_deep_a",
+      "cn": "深海·基",
+      "category": "terrain",
+      "file": "sea_sea_deep_a.png",
+      "sheet_cell": {
+        "col": 1,
+        "row": 0
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "海面底色，可平铺；海一律不可走"
+    },
+    {
+      "id": 2,
+      "name": "sea_deep_b",
+      "cn": "深海·变体",
+      "category": "terrain",
+      "file": "sea_sea_deep_b.png",
+      "sheet_cell": {
+        "col": 2,
+        "row": 0
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "换一处暗涌，打散平铺规律"
+    },
+    {
+      "id": 3,
+      "name": "sea_wave",
+      "cn": "浪脊",
+      "category": "terrain",
+      "file": "sea_sea_wave.png",
+      "sheet_cell": {
+        "col": 3,
+        "row": 0
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "一列波峰，横排铺出推进的浪线"
+    },
+    {
+      "id": 4,
+      "name": "sea_foam",
+      "cn": "白沫",
+      "category": "terrain",
+      "file": "sea_sea_foam.png",
+      "sheet_cell": {
+        "col": 4,
+        "row": 0
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "舰首切水、炮弹落点的碎浪"
+    },
+    {
+      "id": 5,
+      "name": "sea_swell",
+      "cn": "涌浪",
+      "category": "terrain",
+      "file": "sea_sea_swell.png",
+      "sheet_cell": {
+        "col": 5,
+        "row": 0
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "正在抬起来的大浪，底深顶白"
+    },
+    {
+      "id": 6,
+      "name": "deck_a",
+      "cn": "甲板·横板",
+      "category": "deck",
+      "file": "sea_deck_a.png",
+      "sheet_cell": {
+        "col": 6,
+        "row": 0
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": false,
+      "note": "可走；横向板缝 + 木纹"
+    },
+    {
+      "id": 7,
+      "name": "deck_b",
+      "cn": "甲板·错缝",
+      "category": "deck",
+      "file": "sea_deck_b.png",
+      "sheet_cell": {
+        "col": 7,
+        "row": 0
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": false,
+      "note": "可走；板缝错开 4px"
+    },
+    {
+      "id": 8,
+      "name": "deck_seam",
+      "cn": "甲板·接缝",
+      "category": "deck",
+      "file": "sea_deck_seam.png",
+      "sheet_cell": {
+        "col": 0,
+        "row": 1
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": false,
+      "note": "可走；纵向拼缝 + 铁钉"
+    },
+    {
+      "id": 9,
+      "name": "deck_edge_n",
+      "cn": "舷墙·上",
+      "category": "deck",
+      "file": "sea_deck_edge_n.png",
+      "sheet_cell": {
+        "col": 1,
+        "row": 1
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "4px 木围沿，挡住玩家下海"
+    },
+    {
+      "id": 10,
+      "name": "deck_edge_s",
+      "cn": "舷墙·下",
+      "category": "deck",
+      "file": "sea_deck_edge_s.png",
+      "sheet_cell": {
+        "col": 2,
+        "row": 1
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "同上，朝下"
+    },
+    {
+      "id": 11,
+      "name": "deck_edge_w",
+      "cn": "舷墙·左",
+      "category": "deck",
+      "file": "sea_deck_edge_w.png",
+      "sheet_cell": {
+        "col": 3,
+        "row": 1
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "舰尾方向"
+    },
+    {
+      "id": 12,
+      "name": "deck_edge_e",
+      "cn": "舷墙·右",
+      "category": "deck",
+      "file": "sea_deck_edge_e.png",
+      "sheet_cell": {
+        "col": 4,
+        "row": 1
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "对敌方向，Boss 舰贴在这一侧"
+    },
+    {
+      "id": 13,
+      "name": "deck_corner_nw",
+      "cn": "舷角·左上",
+      "category": "deck",
+      "file": "sea_deck_corner_nw.png",
+      "sheet_cell": {
+        "col": 5,
+        "row": 1
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "两向舷墙相接"
+    },
+    {
+      "id": 14,
+      "name": "deck_corner_ne",
+      "cn": "舷角·右上",
+      "category": "deck",
+      "file": "sea_deck_corner_ne.png",
+      "sheet_cell": {
+        "col": 6,
+        "row": 1
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "两向舷墙相接"
+    },
+    {
+      "id": 15,
+      "name": "deck_corner_sw",
+      "cn": "舷角·左下",
+      "category": "deck",
+      "file": "sea_deck_corner_sw.png",
+      "sheet_cell": {
+        "col": 7,
+        "row": 1
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "两向舷墙相接"
+    },
+    {
+      "id": 16,
+      "name": "deck_corner_se",
+      "cn": "舷角·右下",
+      "category": "deck",
+      "file": "sea_deck_corner_se.png",
+      "sheet_cell": {
+        "col": 0,
+        "row": 2
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "两向舷墙相接"
+    },
+    {
+      "id": 17,
+      "name": "deck_gun",
+      "cn": "主炮位",
+      "category": "prop",
+      "file": "sea_deck_gun.png",
+      "sheet_cell": {
+        "col": 1,
+        "row": 2
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "圆炮座 + 炮管朝右（定远 305mm）"
+    },
+    {
+      "id": 18,
+      "name": "deck_cannon",
+      "cn": "侧舷炮",
+      "category": "prop",
+      "file": "sea_deck_cannon.png",
+      "sheet_cell": {
+        "col": 2,
+        "row": 2
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "炮架 + 伸出舷外的炮管"
+    },
+    {
+      "id": 19,
+      "name": "hatch",
+      "cn": "舱口格栅",
+      "category": "prop",
+      "file": "sea_hatch.png",
+      "sheet_cell": {
+        "col": 3,
+        "row": 2
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "往下开的舱口，阻挡"
+    },
+    {
+      "id": 20,
+      "name": "mast",
+      "cn": "桅杆基座",
+      "category": "prop",
+      "file": "sea_mast.png",
+      "sheet_cell": {
+        "col": 4,
+        "row": 2
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "铁箍 + 桅杆，阻挡"
+    },
+    {
+      "id": 21,
+      "name": "funnel",
+      "cn": "烟囱",
+      "category": "prop",
+      "file": "sea_funnel.png",
+      "sheet_cell": {
+        "col": 5,
+        "row": 2
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "黑铁筒 + 红漆环，阻挡"
+    },
+    {
+      "id": 22,
+      "name": "ammo",
+      "cn": "弹药箱",
+      "category": "prop",
+      "file": "sea_ammo.png",
+      "sheet_cell": {
+        "col": 6,
+        "row": 2
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "可当掩体的木箱，阻挡"
+    },
+    {
+      "id": 23,
+      "name": "wreck",
+      "cn": "沉船残骸",
+      "category": "deco",
+      "file": "sea_wreck.png",
+      "sheet_cell": {
+        "col": 7,
+        "row": 2
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "半沉的船肋与断桅，海面装饰"
+    },
+    {
+      "id": 24,
+      "name": "rock",
+      "cn": "礁石",
+      "category": "deco",
+      "file": "sea_rock.png",
+      "sheet_cell": {
+        "col": 0,
+        "row": 3
+      },
+      "layer": "ground",
+      "scenes": [
+        "sea"
+      ],
+      "collidable": true,
+      "note": "黑礁 + 撞上去的白沫"
+    }
+  ]
+}

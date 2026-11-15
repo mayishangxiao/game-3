@@ -22,7 +22,7 @@
 | 3 洋务运动 | `ev_1861_zongli` | 总理衙门设立 | 1861.1 | `nd_1861_zongli_dialog` |
 | | `ev_1865_jiangnan` | 江南制造总局创办 | 1865.9 | `nd_1865_jiangnan_manage` |
 | | `ev_1872_liuxue` | 幼童留美（隐藏卡） | 1872.8 | 无独立节点（经营节点的隐藏知识卡） |
-| | `ev_1894_jiawu` | 甲午战争 | 1894.7 | `nd_1894_jiawu_battle` |
+| | `ev_1894_jiawu` | 黄海海战 | 1894.9.17 | `nd_1894_jiawu_battle`（海洋地图 `map_ch00_act3_sea`） |
 | | `ev_1895_maguan` | 《马关条约》签订 | 1895.4 | `nd_1895_maguan_choice` |
 | 4 戊戌变法 | `ev_1895_gongche` | 公车上书 | 1895.5 | `nd_1895_gongche_dialog` |
 | | `ev_1898_bianfa` | 百日维新 | 1898.6 | `nd_1898_bianfa_cutscene` |

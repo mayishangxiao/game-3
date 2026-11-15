@@ -350,12 +350,30 @@ export const ART = {
    * 详见 `design/12_taiping_tilemap_spec.md` 第 8 节。
    */
   tpSheet: `${ART_ROOT}/tiles/tp/tp_act2_sheet.png`,
+  /**
+   * 黄海海战（第三幕 1894.9）瓦片图集：8 列 × 4 行，每格 16×16，id 0 为透明。
+   * 海面 / 甲板 / 舷墙 / 舰炮 / 海面杂物，由 `tools/gen_sea_tiles.py` 纯标准库生成。
+   * 与 tp_act2 同一套取帧规则（`col = id % 8`），但**不共享纹理**：
+   * 一张图集管一个场景，换图/回退互不影响。
+   */
+  seaSheet: `${ART_ROOT}/tiles/sea/tp_sea_sheet.png`,
 } as const;
 
 /** 太平天国图集的运行时开关常量（纯字符串/数字，core 层不依赖 Phaser） */
 export const TP_TILESET_ID = 'tp_act2';
 export const TP_SHEET_TEX = 'tp_act2_sheet';
 export const TP_SHEET_COLS = 8;
+
+/**
+ * 海战图集的运行时开关常量。
+ *
+ * 为什么不复用 `TP_*`：两张图集的瓦片 id 语义完全不同（tp 的 10 是护城河，
+ * sea 的 10 是甲板舷墙），共用一个常量就会出现「地图写着 sea、渲染按 tp 取帧」
+ * 这种错位，表现是一片乱码地砖而不是黑屏，极难在截图里看出来。
+ */
+export const SEA_TILESET_ID = 'tp_sea';
+export const SEA_SHEET_TEX = 'tp_sea_sheet';
+export const SEA_SHEET_COLS = 8;
 
 /**
  * Sunny Land（CC0 1.0 / Pixel Frog）的场景道具：木箱、石墩、门、灌木、枯骨、路牌…
@@ -565,7 +583,9 @@ export function unitArtOf(enemyId: string): string {
     case 'en_jp_infantry':
       return 'jp_infantry';
     case 'en_jp_officer':
-    case 'en_boss_jp_colonel':
+    // 松岛舰是 ship body，实体本身走 SHIP_TEX，这个映射只保证「万一退回小人」
+    // 也是一身日军军官的皮，而不是默认的英军步兵（历史上最不该出现的错）。
+    case 'en_boss_jp_matsushima':
       return 'jp_officer';
     case 'en_boss_qing_zhitong':
       return 'qing_batou';
