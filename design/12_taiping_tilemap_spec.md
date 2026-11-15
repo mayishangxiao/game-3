@@ -438,8 +438,9 @@ tintFill=false / angle=0`，坐标回到出生点 (56,152)，三张地图 `visib
 
 **为什么是新增而不是覆盖**：远景条是 `horizonImage()` 的默认分支资产，直接覆盖
 `bg_strip_dusk.png` 会连甲方原稿一起丢掉，未来任何关卡开 `sky_rows` 都会被无声染成火光夜景。
-当前数据里只有 `map_ch00_tp_battlefield` 同时满足 `tileset=tp_act2` 与 `sky_rows=4`，其余 10 张地图要么不开远景条（`buildWorld` 不叠），
-要么是 v2.1 的海战图 `map_ch00_act3_sea`（`tileset=tp_sea`，同样开 `sky_rows=4`，但它读的是默认的黄昏双舰条带，不属于本规格的换图范围）。
+当前数据里只有 `map_ch00_tp_battlefield` 同时满足 `tileset=tp_act2` 与 `sky_rows=4`，其余 13 张地图要么不开远景条（`buildWorld` 不叠），
+要么是 v2.1 的海战图 `map_ch00_act3_sea`（`tileset=tp_sea`，同样开 `sky_rows=4`，但它读的是默认的黄昏双舰条带，不属于本规格的换图范围），
+要么是 v2.2 第三～五幕的三张 `tp_late_qing` 地图（第三套图集，不走本规格的 `tp_act2` 换图流程）。
 虎门开场情境卡另用 `bg_sky_dusk.png`。
 因此新增一张专用条带，并在 `LevelScene.buildWorld()` 加一个显式开关：
 

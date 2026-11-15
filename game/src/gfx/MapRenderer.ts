@@ -17,6 +17,9 @@
 import Phaser from 'phaser';
 import {
   DEPTH,
+  LQ_SHEET_COLS,
+  LQ_SHEET_TEX,
+  LQ_TILESET_ID,
   PALETTE,
   SCAR_TEX,
   SEA_SHEET_COLS,
@@ -56,6 +59,7 @@ interface SheetInfo {
 const SHEETS: Record<string, SheetInfo> = {
   [TP_TILESET_ID]: { tex: TP_SHEET_TEX, cols: TP_SHEET_COLS },
   [SEA_TILESET_ID]: { tex: SEA_SHEET_TEX, cols: SEA_SHEET_COLS },
+  [LQ_TILESET_ID]: { tex: LQ_SHEET_TEX, cols: LQ_SHEET_COLS },
 };
 
 /**

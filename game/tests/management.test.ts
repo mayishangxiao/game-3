@@ -24,6 +24,7 @@ import {
   type ManageState,
   type ManageTrack,
 } from '../src/core/management';
+import { eraSkinOf, localizeEraText } from '../src/core/eraText';
 
 /** 枚举所有合法分配（三项和恰好 6、单项 ≤ 4） */
 function allAllocations(): ManageTrack[] {
@@ -278,5 +279,102 @@ describe('经营面板文字与图元同心', () => {
     expect(T.hint.top + T.hint.height).toBeLessThanOrEqual(L.row.y0 - L.row.h / 2);
     expect(T.report.top + T.report.height).toBeLessThanOrEqual(T.confirmLabel.top);
     expect(T.verdict.top + T.verdict.height).toBeLessThanOrEqual(T.confirmLabel.top);
+  });
+});
+
+/**
+ * v2.2：实拍截图里第三幕江南制造总局的经营面板顶着「天京经营 / 粮草·兵员·民心」，
+ * 第四、五幕战斗左上角写着「守住威远炮台」。展示层文案按幕派发后要有测试钉住，
+ * 否则下次有人图省事把 `eraSkinOf()` 换回一句三元表达式就会静默串幕。
+ */
+describe('按幕派发的展示层文案（core/eraText.ts）', () => {
+  const ACTS = ['ch00_act1', 'ch00_act2', 'ch00_act3', 'ch00_act4', 'ch00_act5'];
+
+  it('五幕目标条各说各的战役，互不相同', () => {
+    const objectives = ACTS.map((a) => eraSkinOf(a).objective);
+    expect(new Set(objectives).size).toBe(5);
+    expect(objectives.every((s) => s.trim().length > 0)).toBe(true);
+  });
+
+  it('第三～五幕不再挂第一幕的「守住威远炮台」，副本也不写具体地名', () => {
+    for (const a of ACTS.slice(2)) expect(eraSkinOf(a).objective).not.toContain('威远炮台');
+    expect(eraSkinOf('ch00_act2').objective).toContain('天京城墙');
+    expect(eraSkinOf('ch00_act3').objective).toContain('定远舰');
+    expect(eraSkinOf('ch00_act5').objective).toContain('总督衙门');
+    const neutral = eraSkinOf(undefined).objective;
+    expect(neutral).toBe('击退来敌');
+    for (const word of ['威远', '天京', '定远', '会馆', '衙门']) expect(neutral).not.toContain(word);
+  });
+
+  it('第二幕仍是天京口径，判词继续走 finalVerdict()', () => {
+    const s = eraSkinOf('ch00_act2');
+    expect(s.manageTitle).toBe('天京经营');
+    expect([...s.tracks]).toEqual(['粮草', '兵员', '民心']);
+    expect(s.verdictTitle).toBe('');
+  });
+
+  it('第三幕是机器局口径：银子 / 工匠 / 洋员，且没有天京围城的词', () => {
+    const s = eraSkinOf('ch00_act3');
+    expect(s.manageTitle).toBe('江南制造总局');
+    expect([...s.tracks]).toEqual(['银子', '工匠', '洋员']);
+    expect(s.verdictTitle).toBeTruthy();
+    const all = [s.manageTitle, s.manageHint, s.verdictTitle, s.verdictBody, ...s.tracks].join('');
+    for (const word of ['天京', '粮草', '兵员', '民心', '城墙']) expect(all).not.toContain(word);
+  });
+
+  it('localizeEraText() 把月度事件换成机器局口径，第二幕原文不动', () => {
+    const s3 = eraSkinOf('ch00_act3');
+    const raw = ['粮草告急，兵员流失', '兵员不足，城墙失修', '民心离散，逃亡不断'];
+    const out = localizeEraText(raw.join('；'), s3);
+    expect(out).toContain('银子告急，工匠流失');
+    expect(out).toContain('工匠不足，厂房失修');
+    expect(out).toContain('洋员离散');
+    for (const word of ['粮草', '兵员', '民心', '城墙', '逃亡']) expect(out).not.toContain(word);
+    expect(localizeEraText(raw.join('；'), eraSkinOf('ch00_act2'))).toBe(raw.join('；'));
+  });
+
+  it('每一幕的三条分配线都齐、非空，且未登记的 act 回落到中性皮', () => {
+    for (const a of [...ACTS, undefined, 'unknown_act']) {
+      const s = eraSkinOf(a);
+      expect(s.tracks.length).toBe(3);
+      expect(s.tracks.every((t) => t.trim().length > 0)).toBe(true);
+      expect(s.manageHint.length).toBeGreaterThan(8);
+      expect(s.objective.length).toBeGreaterThan(2);
+    }
+  });
+});
+
+/**
+ * v2.2：设计书 3.3.3 写的是「六个月、三条线」，数据 `params.months: 6`，
+ * 但 `createManageState()` 以前写死 8，机器局面板显示「第 1 / 8 月」。
+ * 月数改成随节点数据走之后，必须确认 6 个月也能正常收尾、设计意图（怎么分都崩）不变。
+ */
+describe('经营月数跟着节点数据走', () => {
+  it('第三幕 6 个月收尾，第二幕与不传参仍是 8 个月', () => {
+    const six = simulate(() => ({ food: 2, troops: 2, morale: 2 }), 6);
+    expect(six.totalMonths).toBe(6);
+    expect(six.history).toHaveLength(6);
+    expect(six.done).toBe(true);
+    const eight = simulate(() => ({ food: 2, troops: 2, morale: 2 }));
+    expect(eight.totalMonths).toBe(8);
+    expect(eight.history).toHaveLength(MANAGE_MONTHS);
+    expect(eight.done).toBe(true);
+    // 老存档 / 手写 state 没有 totalMonths 时继续按默认 8 个月收尾
+    const legacy = createManageState();
+    delete legacy.totalMonths;
+    legacy.month = 7;
+    settleMonth(legacy, { food: 2, troops: 2, morale: 2 });
+    expect(legacy.done).toBe(false); // month 7 → 8，还没越界
+    settleMonth(legacy, { food: 2, troops: 2, morale: 2 });
+    expect(legacy.done).toBe(true);
+  });
+
+  it('19 种固定分配策略在 6 个月口径下同样无一能守住', () => {
+    const winners: ManageTrack[] = [];
+    for (const a of allAllocations()) {
+      const s = simulate(() => a, 6);
+      if ([s.stock.food, s.stock.troops, s.stock.morale].every((x) => x >= TRACK_THRESHOLD)) winners.push(a);
+    }
+    expect(winners).toEqual([]);
   });
 });

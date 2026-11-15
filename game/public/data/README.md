@@ -18,15 +18,16 @@
 | `equipment/items_base.json` | 装备模板：`slot` `quality` `stat` `base_value` `quality_multiplier` `source`，武器模板可选 `weapon_ref`（指向 `config.json.weapons`，进关卡真的换武器；见 `design/03_systems.md` 4.3.7） | 16 | `id` |
 | `equipment/drops.json` | 掉落规则：按来源类型的掉率、部位权重、品质权重；`pity` 保底参数 | 5 条规则 | `rules[].source_type` |
 | `dungeons/dungeons.json` | 副本：波次（`waves[]`）、Boss、`quality_weights`、`unique_drop`、`unlock_act` | 3 | `id` |
-| `maps/map_ch00_act1a.json` `maps/map_ch00_act1b.json` `maps/map_ch00_act2a.json` `maps/map_ch00_act2b.json` `maps/map_ch00_tp_village.json` `maps/map_ch00_tp_city.json` `maps/map_ch00_tp_battlefield.json` `maps/map_ch00_act3_sea.json` `maps/map_dg01_alley.json` `maps/map_dg02_bandit.json` `maps/map_dg03_dock.json` | 瓦片地图：`width/height` `tile_colors` `spawn` `layers[]` `objects[]` `triggers[]`（清单见第六节）。`map_ch00_act2a/b` 自 v1.1 起保留为回退素材、不再被引用 | 11 张 | `id` |
+| `maps/map_ch00_act1a.json` `maps/map_ch00_act1b.json` `maps/map_ch00_act2a.json` `maps/map_ch00_act2b.json` `maps/map_ch00_tp_village.json` `maps/map_ch00_tp_city.json` `maps/map_ch00_tp_battlefield.json` `maps/map_ch00_act3_sea.json` `maps/map_ch00_act3_factory.json` `maps/map_ch00_act4_beijing.json` `maps/map_ch00_act5_wuchang.json` `maps/map_dg01_alley.json` `maps/map_dg02_bandit.json` `maps/map_dg03_dock.json` | 瓦片地图：`width/height` `tileset` `tile_colors` `spawn` `layers[]` `objects[]` `triggers[]`（清单见第六节）。`map_ch00_act2a/b` 自 v1.1 起保留为回退素材、不再被引用；**第三～五幕的三张陆地地图是 v2.2 新做的 `tp_late_qing`**，不再复用第二幕的太平天国天京城 | 14 张 | `id` |
 | `quiz/quiz_ch00.json` | 章末题库：题干/选项/答案/解析/`knowledge_ref` | 22 题（抽 5） | `pool[].id` |
 | `dialogues/dlg_ch00.json` | 对话块 + NPC 表 | 48 块 | `dialogues[].id` |
 
 > **美术资源不在这张表里**：图片放 `public/art/`（`ship/` 舰船帧、`props/` 地图物件、`portrait_*.png` 立绘），
-> 路径登记在两处——立绘在 `config.json → ui.portraits`（说话人 id → 文件，v1.9.2 起共 22 人），舰船/箱子在 `src/core/constants.ts` 的 `ART`。
+> 路径登记在两处——立绘在 `config.json → ui.portraits`（说话人 id → 文件，v2.2 起共 32 人（除旁白外每位 NPC 都有）），舰船/箱子在 `src/core/constants.ts` 的 `ART`。
 > `ui.portraits` 是立绘的**唯一登记处**：`systems/DialogueBox.ts` 只把这里的路径交给 DOM 的 `#dom-dlg-portrait`（canvas 上的图会被半透明对白底板压暗，所以不在 canvas 画）。
 > `tests/art.test.ts` 会拿磁盘上的 `art/portrait_*.png` 与这张登记表**互相**校验（多一张、少一张、文件名与说话人 id 不一致都红），并检查尺寸统一 96×112。
-> 加一位说话人：① `tools/gen_portraits.py` 的 `PEOPLE` 表加一行并重跑，② 在这里加一条 `"<speaker>": "art/portrait_<speaker>.png"`，③ 对白数据里 `speaker` 用同一个 id。
+> 加一位说话人：① 用 `tools/gen_portraits.py` 的 AI 后处理链出一张 96×112 RGBA 立绘（`tools/_gen_portraits/_<id>_*.png` → 抠底/裁水印/降采样），② 在这里加一条 `"<speaker>": "art/portrait_<speaker>.png"`，③ 对白数据里 `speaker` 用同一个 id。**`gen_portraits.py` 的旧版几何色块生成器（v1.9.0）已作废**：重跑旧逻辑会把 v2.2 的精细渐变立绘覆盖回 16 色占位图。
+> **三套瓦片集**：`tp_act2`（太平天国 36 块）/ `tp_sea`（黄海海战 24 块）/ `tp_late_qing`（洋务及之后 36 块：青砖巷、灰瓦门楼、机器厂房、近代街景）。第三～五幕的 `map_refs` 与节点 `map_ref` 一律指向新图，判据在 `tests/lateQingMap.test.ts`。
 
 ## 二、包装形状（**最容易踩的坑**）
 

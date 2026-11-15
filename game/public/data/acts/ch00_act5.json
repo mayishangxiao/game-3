@@ -1,32 +1,31 @@
 {
-  "id": "ch00_act5",
-  "chapter_id": "ch00",
-  "seq": 5,
-  "name": "辛亥革命",
-  "avatar": "av_sun_zhongshan",
-  "events": [
-    "ev_1911_wuchang",
-    "ev_1911_nanjing",
-    "ev_1912_tuwei",
-    "ev_1912_yuefa"
-  ],
-  "primary_archetype": "C",
-  "secondary_archetypes": [
-    "F",
-    "I"
-  ],
-  "map_refs": [
-    "map_ch00_tp_city",
-    "map_ch00_tp_battlefield"
-  ],
-  "bgm": "bgm_ch00_act5",
-  "first_clear_reward": "eq_body_cloth_blue_01",
-  "exp_base": 800,
-  "nodes": [
-    "nd_1911_wuchang_battle",
-    "nd_1911_nanjing_dialog",
-    "nd_1912_tuwei_choice"
-  ],
-  "year_label": "1911",
-  "dynasty_after": 0
+ "id": "ch00_act5",
+ "chapter_id": "ch00",
+ "seq": 5,
+ "name": "辛亥革命",
+ "avatar": "av_sun_zhongshan",
+ "events": [
+  "ev_1911_wuchang",
+  "ev_1911_nanjing",
+  "ev_1912_tuwei",
+  "ev_1912_yuefa"
+ ],
+ "primary_archetype": "C",
+ "secondary_archetypes": [
+  "F",
+  "I"
+ ],
+ "map_refs": [
+  "map_ch00_act5_wuchang"
+ ],
+ "bgm": "bgm_ch00_act5",
+ "first_clear_reward": "eq_body_cloth_blue_01",
+ "exp_base": 800,
+ "nodes": [
+  "nd_1911_wuchang_battle",
+  "nd_1911_nanjing_dialog",
+  "nd_1912_tuwei_choice"
+ ],
+ "year_label": "1911",
+ "dynasty_after": 0
 }

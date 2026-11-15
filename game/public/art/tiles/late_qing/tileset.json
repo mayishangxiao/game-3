@@ -1,0 +1,525 @@
+{
+ "name": "tp_late_qing",
+ "version": "1.0",
+ "description": "洋务运动及之后（1861—1912）专用图块集：青砖巷 / 灰瓦门楼 / 机器厂房 / 近代街景",
+ "engine": "Phaser 3 (MapDef JSON)",
+ "tilewidth": 16,
+ "tileheight": 16,
+ "tilecount": 37,
+ "columns": 8,
+ "image": "tp_late_qing_sheet.png",
+ "imagewidth": 128,
+ "imageheight": 80,
+ "margin": 0,
+ "spacing": 0,
+ "id_zero": "透明（不画）",
+ "indexing": "col = id % 8, row = id // 8（与 tp_act2 / tp_sea 同一规则）",
+ "generator": "tools/gen_late_qing_tiles.py",
+ "palette": "仅用 src/core/constants.ts → PALETTE 的 24 色，硬边、无半透明渐变",
+ "tiles": [
+  {
+   "id": 1,
+   "name": "stone_a",
+   "cn": "青石板·基",
+   "category": "terrain",
+   "file": "lq_stone_a.png",
+   "sheet_cell": {
+    "col": 1,
+    "row": 0
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "北京胡同 / 衙门前的主路面"
+  },
+  {
+   "id": 2,
+   "name": "stone_b",
+   "cn": "青石板·变体",
+   "category": "terrain",
+   "file": "lq_stone_b.png",
+   "sheet_cell": {
+    "col": 2,
+    "row": 0
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "错开砖缝，打散平铺规律"
+  },
+  {
+   "id": 3,
+   "name": "cobble",
+   "cn": "碎石巷路",
+   "category": "terrain",
+   "file": "lq_cobble.png",
+   "sheet_cell": {
+    "col": 3,
+    "row": 0
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "会馆外的小巷，不平整的碎石"
+  },
+  {
+   "id": 4,
+   "name": "brick_floor",
+   "cn": "红砖地",
+   "category": "terrain",
+   "file": "lq_brick_floor.png",
+   "sheet_cell": {
+    "col": 4,
+    "row": 0
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "机器局厂房室内"
+  },
+  {
+   "id": 5,
+   "name": "cement",
+   "cn": "洋式水泥地",
+   "category": "terrain",
+   "file": "lq_cement.png",
+   "sheet_cell": {
+    "col": 5,
+    "row": 0
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "新厂房的浇筑地面，洋务近代感"
+  },
+  {
+   "id": 6,
+   "name": "plank",
+   "cn": "木地板",
+   "category": "terrain",
+   "file": "lq_plank.png",
+   "sheet_cell": {
+    "col": 6,
+    "row": 0
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "工棚 / 栈桥铺板"
+  },
+  {
+   "id": 7,
+   "name": "track",
+   "cn": "厂内窄轨",
+   "category": "terrain",
+   "file": "lq_track.png",
+   "sheet_cell": {
+    "col": 7,
+    "row": 0
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "运炮胚与煤的轻便铁轨"
+  },
+  {
+   "id": 8,
+   "name": "drain",
+   "cn": "排水明沟",
+   "category": "terrain",
+   "file": "lq_drain.png",
+   "sheet_cell": {
+    "col": 0,
+    "row": 1
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "胡同与衙门前的石砌水沟"
+  },
+  {
+   "id": 9,
+   "name": "grass_edge",
+   "cn": "墙根荒草",
+   "category": "terrain",
+   "file": "lq_grass_edge.png",
+   "sheet_cell": {
+    "col": 1,
+    "row": 1
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "墙脚碎石与枯草"
+  },
+  {
+   "id": 10,
+   "name": "brick_wall",
+   "cn": "青砖墙",
+   "category": "building",
+   "file": "lq_brick_wall.png",
+   "sheet_cell": {
+    "col": 2,
+    "row": 1
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "会馆 / 衙门 / 厂房外墙"
+  },
+  {
+   "id": 11,
+   "name": "brick_wall_win",
+   "cn": "砖墙·格栅窗",
+   "category": "building",
+   "file": "lq_brick_wall_win.png",
+   "sheet_cell": {
+    "col": 3,
+    "row": 1
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "外墙开窗，窗内透亮"
+  },
+  {
+   "id": 12,
+   "name": "tile_roof",
+   "cn": "灰瓦屋顶",
+   "category": "building",
+   "file": "lq_tile_roof.png",
+   "sheet_cell": {
+    "col": 4,
+    "row": 1
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "俯视瓦垄，北方官式屋面"
+  },
+  {
+   "id": 13,
+   "name": "roof_edge",
+   "cn": "屋檐·朱椽",
+   "category": "building",
+   "file": "lq_roof_edge.png",
+   "sheet_cell": {
+    "col": 5,
+    "row": 1
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "门楼檐口，红椽金钉"
+  },
+  {
+   "id": 14,
+   "name": "red_pillar",
+   "cn": "朱红门柱",
+   "category": "building",
+   "file": "lq_red_pillar.png",
+   "sheet_cell": {
+    "col": 6,
+    "row": 1
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "衙门与会馆的立柱"
+  },
+  {
+   "id": 15,
+   "name": "gate",
+   "cn": "朱红大门",
+   "category": "building",
+   "file": "lq_gate.png",
+   "sheet_cell": {
+    "col": 7,
+    "row": 1
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "钉帽与门环，总督衙门正门"
+  },
+  {
+   "id": 16,
+   "name": "lattice",
+   "cn": "木格栅窗",
+   "category": "building",
+   "file": "lq_lattice.png",
+   "sheet_cell": {
+    "col": 0,
+    "row": 2
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "会馆书房的窗棂"
+  },
+  {
+   "id": 17,
+   "name": "plaque",
+   "cn": "门匾",
+   "category": "deco",
+   "file": "lq_plaque.png",
+   "sheet_cell": {
+    "col": 1,
+    "row": 2
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "金框黑底，示意题字不写可辨字"
+  },
+  {
+   "id": 18,
+   "name": "lantern",
+   "cn": "红灯笼",
+   "category": "deco",
+   "file": "lq_lantern.png",
+   "sheet_cell": {
+    "col": 2,
+    "row": 2
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "会馆门前的灯笼"
+  },
+  {
+   "id": 19,
+   "name": "notice",
+   "cn": "告示牌",
+   "category": "deco",
+   "file": "lq_notice.png",
+   "sheet_cell": {
+    "col": 3,
+    "row": 2
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "变法谕旨 / 衙门告示的纸面"
+  },
+  {
+   "id": 20,
+   "name": "tree",
+   "cn": "庭院槐树",
+   "category": "deco",
+   "file": "lq_tree.png",
+   "sheet_cell": {
+    "col": 4,
+    "row": 2
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "灰绿点彩的北方庭院树"
+  },
+  {
+   "id": 21,
+   "name": "machine",
+   "cn": "车床齿轮",
+   "category": "industry",
+   "file": "lq_machine.png",
+   "sheet_cell": {
+    "col": 5,
+    "row": 2
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "江南制造总局的机器"
+  },
+  {
+   "id": 22,
+   "name": "boiler",
+   "cn": "蒸汽锅炉",
+   "category": "industry",
+   "file": "lq_boiler.png",
+   "sheet_cell": {
+    "col": 6,
+    "row": 2
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "铆钉箍 + 压力表 + 蒸汽"
+  },
+  {
+   "id": 23,
+   "name": "chimney",
+   "cn": "砖烟囱",
+   "category": "industry",
+   "file": "lq_chimney.png",
+   "sheet_cell": {
+    "col": 7,
+    "row": 2
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "厂房烟囱（俯视方口）"
+  },
+  {
+   "id": 24,
+   "name": "pipe",
+   "cn": "蒸汽管",
+   "category": "industry",
+   "file": "lq_pipe.png",
+   "sheet_cell": {
+    "col": 0,
+    "row": 3
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "横向铁管与法兰，可走"
+  },
+  {
+   "id": 25,
+   "name": "crate",
+   "cn": "军械木箱",
+   "category": "industry",
+   "file": "lq_crate.png",
+   "sheet_cell": {
+    "col": 1,
+    "row": 3
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "造好的枪炮装箱"
+  },
+  {
+   "id": 26,
+   "name": "cannon_part",
+   "cn": "炮管胚",
+   "category": "industry",
+   "file": "lq_cannon_part.png",
+   "sheet_cell": {
+    "col": 2,
+    "row": 3
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "刚铸好的炮管搁在木架上"
+  },
+  {
+   "id": 27,
+   "name": "rail_cart",
+   "cn": "轨道小车",
+   "category": "industry",
+   "file": "lq_rail_cart.png",
+   "sheet_cell": {
+    "col": 3,
+    "row": 3
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "厂内运料车"
+  },
+  {
+   "id": 28,
+   "name": "coal",
+   "cn": "煤堆",
+   "category": "industry",
+   "file": "lq_coal.png",
+   "sheet_cell": {
+    "col": 4,
+    "row": 3
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "锅炉房燃料"
+  },
+  {
+   "id": 29,
+   "name": "telegraph",
+   "cn": "电线杆",
+   "category": "modern",
+   "file": "lq_telegraph.png",
+   "sheet_cell": {
+    "col": 5,
+    "row": 3
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "晚清电报线，近代城市标志"
+  },
+  {
+   "id": 30,
+   "name": "street_lamp",
+   "cn": "煤气路灯",
+   "category": "modern",
+   "file": "lq_street_lamp.png",
+   "sheet_cell": {
+    "col": 6,
+    "row": 3
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "武昌街头的路灯"
+  },
+  {
+   "id": 31,
+   "name": "stone_lion",
+   "cn": "衙门石狮",
+   "category": "modern",
+   "file": "lq_stone_lion.png",
+   "sheet_cell": {
+    "col": 7,
+    "row": 3
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "总督衙门门前石狮"
+  },
+  {
+   "id": 32,
+   "name": "barricade",
+   "cn": "沙袋街垒",
+   "category": "modern",
+   "file": "lq_barricade.png",
+   "sheet_cell": {
+    "col": 0,
+    "row": 4
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "起义夜的街垒"
+  },
+  {
+   "id": 33,
+   "name": "flag",
+   "cn": "新军旗帜",
+   "category": "modern",
+   "file": "lq_flag.png",
+   "sheet_cell": {
+    "col": 1,
+    "row": 4
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "铁血十八星旗意象（无文字）"
+  },
+  {
+   "id": 34,
+   "name": "cart",
+   "cn": "木轮车",
+   "category": "modern",
+   "file": "lq_cart.png",
+   "sheet_cell": {
+    "col": 2,
+    "row": 4
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "街边停着的骡车"
+  },
+  {
+   "id": 35,
+   "name": "awning",
+   "cn": "街铺布棚",
+   "category": "modern",
+   "file": "lq_awning.png",
+   "sheet_cell": {
+    "col": 3,
+    "row": 4
+   },
+   "layer": "ground",
+   "collidable": true,
+   "note": "会馆外的红条布棚"
+  },
+  {
+   "id": 36,
+   "name": "steps",
+   "cn": "衙门石阶",
+   "category": "modern",
+   "file": "lq_steps.png",
+   "sheet_cell": {
+    "col": 4,
+    "row": 4
+   },
+   "layer": "ground",
+   "collidable": false,
+   "note": "三道台阶，可走"
+  }
+ ]
+}

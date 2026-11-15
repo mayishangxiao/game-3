@@ -357,6 +357,13 @@ export const ART = {
    * 一张图集管一个场景，换图/回退互不影响。
    */
   seaSheet: `${ART_ROOT}/tiles/sea/tp_sea_sheet.png`,
+  /**
+   * 洋务运动及之后（1861—1912）瓦片图集：8 列 × 5 行，每格 16×16，id 0 为透明。
+   * 青砖巷 / 灰瓦门楼 / 机器厂房 / 近代街景，由 `tools/gen_late_qing_tiles.py` 生成，
+   * 供江南制造总局、北京南海会馆、武昌总督衙门三张地图共用。
+   * 这三张图原来全复用第二幕（太平天国）的 `tp_act2` 天京城，草坡山林和机器局对不上年代。
+   */
+  lateQingSheet: `${ART_ROOT}/tiles/late_qing/tp_late_qing_sheet.png`,
 } as const;
 
 /** 太平天国图集的运行时开关常量（纯字符串/数字，core 层不依赖 Phaser） */
@@ -374,6 +381,11 @@ export const TP_SHEET_COLS = 8;
 export const SEA_TILESET_ID = 'tp_sea';
 export const SEA_SHEET_TEX = 'tp_sea_sheet';
 export const SEA_SHEET_COLS = 8;
+
+/** 晚清近代（第三～五幕陆地地图）图集的运行时开关；同样不复用 `TP_*`。 */
+export const LQ_TILESET_ID = 'tp_late_qing';
+export const LQ_SHEET_TEX = 'tp_late_qing_sheet';
+export const LQ_SHEET_COLS = 8;
 
 /**
  * Sunny Land（CC0 1.0 / Pixel Frog）的场景道具：木箱、石墩、门、灌木、枯骨、路牌…

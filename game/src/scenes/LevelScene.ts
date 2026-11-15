@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SEA_SHEET_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SEA_SHEET_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -109,6 +109,7 @@ import {
   type ManageTrack,
   type TextBox,
 } from '../core/management';
+import { eraSkinOf, localizeEraText } from '../core/eraText';
 import { addKnowledge, addToBag, markNodeDone, unlockWeapon } from '../core/SaveManager';
 import {
   DYNASTY_MAX,
@@ -477,6 +478,8 @@ export class LevelScene extends Phaser.Scene {
     // 两个 if 分开写——`textures.exists` 是纹理表查询，不是文件缓存查询，
     // 合并成一个条件会让「只有海图」的关卡误以为 tp 拼版也在。
     if (!this.textures.exists(SEA_SHEET_TEX)) this.load.image(SEA_SHEET_TEX, ART.seaSheet);
+    // 晚清近代图集（8 列 × 5 行 = 128×80，36 块）：第三～五幕三张陆地地图共用。
+    if (!this.textures.exists(LQ_SHEET_TEX)) this.load.image(LQ_SHEET_TEX, ART.lateQingSheet);
     ART.shipBossFrames.forEach((path, i) => {
       const key = SHIP_TEX[i] as string;
       if (!this.textures.exists(key)) this.load.image(key, path);
@@ -3244,11 +3247,16 @@ export class LevelScene extends Phaser.Scene {
   /* ==================== 模式：经营（设计书 3.3.2 场景 B / 6.6 G 类） ==================== */
 
   private setupManagement(): void {
-    this.manage = createManageState();
+    // v2.2：节点数据 `params.months` 才是本关月数（第二幕 8、第三幕 6）。
+    // 以前 createManageState() 写死 8，机器局的面板会显示「第 1 / 8 月」，
+    // 与设计书 3.3.3 的「六个月、三条线」对不上；结算与 simulate 也读同一个值。
+    const raw = Number(this.node?.params?.months ?? MANAGE_MONTHS);
+    const months = Number.isFinite(raw) ? Math.min(12, Math.max(1, Math.floor(raw))) : MANAGE_MONTHS;
+    this.manage = createManageState(months);
     this.manageAlloc = { food: 2, troops: 2, morale: 2 };
     this.manageFocus = 'food';
-    // HUD 目标条固定在 top:42%（逻辑 y≈113），正好横压在第三行「民心」卡片上；
-    // 面板自己已有「天京经营　第 N / 8 月」标题，这里收掉目标条即可，不再重复写一行。
+    // HUD 目标条固定在 top:42%（逻辑 y≈113），正好横压在第三行卡片上；
+    // 面板自己已有「<本幕标题>　第 N / M 月」标题，这里收掉目标条即可，不再重复写一行。
     emitObjective('');
     this.renderManagement();
     this.bindManageKeys();
@@ -3319,6 +3327,10 @@ export class LevelScene extends Phaser.Scene {
 
     const st = this.manage;
     const last = st.history[st.history.length - 1];
+    // 第二幕是天京围城（粮草/兵员/民心），第三幕是江南制造总局（银子/工匠/洋员）。
+    // 数值逻辑共用一个 ManageTrack，只有显示名与事件文案按幕换皮（core/eraText.ts）。
+    const skin = eraSkinOf(this.act?.id);
+    const months = st.totalMonths ?? MANAGE_MONTHS;
     // canvas 图元与 DOM 文字层共用同一套坐标，避免竖屏旋转后「字配歪了」。
     const L = MANAGE_LAYOUT;
     const T = managementTextLayout();
@@ -3331,9 +3343,9 @@ export class LevelScene extends Phaser.Scene {
     );
 
     const rows: { key: keyof ManageTrack; name: string; colorCss: string }[] = [
-      { key: 'food', name: '粮草', colorCss: '#F0C419' },
-      { key: 'troops', name: '兵员', colorCss: '#7FD1AE' },
-      { key: 'morale', name: '民心', colorCss: '#9CCC65' },
+      { key: 'food', name: skin.tracks[0], colorCss: '#F0C419' },
+      { key: 'troops', name: skin.tracks[1], colorCss: '#7FD1AE' },
+      { key: 'morale', name: skin.tracks[2], colorCss: '#9CCC65' },
     ];
 
     rows.forEach((row, i) => {
@@ -3377,7 +3389,7 @@ export class LevelScene extends Phaser.Scene {
     // ── 文字走 DOM overlay：盒子坐标全部来自 managementTextLayout()，与 canvas 图元同心
     const remaining = MONTHLY_POINTS - allocTotal(this.manageAlloc);
     const monthCost =
-      st.history.length + 1 <= MANAGE_MONTHS ? 2 + Math.floor((Math.min(st.month, MANAGE_MONTHS) - 1) / 3) : 0;
+      st.history.length + 1 <= months ? 2 + Math.floor((Math.min(st.month, months) - 1) / 3) : 0;
     const box = (b: TextBox, css: string, content: string) =>
       `<div style="position:absolute;left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px;${css}">${content}</div>`;
     const flex = 'display:flex;align-items:center;';
@@ -3402,11 +3414,14 @@ export class LevelScene extends Phaser.Scene {
       bottomHtml = box(
         T.report,
         `font-size:12px;line-height:1.35;color:${last.golden ? '#7EC08A' : '#F2A08C'};`,
-        `上月结算：${text}`,
+        `上月结算：${localizeEraText(text, skin)}`,
       );
     }
     if (st.done) {
-      const v = finalVerdict(st);
+      // 第二幕的判词写「城墙」，放在机器局里会串幕；只有它有专用判词。
+      const v = skin.verdictTitle
+        ? { title: skin.verdictTitle, body: skin.verdictBody }
+        : finalVerdict(st);
       bottomHtml = box(T.verdict, 'font-size:12px;line-height:1.35;color:#F2EDE4;', `${v.title}。${v.body}`);
     }
 
@@ -3414,7 +3429,7 @@ export class LevelScene extends Phaser.Scene {
     const btnLabel = st.done ? '记下这段历史' : ok ? '确认本月分配' : '点数没分完';
 
     showOverlay(
-      box(T.title, `${flex}font-size:13px;color:#C2BCD1;`, `天京经营　第 ${Math.min(st.month, MANAGE_MONTHS)} / ${MANAGE_MONTHS} 月`) +
+      box(T.title, `${flex}font-size:13px;color:#C2BCD1;`, `${skin.manageTitle}　第 ${Math.min(st.month, months)} / ${months} 月`) +
         box(
           T.budget,
           `${flex}justify-content:flex-end;white-space:nowrap;font-size:12px;color:#F0C419;`,
@@ -3423,7 +3438,7 @@ export class LevelScene extends Phaser.Scene {
         box(
           T.hint,
           `${flex}white-space:nowrap;overflow:hidden;font-size:10px;letter-spacing:-0.2px;color:#6B6489;`,
-          '粮草、兵员、民心三事，怎么分都不够——这就是要你亲手体会的事。',
+          skin.manageHint,
         ) +
         rowHtml +
         bottomHtml +
@@ -3484,9 +3499,10 @@ export class LevelScene extends Phaser.Scene {
   /* ==================== 模式：战斗 ==================== */
 
   private setupCombat(): void {
-    // 第一幕终战在虎门威远炮台，第二幕终战在天京城墙：以前两幕共用一句硬编码文案，
-    // 太平天国城墙夜战会显示「守住威远炮台」。副本不进这个分支判断（this.act 未赋值）。
-    emitObjective(this.act?.id === 'ch00_act2' ? '守住天京城墙' : '守住威远炮台');
+    // v2.2 之前这里只分了第一、二幕，第三～五幕与副本全落到「守住威远炮台」：
+    // 武昌起义的实拍截图左上角就顶着虎门炮台的文案。目标条一律按幕读登记表的
+    // （core/eraText.ts），副本没有 act 时用中性文案，不许再写死具体战役地名。
+    emitObjective(eraSkinOf(this.act?.id).objective);
     this.waveIndex = 0;
     this.wavePending = true;
     // 有开场情境卡时，第一波要等玩家点掉卡片再上——否则「第 1 波敌军来袭」

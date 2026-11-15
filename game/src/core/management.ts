@@ -33,9 +33,15 @@ export interface ManageState {
   stock: ManageTrack;
   history: MonthReport[];
   done: boolean;
+  /**
+   * 本关共推进几个月（v2.2 新增，可选）。
+   * 设计书 3.3.3 的江南制造总局是「六个月、三条线」，而天京经营是八个月；
+   * 不填就沿用 `MANAGE_MONTHS`，老存档 / 老测试零影响。
+   */
+  totalMonths?: number;
 }
 
-/** 共推进 8 个月（史实上太平天国定都天京后由盛转衰的压缩表达） */
+/** 默认共推进 8 个月（史实上太平天国定都天京后由盛转衰的压缩表达） */
 export const MANAGE_MONTHS = 8;
 /** 每月可分配点数 */
 export const MONTHLY_POINTS = 6;
@@ -46,12 +52,13 @@ export const TRACK_THRESHOLD = 2;
 /** 单项每月最多可分配 */
 export const TRACK_MAX = 4;
 
-export function createManageState(): ManageState {
+export function createManageState(totalMonths: number = MANAGE_MONTHS): ManageState {
   return {
     month: 1,
     stock: { ...INITIAL_STOCK },
     history: [],
     done: false,
+    totalMonths: Number.isFinite(totalMonths) ? Math.max(1, Math.floor(totalMonths)) : MANAGE_MONTHS,
   };
 }
 
@@ -127,7 +134,7 @@ export function settleMonth(state: ManageState, alloc: ManageTrack): MonthReport
   state.stock = next;
   state.history.push(report);
   state.month += 1;
-  if (state.month > MANAGE_MONTHS) state.done = true;
+  if (state.month > (state.totalMonths ?? MANAGE_MONTHS)) state.done = true;
   return report;
 }
 
@@ -137,10 +144,10 @@ export function remainingPoints(alloc: ManageTrack): number {
 }
 
 /** 用给定策略一次性跑完全程（供测试与「自动推演」使用） */
-export function simulate(strategy: (state: ManageState) => ManageTrack): ManageState {
-  const state = createManageState();
+export function simulate(strategy: (state: ManageState) => ManageTrack, totalMonths: number = MANAGE_MONTHS): ManageState {
+  const state = createManageState(totalMonths);
   let guard = 0;
-  while (!state.done && guard < MANAGE_MONTHS + 2) {
+  while (!state.done && guard < (state.totalMonths ?? MANAGE_MONTHS) + 2) {
     const alloc = strategy(state);
     settleMonth(state, alloc);
     guard += 1;

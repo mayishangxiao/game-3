@@ -21,6 +21,7 @@
 - `game/src/scenes/HubScene.ts` 长廊按 `acts` 长度生成幕门（现在 5 道），门上年份读 `act.year_label`，顶部血条读 `progress.dynasty`；
 - 国运刻度是**绝对值**（`act.dynasty_after`，0..100），不是增量；一关内战败再叠 `params.dynasty_delta` 扣减；
 - `game/tests/data.test.ts` 断言章节里声明的幕数就是 5，`tests/chronicle.test.ts` 锁死年份递增、国运递减与终局台词。
+- **v2.2 洋务及之后的陆地地图是第三套图集 `tp_late_qing`**：第三幕 `map_ch00_act3_factory`（江南制造总局）、第四幕 `map_ch00_act4_beijing`（南海会馆）、第五幕 `map_ch00_act5_wuchang`（总督衙门），都不再复用 `map_ch00_tp_city`；`MapRenderer.SHEETS` 加一行即可接新图集，判据在 `tests/lateQingMap.test.ts`。对话立绘除林则徐 / 关天培两张基准原画外，其余 30 张都是 v2.2 以林则徐为参考图重绘的 96×112 精细渐变像素胸像，`tests/portraits.test.ts` 用 md5 锁住两张基准图、用颜色数 ≥400 挡回旧的 16 色占位图。
 - 第三幕的战斗关卡是**黄海海战**，地图是**海洋**（`maps/map_ch00_act3_sea.json`，`tileset: tp_sea`）：可走区只有中间一条定远舰甲板，四周海面撞得住，松岛舰由 `boss_anchor` 钉在右舷外。改这张图请连 `tests/seaMap.test.ts` 与 `tools/_cdp/jiawu-sea.mjs` 一起跑。
 
 所以：**不要"补回"更远的章节（1921 及以后）、不要给 `acts_planned` 之类的字段复活**。要续做第二章，先在 `index.json` 加 `ch01` 再按 `design/00_front.md` 的"不覆盖"清单立项。

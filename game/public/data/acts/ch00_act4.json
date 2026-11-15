@@ -1,33 +1,33 @@
 {
-  "id": "ch00_act4",
-  "chapter_id": "ch00",
-  "seq": 4,
-  "name": "戊戌变法",
-  "avatar": "av_kang_youwei",
-  "events": [
-    "ev_1895_gongche",
-    "ev_1898_bianfa",
-    "ev_1898_coup",
-    "ev_1898_liujunzi"
-  ],
-  "primary_archetype": "F",
-  "secondary_archetypes": [
-    "C",
-    "J",
-    "I"
-  ],
-  "map_refs": [
-    "map_ch00_tp_city"
-  ],
-  "bgm": "bgm_ch00_act4",
-  "first_clear_reward": "eq_wp_bow_blue_01",
-  "exp_base": 700,
-  "nodes": [
-    "nd_1895_gongche_dialog",
-    "nd_1898_bianfa_cutscene",
-    "nd_1898_coup_battle",
-    "nd_1898_liujunzi_choice"
-  ],
-  "year_label": "1898",
-  "dynasty_after": 25
+ "id": "ch00_act4",
+ "chapter_id": "ch00",
+ "seq": 4,
+ "name": "戊戌变法",
+ "avatar": "av_kang_youwei",
+ "events": [
+  "ev_1895_gongche",
+  "ev_1898_bianfa",
+  "ev_1898_coup",
+  "ev_1898_liujunzi"
+ ],
+ "primary_archetype": "F",
+ "secondary_archetypes": [
+  "C",
+  "J",
+  "I"
+ ],
+ "map_refs": [
+  "map_ch00_act4_beijing"
+ ],
+ "bgm": "bgm_ch00_act4",
+ "first_clear_reward": "eq_wp_bow_blue_01",
+ "exp_base": 700,
+ "nodes": [
+  "nd_1895_gongche_dialog",
+  "nd_1898_bianfa_cutscene",
+  "nd_1898_coup_battle",
+  "nd_1898_liujunzi_choice"
+ ],
+ "year_label": "1898",
+ "dynasty_after": 25
 }
