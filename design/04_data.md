@@ -89,13 +89,13 @@
 | --- | --- | --- |
 | `id` | `string` | 章 ID，例 `"ch00"` |
 | `name` | `string` | 章名，例 `"觉醒年代"` |
-| `period` | `string` | 时间范围，例 `"1840—1864"` |
-| `acts` | `string[]` | 幕 ID 列表，例 `["ch00_act1","ch00_act2"]` |
+| `period` | `string` | 时间范围，例 `"1840—1912"` |
+| `acts` | `string[]` | 幕 ID 列表，例 `["ch00_act1","ch00_act2","ch00_act3","ch00_act4","ch00_act5"]` |
 | `quiz_id` | `string` | 章末测验 ID |
 | `level_range` | `[number,number]` | 推荐等级区间 |
 | `unlock` | `string` | 解锁条件，`"start"` 或 `"chXX_complete"` / `"chXX_quiz_pass"` |
 
-> **`acts` 只列已实现的幕。** 旧版还有一个 `acts_planned` 字段，用来在长廊上显示"未来会有哪些幕"——本期两幕全部做完，这个字段已从数据与代码里删除（`HubScene` 不再读取它）。
+> **`acts` 只列已实现的幕，长廊按它的长度生成幕门。** 旧版还有一个 `acts_planned` 字段，用来在长廊上显示"未来会有哪些幕"——本期五幕全部做完，这个字段已从数据与代码里删除（`HubScene` 不再读取它）。
 
 ### 5.2.2 `chapters/chXX.json` —— 章定义
 
@@ -103,9 +103,9 @@
 | --- | --- | --- |
 | `id` | `string` | 同 index |
 | `name` | `string` | |
-| `subtitle` | `string` | 章副标题（载入画面显示），例 `"旧中国试过的两条路"` |
-| `time_text` | `string` | 时期描述，例 `"1840.6 — 1864.7"` |
-| `protagonist_chain` | `string[]` | 化身链 ID，按幕序，例 `["av_guan_tianpei","av_lixiucheng"]` |
+| `subtitle` | `string` | 章副标题（载入画面显示），例 `"从鸦片战争到帝制终结"` |
+| `time_text` | `string` | 时期描述，例 `"1840.6 — 1912.2"` |
+| `protagonist_chain` | `string[]` | 化身链 ID，按幕序，例 `["av_guan_tianpei","av_lixiucheng","av_li_hongzhang","av_kang_youwei","av_sun_zhongshan"]` |
 | `hub_map` | `string?` | 章节地图 ID（序章是时间轴长廊） |
 | `corridor_bgm` | `string` | 章节地图 BGM |
 | `new_weapon` | `string?` | 本章解锁的新武器 ID |
@@ -122,12 +122,14 @@
 | `name` | `string` | 幕名，例 `"鸦片战争"` |
 | `avatar` | `string` | 本幕化身 ID |
 | `events` | `string[]` | 事件卡 ID 列表 |
-| `primary_archetype` | `string` | 主原型，例 `"F"`（第一幕）/ `"G"`（第二幕） |
+| `primary_archetype` | `string` | 主原型，例 `"F"`（第一、四幕）/ `"G"`（第二、三幕）/ `"C"`（第五幕） |
 | `secondary_archetypes` | `string[]` | 辅原型 |
 | `map_refs` | `string[]` | 本幕使用的地图 ID |
 | `bgm` | `string` | BGM ID |
 | `first_clear_reward` | `string` | 首通必掉装备 ID |
-| `exp_base` | `number` | 基础经验值（通关后） |
+| `exp_base` | `number` | 基础经验值（通关后）：320 / 480 / 620 / 700 / 800 |
+| `year_label` | `string?` | 长廊年代石柱上刻的年份，例 `"1861"`（**显示名只认这一个字段**，别在代码里硬编码年份表） |
+| `dynasty_after` | `number?` | 通关本幕后国运落在几（**绝对值，0..100**，不是增量）：70 / 55 / 35 / 25 / 0 |
 | `nodes` | `string[]` | 节点的加载引用（ID 列表，实际数据在 nodes 文件） |
 
 ### 5.2.4 `events/events_chXX.json` —— 事件卡

@@ -1,364 +1,863 @@
 {
-  "nodes": [
-    {
-      "id": "nd_1839_humen_dialog",
-      "event_id": "ev_1839_humen",
-      "archetype": "F",
-      "type": "dialog",
-      "dialogue_ref": "dlg_ch00_act1_intro",
-      "outro_dialogue_ref": "dlg_ch00_act1_intro_outro",
-      "participants": ["narrator", "lin_zexu", "guan_tianpei", "xiangmin", "shuiyong"],
-      "enemy_ref": null,
-      "map_ref": "map_ch00_act1a",
-      "params": {
-        "mode": "explore",
-        "recommended_level": 1,
-        "crate_target": 8,
-        "next_node": "nd_1841_humen_battle",
-        "reward_knowledge": "kc_1839_humen",
-        "npc_talk": {
-          "npc": "obj_linzexu",
-          "dialogue": "dlg_ch00_act1_pool_lin"
-        }
-      },
-      "title": "林则徐赴粤",
-      "year": 1839
-    },
-    {
-      "id": "nd_1839_humen_pool",
-      "event_id": "ev_1839_humen",
-      "archetype": "F",
-      "type": "dialog",
-      "dialogue_ref": "dlg_ch00_act1_pool",
-      "outro_dialogue_ref": "dlg_ch00_act1_pool_outro",
-      "participants": ["narrator", "lin_zexu", "guan_tianpei", "xiangmin"],
-      "enemy_ref": null,
-      "map_ref": "map_ch00_act1a",
-      "params": {
-        "mode": "explore",
-        "recommended_level": 1,
-        "reward_knowledge": "kc_1839_humen",
-        "crate_target": 0,
-        "objective": "看烟土在池中化尽，再走向出口"
-      },
-      "title": "虎门销烟",
-      "year": 1839
-    },
-    {
-      "id": "nd_1841_humen_battle",
-      "event_id": "ev_1841_humen_fort",
-      "archetype": "C",
-      "type": "combat",
-      "dialogue_ref": "dlg_ch00_act1_fort_intro",
-      "outro_dialogue_ref": "dlg_ch00_act1_fort_outro",
-      "participants": ["guan_tianpei", "shuiyong", "lin_zexu", "narrator"],
-      "enemy_ref": null,
-      "map_ref": "map_ch00_act1b",
-      "params": {
-        "mode": "combat",
-        "recommended_level": 2,
-        "waves": [
-          {
-            "spawns": [
-              {
-                "enemy": "en_uk_infantry",
-                "count": 4,
-                "spawn": "right"
-              }
-            ]
-          },
-          {
-            "spawns": [
-              {
-                "enemy": "en_uk_infantry",
-                "count": 3,
-                "spawn": "right"
-              },
-              {
-                "enemy": "en_uk_grenadier",
-                "count": 2,
-                "spawn": "right"
-              }
-            ]
-          },
-          {
-            "spawns": [
-              {
-                "enemy": "en_uk_infantry",
-                "count": 3,
-                "spawn": "right"
-              },
-              {
-                "enemy": "en_gough",
-                "count": 1,
-                "spawn": "right"
-              }
-            ]
-          }
-        ],
-        "boss": "en_boss_steamfrigate",
-        "reward_knowledge": "kc_1841_humen_fort",
-        "reward_weapon": "wp_bow",
-        "hidden_knowledge": "kc_1841_sanyuanli",
-        "defeat_continues": true,
-        "dynasty_delta": -38,
-        "defeat_title": "虎门失守",
-        "defeat_lines": [
-          "1841 年 2 月 26 日，英军攻破虎门各炮台。",
-          "关天培亲燃大炮，力战殉国，年六十岁。",
-          "清军的岸炮打不穿英舰的蒸汽铁壳船体——这不是勇气的问题。"
-        ],
-        "treaty_lines": [
-          "1842 年 8 月 29 日，英舰泊于南京下关江面。",
-          "《南京条约》：割香港岛，赔款 2100 万银元，开五口通商。",
-          "中国开始沦为半殖民地半封建社会。"
-        ]
-      },
-      "title": "虎门炮台守卫战",
-      "year": 1841,
-      "banner": {
-        "time": "1841 年 2 月",
-        "place": "虎门 · 威远炮台",
-        "ours": "岸炮 60 门，火炮是几十年没换的旧式前装炮",
-        "enemy": "英制蒸汽炮舰 10 余艘，铁壳船身，2000 余人登陆",
-        "scene": "sea",
-        "power": {
-          "title": "战力对比",
-          "ours": "岸炮要打穿铁壳才能伤到船，装填一次要一分多钟",
-          "enemy": "舰炮一炮掀翻炮台，铁壳挡住我们大多数炮弹",
-          "gap": "差距：它的炮够得着我，我的炮够不着它的要害。"
-        }
-      }
-    },
-    {
-      "id": "nd_1842_nanjing_choice",
-      "event_id": "ev_1842_nanjing",
-      "archetype": "I",
-      "type": "choice",
-      "dialogue_ref": "dlg_ch00_act1_nanjing",
-      "outro_dialogue_ref": "dlg_ch00_act1_nanjing_outro",
-      "participants": ["narrator", "pottinger", "qiying", "lin_zexu"],
-      "enemy_ref": null,
-      "map_ref": null,
-      "params": {
-        "mode": "cutscene",
-        "recommended_level": 1,
-        "prompt": "英舰已经泊在下关江面。签，还是不签？",
-        "options": [
-          {
-            "label": "拒签，再战",
-            "outcome": "军费已空、炮台尽失、援兵无望。历史没有给出这个选项。"
-          },
-          {
-            "label": "签字",
-            "outcome": "《南京条约》成为中国近代史上第一个不平等条约。"
-          }
-        ],
-        "must_pick": 1,
-        "reward_knowledge": "kc_1842_nanjing"
-      },
-      "title": "南京条约",
-      "year": 1842
-    },
-    {
-      "id": "nd_1851_jintian_escort",
-      "event_id": "ev_1851_jintian",
-      "archetype": "C",
-      "type": "dialog",
-      "dialogue_ref": "dlg_ch00_act2_intro",
-      "outro_dialogue_ref": "dlg_ch00_act2_intro_outro",
-      "participants": ["narrator", "hong_xiuquan", "yang_xiuqing", "li_xiucheng", "taiping_bing"],
-      "enemy_ref": null,
-      "map_ref": "map_ch00_tp_village",
-      "params": {
-        "mode": "escort",
-        "recommended_level": 4,
-        "allies": 3,
-        "waves": [
-          {
-            "spawns": [
-              {
-                "enemy": "en_qing_green",
-                "count": 4,
-                "spawn": "right"
-              }
-            ]
-          },
-          {
-            "spawns": [
-              {
-                "enemy": "en_qing_green",
-                "count": 3,
-                "spawn": "right"
-              },
-              {
-                "enemy": "en_qing_cavalry",
-                "count": 2,
-                "spawn": "right"
-              }
-            ]
-          },
-          {
-            "spawns": [
-              {
-                "enemy": "en_qing_green",
-                "count": 3,
-                "spawn": "right"
-              },
-              {
-                "enemy": "en_qing_batou",
-                "count": 1,
-                "spawn": "right"
-              }
-            ]
-          }
-        ],
-        "reward_knowledge": "kc_1851_jintian"
-      },
-      "title": "金田村突围",
-      "year": 1851
-    },
-    {
-      "id": "nd_1853_tianjing_manage",
-      "event_id": "ev_1853_tianjing",
-      "archetype": "G",
-      "type": "management",
-      "dialogue_ref": "dlg_ch00_act2_tianjing",
-      "outro_dialogue_ref": "dlg_ch00_act2_tianjing_outro",
-      "participants": ["hong_xiuquan", "yang_xiuqing", "hong_renxuan", "narrator"],
-      "enemy_ref": null,
-      "map_ref": "map_ch00_tp_city",
-      "params": {
-        "mode": "management",
-        "recommended_level": 5,
-        "months": 8,
-        "reward_knowledge": "kc_1853_tianjing",
-        "hidden_knowledge": "kc_1859_zizheng"
-      },
-      "title": "天京经营",
-      "year": 1853
-    },
-    {
-      "id": "nd_1856_intrigue",
-      "event_id": "ev_1856_intrigue",
-      "archetype": "J",
-      "type": "cutscene",
-      "dialogue_ref": "dlg_ch00_act2_intrigue",
-      "outro_dialogue_ref": "dlg_ch00_act2_intrigue_outro",
-      "participants": ["narrator", "yang_xiuqing", "hong_xiuquan", "wei_changhui", "shi_dakai", "hong_renxuan", "li_xiucheng"],
-      "enemy_ref": null,
-      "map_ref": null,
-      "params": {
-        "mode": "cutscene",
-        "recommended_level": 5,
-        "reward_knowledge": "kc_1856_intrigue"
-      },
-      "title": "天京事变",
-      "year": 1856
-    },
-    {
-      "id": "nd_1864_tianjing_fall",
-      "event_id": "ev_1864_tianjing_fall",
-      "archetype": "C",
-      "type": "combat",
-      "dialogue_ref": "dlg_ch00_act2_fall_intro",
-      "outro_dialogue_ref": "dlg_ch00_act2_fall_outro",
-      "participants": ["narrator", "zeng_guofan", "li_xiucheng", "taiping_bing"],
-      "enemy_ref": null,
-      "map_ref": "map_ch00_tp_battlefield",
-      "params": {
-        "mode": "combat",
-        "recommended_level": 5,
-        "waves": [
-          {
-            "spawns": [
-              {
-                "enemy": "en_qing_green",
-                "count": 5,
-                "spawn": "right"
-              }
-            ]
-          },
-          {
-            "spawns": [
-              {
-                "enemy": "en_qing_green",
-                "count": 4,
-                "spawn": "right"
-              },
-              {
-                "enemy": "en_qing_cavalry",
-                "count": 2,
-                "spawn": "right"
-              }
-            ]
-          },
-          {
-            "spawns": [
-              {
-                "enemy": "en_qing_green",
-                "count": 4,
-                "spawn": "right"
-              },
-              {
-                "enemy": "en_qing_batou",
-                "count": 1,
-                "spawn": "right"
-              }
-            ]
-          },
-          {
-            "spawns": [
-              {
-                "enemy": "en_qing_batou",
-                "count": 2,
-                "spawn": "right"
-              }
-            ]
-          }
-        ],
-        "boss": "en_boss_xiangarmy_a",
-        "boss_extra": [
-          "en_boss_xiangarmy_b"
-        ],
-        "reward_knowledge": "kc_1864_tianjing_fall"
-      },
-      "title": "天京陷落",
-      "year": 1864
-    },
-    {
-      "id": "nd_1864_limitation",
-      "event_id": "ev_1864_limitation",
-      "archetype": "I",
-      "type": "choice",
-      "dialogue_ref": "dlg_ch00_act2_fall",
-      "outro_dialogue_ref": "dlg_ch00_act2_limit_outro",
-      "participants": ["narrator", "li_xiucheng", "hong_renxuan"],
-      "enemy_ref": null,
-      "map_ref": null,
-      "params": {
-        "mode": "choice",
-        "recommended_level": 5,
-        "prompt": "十四年，两万人到几十万人，最后还是败了。太平天国为什么不能成功？",
-        "options": [
-          {
-            "label": "因为没有好的武器和更多的兵",
-            "outcome": "清军的洋枪确实厉害。但十四年里，太平军也打过许多胜仗。"
-          },
-          {
-            "label": "因为没有科学理论指导、没有先进阶级领导",
-            "outcome": "这正是历史的结论。农民阶级是革命的主力军，但不是新的生产力的代表。"
-          },
-          {
-            "label": "因为运气不好，天京事变来得太早",
-            "outcome": "事变是结果，不是原因。一个无法约束自己的政权，迟早会走到这一步。"
-          }
-        ],
-        "must_pick": 1,
-        "reward_knowledge": "kc_1864_limitation"
-      },
-      "title": "农民阶级的局限性",
-      "year": 1864
+ "nodes": [
+  {
+   "id": "nd_1839_humen_dialog",
+   "event_id": "ev_1839_humen",
+   "archetype": "F",
+   "type": "dialog",
+   "dialogue_ref": "dlg_ch00_act1_intro",
+   "outro_dialogue_ref": "dlg_ch00_act1_intro_outro",
+   "participants": [
+    "narrator",
+    "lin_zexu",
+    "guan_tianpei",
+    "xiangmin",
+    "shuiyong"
+   ],
+   "enemy_ref": null,
+   "map_ref": "map_ch00_act1a",
+   "params": {
+    "mode": "explore",
+    "recommended_level": 1,
+    "crate_target": 8,
+    "next_node": "nd_1841_humen_battle",
+    "reward_knowledge": "kc_1839_humen",
+    "npc_talk": {
+     "npc": "obj_linzexu",
+     "dialogue": "dlg_ch00_act1_pool_lin"
     }
-  ]
+   },
+   "title": "林则徐赴粤",
+   "year": 1839
+  },
+  {
+   "id": "nd_1839_humen_pool",
+   "event_id": "ev_1839_humen",
+   "archetype": "F",
+   "type": "dialog",
+   "dialogue_ref": "dlg_ch00_act1_pool",
+   "outro_dialogue_ref": "dlg_ch00_act1_pool_outro",
+   "participants": [
+    "narrator",
+    "lin_zexu",
+    "guan_tianpei",
+    "xiangmin"
+   ],
+   "enemy_ref": null,
+   "map_ref": "map_ch00_act1a",
+   "params": {
+    "mode": "explore",
+    "recommended_level": 1,
+    "reward_knowledge": "kc_1839_humen",
+    "crate_target": 0,
+    "objective": "看烟土在池中化尽，再走向出口"
+   },
+   "title": "虎门销烟",
+   "year": 1839
+  },
+  {
+   "id": "nd_1841_humen_battle",
+   "event_id": "ev_1841_humen_fort",
+   "archetype": "C",
+   "type": "combat",
+   "dialogue_ref": "dlg_ch00_act1_fort_intro",
+   "outro_dialogue_ref": "dlg_ch00_act1_fort_outro",
+   "participants": [
+    "guan_tianpei",
+    "shuiyong",
+    "lin_zexu",
+    "narrator"
+   ],
+   "enemy_ref": null,
+   "map_ref": "map_ch00_act1b",
+   "params": {
+    "mode": "combat",
+    "recommended_level": 2,
+    "waves": [
+     {
+      "spawns": [
+       {
+        "enemy": "en_uk_infantry",
+        "count": 4,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_uk_infantry",
+        "count": 3,
+        "spawn": "right"
+       },
+       {
+        "enemy": "en_uk_grenadier",
+        "count": 2,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_uk_infantry",
+        "count": 3,
+        "spawn": "right"
+       },
+       {
+        "enemy": "en_gough",
+        "count": 1,
+        "spawn": "right"
+       }
+      ]
+     }
+    ],
+    "boss": "en_boss_steamfrigate",
+    "reward_knowledge": "kc_1841_humen_fort",
+    "reward_weapon": "wp_bow",
+    "hidden_knowledge": "kc_1841_sanyuanli",
+    "defeat_continues": true,
+    "dynasty_delta": -38,
+    "defeat_title": "虎门失守",
+    "defeat_lines": [
+     "1841 年 2 月 26 日，英军攻破虎门各炮台。",
+     "关天培亲燃大炮，力战殉国，年六十岁。",
+     "清军的岸炮打不穿英舰的蒸汽铁壳船体——这不是勇气的问题。"
+    ],
+    "treaty_lines": [
+     "1842 年 8 月 29 日，英舰泊于南京下关江面。",
+     "《南京条约》：割香港岛，赔款 2100 万银元，开五口通商。",
+     "中国开始沦为半殖民地半封建社会。"
+    ]
+   },
+   "title": "虎门炮台守卫战",
+   "year": 1841,
+   "banner": {
+    "time": "1841 年 2 月",
+    "place": "虎门 · 威远炮台",
+    "ours": "岸炮 60 门，火炮是几十年没换的旧式前装炮",
+    "enemy": "英制蒸汽炮舰 10 余艘，铁壳船身，2000 余人登陆",
+    "scene": "sea",
+    "power": {
+     "title": "战力对比",
+     "ours": "岸炮要打穿铁壳才能伤到船，装填一次要一分多钟",
+     "enemy": "舰炮一炮掀翻炮台，铁壳挡住我们大多数炮弹",
+     "gap": "差距：它的炮够得着我，我的炮够不着它的要害。"
+    }
+   }
+  },
+  {
+   "id": "nd_1842_nanjing_choice",
+   "event_id": "ev_1842_nanjing",
+   "archetype": "I",
+   "type": "choice",
+   "dialogue_ref": "dlg_ch00_act1_nanjing",
+   "outro_dialogue_ref": "dlg_ch00_act1_nanjing_outro",
+   "participants": [
+    "narrator",
+    "pottinger",
+    "qiying",
+    "lin_zexu"
+   ],
+   "enemy_ref": null,
+   "map_ref": null,
+   "params": {
+    "mode": "cutscene",
+    "recommended_level": 1,
+    "prompt": "英舰已经泊在下关江面。签，还是不签？",
+    "options": [
+     {
+      "label": "拒签，再战",
+      "outcome": "军费已空、炮台尽失、援兵无望。历史没有给出这个选项。"
+     },
+     {
+      "label": "签字",
+      "outcome": "《南京条约》成为中国近代史上第一个不平等条约。"
+     }
+    ],
+    "must_pick": 1,
+    "reward_knowledge": "kc_1842_nanjing"
+   },
+   "title": "南京条约",
+   "year": 1842
+  },
+  {
+   "id": "nd_1851_jintian_escort",
+   "event_id": "ev_1851_jintian",
+   "archetype": "C",
+   "type": "dialog",
+   "dialogue_ref": "dlg_ch00_act2_intro",
+   "outro_dialogue_ref": "dlg_ch00_act2_intro_outro",
+   "participants": [
+    "narrator",
+    "hong_xiuquan",
+    "yang_xiuqing",
+    "li_xiucheng",
+    "taiping_bing"
+   ],
+   "enemy_ref": null,
+   "map_ref": "map_ch00_tp_village",
+   "params": {
+    "mode": "escort",
+    "recommended_level": 4,
+    "allies": 3,
+    "waves": [
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_green",
+        "count": 4,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_green",
+        "count": 3,
+        "spawn": "right"
+       },
+       {
+        "enemy": "en_qing_cavalry",
+        "count": 2,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_green",
+        "count": 3,
+        "spawn": "right"
+       },
+       {
+        "enemy": "en_qing_batou",
+        "count": 1,
+        "spawn": "right"
+       }
+      ]
+     }
+    ],
+    "reward_knowledge": "kc_1851_jintian"
+   },
+   "title": "金田村突围",
+   "year": 1851
+  },
+  {
+   "id": "nd_1853_tianjing_manage",
+   "event_id": "ev_1853_tianjing",
+   "archetype": "G",
+   "type": "management",
+   "dialogue_ref": "dlg_ch00_act2_tianjing",
+   "outro_dialogue_ref": "dlg_ch00_act2_tianjing_outro",
+   "participants": [
+    "hong_xiuquan",
+    "yang_xiuqing",
+    "hong_renxuan",
+    "narrator"
+   ],
+   "enemy_ref": null,
+   "map_ref": "map_ch00_tp_city",
+   "params": {
+    "mode": "management",
+    "recommended_level": 5,
+    "months": 8,
+    "reward_knowledge": "kc_1853_tianjing",
+    "hidden_knowledge": "kc_1859_zizheng"
+   },
+   "title": "天京经营",
+   "year": 1853
+  },
+  {
+   "id": "nd_1856_intrigue",
+   "event_id": "ev_1856_intrigue",
+   "archetype": "J",
+   "type": "cutscene",
+   "dialogue_ref": "dlg_ch00_act2_intrigue",
+   "outro_dialogue_ref": "dlg_ch00_act2_intrigue_outro",
+   "participants": [
+    "narrator",
+    "yang_xiuqing",
+    "hong_xiuquan",
+    "wei_changhui",
+    "shi_dakai",
+    "hong_renxuan",
+    "li_xiucheng"
+   ],
+   "enemy_ref": null,
+   "map_ref": null,
+   "params": {
+    "mode": "cutscene",
+    "recommended_level": 5,
+    "reward_knowledge": "kc_1856_intrigue"
+   },
+   "title": "天京事变",
+   "year": 1856
+  },
+  {
+   "id": "nd_1864_tianjing_fall",
+   "event_id": "ev_1864_tianjing_fall",
+   "archetype": "C",
+   "type": "combat",
+   "dialogue_ref": "dlg_ch00_act2_fall_intro",
+   "outro_dialogue_ref": "dlg_ch00_act2_fall_outro",
+   "participants": [
+    "narrator",
+    "zeng_guofan",
+    "li_xiucheng",
+    "taiping_bing"
+   ],
+   "enemy_ref": null,
+   "map_ref": "map_ch00_tp_battlefield",
+   "params": {
+    "mode": "combat",
+    "recommended_level": 5,
+    "waves": [
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_green",
+        "count": 5,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_green",
+        "count": 4,
+        "spawn": "right"
+       },
+       {
+        "enemy": "en_qing_cavalry",
+        "count": 2,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_green",
+        "count": 4,
+        "spawn": "right"
+       },
+       {
+        "enemy": "en_qing_batou",
+        "count": 1,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_batou",
+        "count": 2,
+        "spawn": "right"
+       }
+      ]
+     }
+    ],
+    "boss": "en_boss_xiangarmy_a",
+    "boss_extra": [
+     "en_boss_xiangarmy_b"
+    ],
+    "reward_knowledge": "kc_1864_tianjing_fall"
+   },
+   "title": "天京陷落",
+   "year": 1864
+  },
+  {
+   "id": "nd_1864_limitation",
+   "event_id": "ev_1864_limitation",
+   "archetype": "I",
+   "type": "choice",
+   "dialogue_ref": "dlg_ch00_act2_fall",
+   "outro_dialogue_ref": "dlg_ch00_act2_limit_outro",
+   "participants": [
+    "narrator",
+    "li_xiucheng",
+    "hong_renxuan"
+   ],
+   "enemy_ref": null,
+   "map_ref": null,
+   "params": {
+    "mode": "choice",
+    "recommended_level": 5,
+    "prompt": "十四年，两万人到几十万人，最后还是败了。太平天国为什么不能成功？",
+    "options": [
+     {
+      "label": "因为没有好的武器和更多的兵",
+      "outcome": "清军的洋枪确实厉害。但十四年里，太平军也打过许多胜仗。"
+     },
+     {
+      "label": "因为没有科学理论指导、没有先进阶级领导",
+      "outcome": "这正是历史的结论。农民阶级是革命的主力军，但不是新的生产力的代表。"
+     },
+     {
+      "label": "因为运气不好，天京事变来得太早",
+      "outcome": "事变是结果，不是原因。一个无法约束自己的政权，迟早会走到这一步。"
+     }
+    ],
+    "must_pick": 1,
+    "reward_knowledge": "kc_1864_limitation"
+   },
+   "title": "农民阶级的局限性",
+   "year": 1864
+  },
+  {
+   "id": "nd_1861_zongli_dialog",
+   "event_id": "ev_1861_zongli",
+   "archetype": "F",
+   "type": "cutscene",
+   "dialogue_ref": "dlg_ch00_act3_intro",
+   "outro_dialogue_ref": "dlg_ch00_act3_intro_outro",
+   "enemy_ref": null,
+   "map_ref": null,
+   "params": {
+    "mode": "cutscene",
+    "recommended_level": 6,
+    "reward_knowledge": "kc_1861_zongli"
+   },
+   "title": "总理衙门之争",
+   "year": 1861,
+   "participants": [
+    "narrator",
+    "yixin",
+    "woren",
+    "li_hongzhang"
+   ]
+  },
+  {
+   "id": "nd_1865_jiangnan_manage",
+   "event_id": "ev_1865_jiangnan",
+   "archetype": "G",
+   "type": "management",
+   "dialogue_ref": "dlg_ch00_act3_jiangnan",
+   "outro_dialogue_ref": "dlg_ch00_act3_jiangnan_outro",
+   "enemy_ref": null,
+   "map_ref": "map_ch00_tp_city",
+   "params": {
+    "mode": "management",
+    "recommended_level": 6,
+    "months": 6,
+    "reward_knowledge": "kc_1865_jiangnan",
+    "hidden_knowledge": "kc_1872_liuxue"
+   },
+   "title": "江南制造总局",
+   "year": 1865,
+   "participants": [
+    "narrator",
+    "li_hongzhang",
+    "gongjiang"
+   ]
+  },
+  {
+   "id": "nd_1894_jiawu_battle",
+   "event_id": "ev_1894_jiawu",
+   "archetype": "C",
+   "type": "combat",
+   "dialogue_ref": "dlg_ch00_act3_jiawu_intro",
+   "outro_dialogue_ref": "dlg_ch00_act3_jiawu_outro",
+   "enemy_ref": null,
+   "map_ref": "map_ch00_tp_battlefield",
+   "banner": {
+    "time": "1894 年 8 月",
+    "place": "朝鲜 · 平壤城下",
+    "ours": "淮军与盛军约 1.3 万人，弹药只够半日",
+    "enemy": "日军混成旅团，洋枪洋炮，辎重充足",
+    "scene": "land",
+    "power": {
+     "title": "战力对比",
+     "ours": "枪是老式后膛枪，炮弹靠进口，打一发少一发",
+     "enemy": "村田式步枪、野炮齐备，补给从本土源源运来",
+     "gap": "差距：人家的枪是自造的，我们的枪是买来的。"
+    }
+   },
+   "params": {
+    "mode": "combat",
+    "recommended_level": 6,
+    "waves": [
+     {
+      "spawns": [
+       {
+        "enemy": "en_jp_infantry",
+        "count": 5,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_jp_infantry",
+        "count": 4,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_jp_infantry",
+        "count": 3,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_jp_officer",
+        "count": 2,
+        "spawn": "right"
+       }
+      ]
+     }
+    ],
+    "boss": "en_boss_jp_colonel",
+    "reward_knowledge": "kc_1894_jiawu"
+   },
+   "title": "平壤之战",
+   "year": 1894,
+   "participants": [
+    "narrator",
+    "deng_shichang",
+    "jp_colonel",
+    "li_hongzhang"
+   ]
+  },
+  {
+   "id": "nd_1895_maguan_choice",
+   "event_id": "ev_1895_maguan",
+   "archetype": "I",
+   "type": "choice",
+   "dialogue_ref": "dlg_ch00_act3_maguan",
+   "outro_dialogue_ref": "dlg_ch00_act3_maguan_outro",
+   "enemy_ref": null,
+   "map_ref": null,
+   "params": {
+    "mode": "choice",
+    "recommended_level": 6,
+    "prompt": "赔两亿两、割台湾，签，还是不签？",
+    "options": [
+     {
+      "label": "签字，先保住京城",
+      "outcome": "签了。赔款要还四十年，台湾从此隔了一道海峡。"
+     },
+     {
+      "label": "不签，再打下去",
+      "outcome": "不签，日军就打到山海关。朝廷没有第二支北洋舰队了。"
+     },
+     {
+      "label": "拖，等列强来调停",
+      "outcome": "列强只关心自己的利益，调停的结果是更多的要求。"
+     }
+    ],
+    "must_pick": 0,
+    "reward_knowledge": "kc_1895_maguan"
+   },
+   "title": "马关条约",
+   "year": 1895,
+   "participants": [
+    "narrator",
+    "li_hongzhang"
+   ]
+  },
+  {
+   "id": "nd_1895_gongche_dialog",
+   "event_id": "ev_1895_gongche",
+   "archetype": "F",
+   "type": "cutscene",
+   "dialogue_ref": "dlg_ch00_act4_intro",
+   "outro_dialogue_ref": "dlg_ch00_act4_intro_outro",
+   "enemy_ref": null,
+   "map_ref": null,
+   "params": {
+    "mode": "cutscene",
+    "recommended_level": 7,
+    "reward_knowledge": "kc_1895_gongche"
+   },
+   "title": "公车上书",
+   "year": 1895,
+   "participants": [
+    "narrator",
+    "kang_youwei",
+    "liang_qichao"
+   ]
+  },
+  {
+   "id": "nd_1898_bianfa_cutscene",
+   "event_id": "ev_1898_bianfa",
+   "archetype": "F",
+   "type": "cutscene",
+   "dialogue_ref": "dlg_ch00_act4_bianfa",
+   "outro_dialogue_ref": "dlg_ch00_act4_bianfa_outro",
+   "enemy_ref": null,
+   "map_ref": null,
+   "params": {
+    "mode": "cutscene",
+    "recommended_level": 7,
+    "reward_knowledge": "kc_1898_bianfa"
+   },
+   "title": "百日维新",
+   "year": 1898,
+   "participants": [
+    "narrator",
+    "guangxu",
+    "kang_youwei",
+    "cixi"
+   ]
+  },
+  {
+   "id": "nd_1898_coup_battle",
+   "event_id": "ev_1898_coup",
+   "archetype": "C",
+   "type": "combat",
+   "dialogue_ref": "dlg_ch00_act4_coup_intro",
+   "outro_dialogue_ref": "dlg_ch00_act4_coup_outro",
+   "enemy_ref": null,
+   "map_ref": "map_ch00_tp_city",
+   "banner": {
+    "time": "1898 年 9 月 21 日",
+    "place": "北京 · 南海会馆外",
+    "ours": "会馆里的几个书生，两把短枪",
+    "enemy": "步军统领衙门缉捕队，封闭九门，全城搜捕",
+    "scene": "land",
+    "power": {
+     "title": "战力对比",
+     "ours": "没有兵、没有援，只有一腔变法的心思",
+     "enemy": "九门提督的兵，刀枪齐备，还能调神机营",
+     "gap": "差距：变法改的是制度，可制度手里握着刀。"
+    }
+   },
+   "params": {
+    "mode": "combat",
+    "recommended_level": 7,
+    "waves": [
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_green",
+        "count": 5,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_green",
+        "count": 4,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_cavalry",
+        "count": 2,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_batou",
+        "count": 1,
+        "spawn": "right"
+       }
+      ]
+     }
+    ],
+    "boss": "en_boss_qing_zhitong",
+    "reward_knowledge": "kc_1898_coup"
+   },
+   "title": "戊戌政变之夜",
+   "year": 1898,
+   "participants": [
+    "narrator",
+    "liang_qichao",
+    "tan_sitong"
+   ]
+  },
+  {
+   "id": "nd_1898_liujunzi_choice",
+   "event_id": "ev_1898_liujunzi",
+   "archetype": "I",
+   "type": "choice",
+   "dialogue_ref": "dlg_ch00_act4_liujunzi",
+   "outro_dialogue_ref": "dlg_ch00_act4_liujunzi_outro",
+   "enemy_ref": null,
+   "map_ref": null,
+   "params": {
+    "mode": "choice",
+    "recommended_level": 7,
+    "prompt": "康、梁已经出海。你走，还是留？",
+    "options": [
+     {
+      "label": "留下，等他们来抓",
+      "outcome": "谭嗣同留下。他说：各国变法，无不从流血而成。"
+     },
+     {
+      "label": "走，去日本再图后举",
+      "outcome": "走得掉。可总有人要留下来，把这条路走到尽头。"
+     },
+     {
+      "label": "去求袁世凯发兵",
+      "outcome": "袁世凯转身去了荣禄府上。兵没有来，刀来了。"
+     }
+    ],
+    "must_pick": 0,
+    "reward_knowledge": "kc_1898_liujunzi"
+   },
+   "title": "六君子的选择",
+   "year": 1898,
+   "participants": [
+    "narrator",
+    "cixi",
+    "tan_sitong"
+   ]
+  },
+  {
+   "id": "nd_1911_wuchang_battle",
+   "event_id": "ev_1911_wuchang",
+   "archetype": "C",
+   "type": "combat",
+   "dialogue_ref": "dlg_ch00_act5_intro",
+   "outro_dialogue_ref": "dlg_ch00_act5_intro_outro",
+   "enemy_ref": null,
+   "map_ref": "map_ch00_tp_city",
+   "banner": {
+    "time": "1911 年 10 月 10 日 夜",
+    "place": "武昌 · 总督衙门",
+    "ours": "工程第八营，几十条枪，两箱子弹",
+    "enemy": "总督卫队与巡防营，枪炮俱全，城内外还有援兵",
+    "scene": "land",
+    "power": {
+     "title": "战力对比",
+     "ours": "人少、弹少，靠的是一夜之间不能输",
+     "enemy": "卫队守衙门，城门未闭，援军正在集合",
+     "gap": "差距：他们守的是一座城，我们搏的是一个国。"
+    }
+   },
+   "params": {
+    "mode": "combat",
+    "recommended_level": 8,
+    "waves": [
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_green",
+        "count": 6,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_green",
+        "count": 5,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_cavalry",
+        "count": 3,
+        "spawn": "right"
+       }
+      ]
+     },
+     {
+      "spawns": [
+       {
+        "enemy": "en_qing_batou",
+        "count": 2,
+        "spawn": "right"
+       }
+      ]
+     }
+    ],
+    "boss": "en_boss_qing_zhitong",
+    "reward_knowledge": "kc_1911_wuchang"
+   },
+   "title": "武昌起义",
+   "year": 1911,
+   "participants": [
+    "narrator",
+    "xinhai_bing",
+    "li_yuanhong"
+   ]
+  },
+  {
+   "id": "nd_1911_nanjing_dialog",
+   "event_id": "ev_1911_nanjing",
+   "archetype": "F",
+   "type": "cutscene",
+   "dialogue_ref": "dlg_ch00_act5_nanjing",
+   "outro_dialogue_ref": "dlg_ch00_act5_nanjing_outro",
+   "enemy_ref": null,
+   "map_ref": null,
+   "params": {
+    "mode": "cutscene",
+    "recommended_level": 8,
+    "reward_knowledge": "kc_1911_nanjing"
+   },
+   "title": "中华民国成立",
+   "year": 1912,
+   "participants": [
+    "narrator",
+    "sun_zhongshan"
+   ]
+  },
+  {
+   "id": "nd_1912_tuwei_choice",
+   "event_id": "ev_1912_tuwei",
+   "archetype": "I",
+   "type": "choice",
+   "dialogue_ref": "dlg_ch00_act5_tuwei",
+   "outro_dialogue_ref": "dlg_ch00_final",
+   "enemy_ref": null,
+   "map_ref": null,
+   "params": {
+    "mode": "choice",
+    "recommended_level": 8,
+    "prompt": "清帝退位，共和可成。可总统要让给袁世凯——让，还是不让？",
+    "options": [
+     {
+      "label": "让，先让帝制终结",
+      "outcome": "帝制终结了，共和也埋下了隐患。但这一步，必须有人先走。"
+     },
+     {
+      "label": "不让，北伐到底",
+      "outcome": "北伐要钱要兵，十三省各自为政，革命党拿不出第二支军队。"
+     },
+     {
+      "label": "让，但用约法捆住他",
+      "outcome": "《临时约法》写下了主权在民。纸上的东西，日后要靠人来守。"
+     }
+    ],
+    "must_pick": 0,
+    "reward_knowledge": "kc_1912_tuwei"
+   },
+   "title": "清帝退位",
+   "year": 1912,
+   "participants": [
+    "narrator",
+    "yuan_shikai",
+    "longyu",
+    "sun_zhongshan"
+   ]
+  }
+ ]
 }

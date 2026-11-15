@@ -52,6 +52,16 @@ export interface ActDef {
   first_clear_reward: string;
   exp_base: number;
   nodes: string[];
+  /** 长廊年代石柱上的年份，例如「1861」；缺省时长廊按序数兜底 */
+  year_label?: string;
+  /**
+   * 通关这一幕之后，清王朝（国运）该落在哪个刻度（0–100）。
+   *
+   * 为什么不写「增量」：关卡内的战败卡也会扣国运（`params.dynasty_delta`），
+   * 玩家输多输少不确定，增量叠起来会让长廊里的血条和史实对不上。
+   * 用绝对值 = 每幕结束都回到史实刻度，终局必然归零（清帝退位）。
+   */
+  dynasty_after?: number;
 }
 
 /* ============ 7.2.4 events/events_chXX.json ============ */

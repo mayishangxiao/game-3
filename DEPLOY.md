@@ -13,7 +13,7 @@ $pnpm="$env:USERPROFILE\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pnpm\
 # 2. 类型检查
 & $node $pnpm exec tsc --noEmit
 
-# 3. 跑测试（474 个，全绿才继续）
+# 3. 跑测试（486 个，全绿才继续）
 & $node $pnpm test
 
 # 4. 构建
@@ -65,7 +65,8 @@ python tools/deploy_ecs.py 39.103.58.244
 ## 发布前检查清单（每次发版照着走）
 
 - [ ] `pnpm exec tsc --noEmit` 0 错
-- [ ] `pnpm test` 全绿（当前 25 文件 / 474 条）
+- [ ] `pnpm test` 全绿（当前 26 文件 / 486 条）
+- [ ] 改动涉及**幕数 / 年表 / 国运血条 / 终局卡**时，跑 `node tools/_cdp/hub-dynasty.mjs <edgePath> [staticDir] [outDir]`（自带静态服务），确认 12 项断言全过：长廊 5 道幕门与年代顺序、血条与「国运 → N」刻度、开场卡文字块两两不重叠、抉择题干不压选项、第五幕 Boss 是 `en_boss_qing_zhitong`、`showEnding()` 文案含「清 王 朝 覆 灭」且不含「到此收卷」；`tests/chronicle.test.ts` 同时全绿
 - [ ] 改动涉及战斗内换武器时，跑 `node tools/_cdp/weapon-swap.mjs <edgePath> <baseUrl> <outDir>`，确认 53 项断言全过：门禁拒绝、世界冻结、控件/HUD 收放、取消零改动、重复/不可用/陈旧选项各有文案、切换后武器与属性即时生效、战斗结束自动收起
 - [ ] 改动涉及敌人移动 / 出生点 / 碰撞层时，跑 `node tools/_cdp/enemy-stuck.mjs <edgePath> <baseUrl> <outDir>`，确认 22 项断言全过：所有敌人 `footUnsafe=false`、2.4 秒内确实朝玩家移动、`stuckMs<700`、主动制造「中心合法但脚盒压墙」后 `rescue()` 能把人捞回合法点并恢复追击；同时 `tests/space.test.ts` 会遍历全部 10 张地图的出生点 × 4 个追击方向
 - [ ] 改动涉及装备时，确认 `items_base.json` 里每个 `weapon_ref` 都在 `config.json.weapons` 里（`tests/data.test.ts` 会挡拼错），且未标字段的模板与老存档仍走原武器逻辑；跑 `node tools/_cdp/equip-presence.mjs <edgePath> <baseUrl> tools/_cdp/equip`，确认 `equip-presence.json` 的 `ok=true` / `errors=[]`，并逐张看 `equipment-initial.png` / `equipment.png` / `level-equipped-bow.png` 无文字重叠

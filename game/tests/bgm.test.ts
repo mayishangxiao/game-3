@@ -110,8 +110,14 @@ describe('core/bgm 曲目表', () => {
 });
 
 describe('幕数据 → 曲目（act.bgm 是唯一入口）', () => {
-  it('两幕的 bgm 字段都有登记，映射到的曲目真实存在', () => {
-    const files = ['public/data/acts/ch00_act1.json', 'public/data/acts/ch00_act2.json'];
+  it('五幕的 bgm 字段都有登记，映射到的曲目真实存在', () => {
+    const files = [
+      'public/data/acts/ch00_act1.json',
+      'public/data/acts/ch00_act2.json',
+      'public/data/acts/ch00_act3.json',
+      'public/data/acts/ch00_act4.json',
+      'public/data/acts/ch00_act5.json',
+    ];
     for (const rel of files) {
       const act = JSON.parse(readFileSync(join(process.cwd(), rel), 'utf8')) as { bgm?: string };
       expect(act.bgm, `${rel} 没写 bgm`).toBeTruthy();
@@ -120,6 +126,10 @@ describe('幕数据 → 曲目（act.bgm 是唯一入口）', () => {
     }
     expect(songIdOfAct('bgm_ch00_act1')).toBe('humen');
     expect(songIdOfAct('bgm_ch00_act2')).toBe('taiping');
+    // 洋务=长廊曲（稳态）、戊戌=丧钟（最慢）、辛亥=战斗曲
+    expect(songIdOfAct('bgm_ch00_act3')).toBe('hub');
+    expect(songIdOfAct('bgm_ch00_act4')).toBe('sorrow');
+    expect(songIdOfAct('bgm_ch00_act5')).toBe('battle');
   });
 
   it('没登记的幕 / 空值按鸦片战争兜底，不抛错（剧情不能被音乐卡住）', () => {

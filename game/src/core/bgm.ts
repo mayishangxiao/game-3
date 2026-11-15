@@ -156,6 +156,12 @@ function buildSong(spec: SongSpec): BgmSong {
 export const ACT_SONG: Record<string, BgmId> = {
   bgm_ch00_act1: 'humen',
   bgm_ch00_act2: 'taiping',
+  // 洋务运动：三十年「自强」，底色是稳态的长廊曲
+  bgm_ch00_act3: 'hub',
+  // 戊戌：变法失败、六君子就义，用最慢的丧钟调
+  bgm_ch00_act4: 'sorrow',
+  // 辛亥：武昌起义一夜开枪，用战斗曲
+  bgm_ch00_act5: 'battle',
 };
 
 /** 幕 → 曲目；没登记的幕按鸦片战争的氛围兜底（不抛错，剧情照样能走） */

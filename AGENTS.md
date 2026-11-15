@@ -5,14 +5,24 @@
 
 ## 〇、先知道本期范围（最重要的一条）
 
-**这个项目只做第一章：序章·觉醒年代，1840—1864，两幕**——鸦片战争（1840—1842）与太平天国运动（1851—1864）。
-两幕都已实现、可玩通；1861 年之后的章节、序章第 3—7 幕、未开工的系统模块**已经从文档、数据与代码里删干净**：
+**这个项目做第一章：序章·觉醒年代，1840—1912，五幕**，一路走到清王朝覆灭：
 
-- `game/public/data/index.json` 里没有 `acts_planned`，`src/core/types.ts` 的 `ChapterMeta` 也没有这个字段；
-- `game/src/scenes/HubScene.ts` 的长廊只有 ch00_act1 / ch00_act2 两道幕门；
-- `game/tests/data.test.ts` 断言章节里声明的幕数就是 2（不是"7 幕中开放 2 幕"）。
+| seq | 幕 | 年份 | 国运收在 |
+| --- | --- | --- | --- |
+| 1 | 鸦片战争 | 1840 | 70 |
+| 2 | 太平天国运动 | 1851 | 55 |
+| 3 | 洋务运动 | 1861 | 35 |
+| 4 | 戊戌变法 | 1898 | 25 |
+| 5 | 辛亥革命 | 1911 | 0 |
 
-所以：**不要"补回"未开放幕、不要给后续章节预埋字段**。要续做，先按 `design/00_front.md` 的"不覆盖"清单重新立项。
+五幕都已实现、可玩通，第五幕收尾进入终局卡（`showEnding()`），**只有国运归零才说全篇终**——任何一幕结束时都不许出现「游戏结束」式的收卷台词，`tests/chronicle.test.ts` 守着这条。
+
+- `game/public/data/index.json` 的 `acts` 是这 5 个，`period: "1840—1912"`；`ChapterMeta` 没有 `acts_planned` 字段；
+- `game/src/scenes/HubScene.ts` 长廊按 `acts` 长度生成幕门（现在 5 道），门上年份读 `act.year_label`，顶部血条读 `progress.dynasty`；
+- 国运刻度是**绝对值**（`act.dynasty_after`，0..100），不是增量；一关内战败再叠 `params.dynasty_delta` 扣减；
+- `game/tests/data.test.ts` 断言章节里声明的幕数就是 5，`tests/chronicle.test.ts` 锁死年份递增、国运递减与终局台词。
+
+所以：**不要"补回"更远的章节（1921 及以后）、不要给 `acts_planned` 之类的字段复活**。要续做第二章，先在 `index.json` 加 `ch01` 再按 `design/00_front.md` 的"不覆盖"清单立项。
 
 ## 一、动手之前：按顺序读这五份（合计约 60 KB；源码 + 数据约 380 KB，翻一遍是它的 6 倍多）
 
@@ -30,7 +40,7 @@
 
 1. **不要在 `game/` 全盘 grep 找位置**。先查目录 README 的表格定位文件；需要骨架清单时跑
    `node game/tools/map_repo.mjs game`（打印每个文件的头部注释 + 导出符号）。
-2. **`game/src/core/` 里那 23 个模块一律不许 import Phaser**（balance / bgm / cannon / constants / critShake / DataLoader / defeat / dungeon / escort / EventBus / graph / management / orientation / pixelFont / quiz / SaveManager / space / types / unitFrames / upgradeSelection / waveUpgrade / weaponSelection / weaponSwap）。它们是纯逻辑层，25 个测试文件跑在 node 环境，加了 Phaser 会全炸。
+2. **`game/src/core/` 里那 24 个模块一律不许 import Phaser**（balance / bgm / cannon / constants / critShake / DataLoader / defeat / dungeon / escort / EventBus / graph / management / orientation / pixelFont / quiz / SaveManager / sceneDialogue / space / types / unitFrames / upgradeSelection / waveUpgrade / weaponSelection / weaponSwap）。它们是纯逻辑层，26 个测试文件跑在 node 环境，加了 Phaser 会全炸。
 3. **改内容不动代码**：数值、事件、节点、敌人、装备、副本、地图都在 `game/public/data/`。改完必须跑 `pnpm test`——数据引用错会让关卡直接不可通关。
 4. **数据文件必须 UTF-8 无 BOM**（PowerShell 的 `Set-Content -Encoding UTF8` 会写 BOM，`JSON.parse` 会报 `Unexpected token '﻿'`）。改 JSON 用 Python（`encoding='utf-8'`）。
 5. **文档即契约**：新增文件必须同步写进所在目录的 `README.md`——`game/tests/docs.test.ts` 会检查「每个文件都被文档提到、每条相对链接都存在」，漏了直接红。设计书里的 `# 第X章` 与章节号也要和 `design/README.md` 的对照表一致。

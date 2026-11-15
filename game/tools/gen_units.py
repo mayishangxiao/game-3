@@ -282,6 +282,28 @@ UNITS = {
         tassel=STAR,
         weapon="sabre",
     ),
+    # 日军步兵（甲午）：深蓝制服 + 军帽 + 步枪，和清军绿号衣、英军红衣都分得开
+    "jp_infantry": dict(
+        coat=INDIGO,
+        coat_dark=NIGHT,
+        trim=RED_D,
+        trouser=PLUM_D,
+        hat="cap",
+        hat_color=INK,
+        tassel=RED_D,
+        weapon="musket",
+    ),
+    # 日军大尉 / 联队长：同色系加深，金边 + 指挥刀，作为 Boss 也认得出来
+    "jp_officer": dict(
+        coat=NIGHT,
+        coat_dark=INK,
+        trim=STAR,
+        trouser=PLUM_D,
+        hat="cap",
+        hat_color=INK,
+        tassel=STAR,
+        weapon="sabre",
+    ),
 }
 
 

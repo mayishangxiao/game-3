@@ -309,6 +309,39 @@ PEOPLE = {
         hat_trim=PAPER, beard="long", beard_color=GREY_LIGHT, brow=INK, collar="round",
         glasses=True,
     ),
+    # ---- 洋务 / 戊戌 / 辛亥（v2.0 三幕）----
+    "li_hongzhang": dict(
+        skin=SAND, robe=INDIGO, trim=STAR, hat="qing", hat_main=NIGHT,
+        hat_trim=STAR, beard="goatee", beard_color=GREY_LIGHT, brow=INK, collar="round",
+    ),
+    "kang_youwei": dict(
+        skin=CREAM, robe=GREEN_DARK, trim=CREAM, hat="qing", hat_main=NIGHT,
+        hat_trim=CREAM, beard="full", beard_color=INK, brow=INK, collar="round",
+    ),
+    "liang_qichao": dict(
+        skin=CREAM, robe=GREY_PLUM, trim=PAPER, hat="cap", hat_main=NIGHT,
+        hat_trim=GREY_LIGHT, beard="mustache", beard_color=INK, brow=INK, collar="v",
+    ),
+    "guangxu": dict(
+        skin=CREAM, robe=STAR, trim=RED_DARK, hat="qing", hat_main=STAR,
+        hat_trim=RED_DARK, beard="none", beard_color=INK, brow=INK, collar="round",
+    ),
+    "cixi": dict(
+        skin=CREAM, robe=PLUM_MID, trim=STAR, hat="top", hat_main=NIGHT,
+        hat_trim=STAR, beard="none", beard_color=INK, brow=INK, collar="v",
+    ),
+    "tan_sitong": dict(
+        skin=SAND, robe=RED_DARK, trim=CREAM, hat="cap", hat_main=NIGHT,
+        hat_trim=RED, beard="mustache", beard_color=INK, brow=INK, collar="v",
+    ),
+    "sun_zhongshan": dict(
+        skin=SAND, robe=GREY_LIGHT, trim=NIGHT, hat="top", hat_main=NIGHT,
+        hat_trim=GREY_LIGHT, beard="mustache", beard_color=INK, brow=INK, collar="v",
+    ),
+    "yuan_shikai": dict(
+        skin=SAND, robe=NIGHT, trim=STAR, hat="qing", hat_main=INK,
+        hat_trim=STAR, beard="mustache", beard_color=GREY_LIGHT, brow=INK, collar="epaulette",
+    ),
     "taiping_bing": dict(
         skin=SAND, robe=RED_DARK, trim=BROWN, hat="taiping", hat_main=RED,
         hat_trim=BROWN, beard="none", beard_color=INK, brow=INK, collar="v",

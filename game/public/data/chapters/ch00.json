@@ -1,11 +1,14 @@
 {
   "id": "ch00",
   "name": "觉醒年代",
-  "subtitle": "旧中国试过的两条路",
-  "time_text": "1840.6 — 1864.7",
+  "subtitle": "从鸦片战争到帝制终结",
+  "time_text": "1840.6 — 1912.2",
   "protagonist_chain": [
     "av_guan_tianpei",
-    "av_lixiucheng"
+    "av_lixiucheng",
+    "av_li_hongzhang",
+    "av_kang_youwei",
+    "av_sun_zhongshan"
   ],
   "hub_map": null,
   "corridor_bgm": "bgm_corridor",

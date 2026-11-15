@@ -1,33 +1,34 @@
 # 第七章 实施、验收与风险
 
-> 本章原本是"第一期五阶段 WBS + 里程碑时间表"。**范围已经收缩为一章（序章两幕），并且已经做完**，所以改为三件事：① 对照交付物说明"做完了什么"；② 给出可执行的验收命令；③ 列出剩下的缺口与风险。
+> 本章原本是"第一期五阶段 WBS + 里程碑时间表"。**范围已经收缩为一章（序章五幕，1840—1912），并且已经做完**，所以改为三件事：① 对照交付物说明"做完了什么"；② 给出可执行的验收命令；③ 列出剩下的缺口与风险。
 
 ## 7.1 交付范围与完成状态
 
 | 交付物 | 状态 | 实现位置 |
 | --- | --- | --- |
-| 序章两幕：11 张事件卡 / 9 个玩法节点 | ✅ | `public/data/acts/ch00_act1.json`、`ch00_act2.json`、`nodes/nodes_ch00.json` |
+| 序章五幕：24 张事件卡 / 20 个玩法节点 | ✅ | `public/data/acts/ch00_act1.json` … `ch00_act5.json`、`nodes/nodes_ch00.json` |
 | 3 个副本（租界暗巷 / 城外匪寨 / 沪上码头） | ✅ | `public/data/dungeons/dungeons.json` |
 | 战斗：近战刀、远程弓、闪避、虎门重炮 | ✅ | `scenes/LevelScene.ts`、`Player.ts`、`core/cannon.ts` |
 | 装备：五槽位、三品质、10 词条、掉落与保底、强化与拆解 | ✅ | `scenes/EquipmentScene.ts`、`core/dungeon.ts` |
-| 成长：Lv1—8、经验曲线、知识加成 | ✅ | `core/balance.ts`、`SaveManager.ts` |
-| 时间轴长廊与三道幕门 | ✅ | `scenes/HubScene.ts`、`scenes/GraphScene.ts` |
-| 知识图鉴（12 张）与章末测验（12 题库抽 5） | ✅ | `scenes/CodexScene.ts`、`scenes/QuizScene.ts`、`core/quiz.ts` |
+| 成长：Lv1—10、经验曲线、知识加成 | ✅ | `core/balance.ts`、`SaveManager.ts` |
+| 时间轴长廊：5 道幕门 + 国运血条 | ✅ | `scenes/HubScene.ts`、`scenes/GraphScene.ts` |
+| 知识图鉴（25 张）与章末测验（22 题库抽 5） | ✅ | `scenes/CodexScene.ts`、`scenes/QuizScene.ts`、`core/quiz.ts` |
 | 非战斗内核：F 探索 / G 经营 / I 抉择 + 插片 Q | ✅ | `core/management.ts`、`core/graph.ts`、`DialogueBox.ts` |
+| 国运刻度与终局卡（1912 帝制终结） | ✅ | `scenes/HubScene.ts`（血条）、`LevelScene.finishAct()` / `showEnding()`、`tests/chronicle.test.ts` |
 | 存档：localStorage、版本迁移、导出字符串 | ✅ | `core/SaveManager.ts` |
 | 移动端：虚拟摇杆、横屏门、安全区 | ✅ | `systems/InputSystem.ts`、`systems/OrientationGate.ts` |
 | 程序合成音效（炮火余响 / 城破 / 丧钟） | ✅ | `systems/AudioKit.ts` |
 | 屏幕空间与横竖屏适配 | ✅ | `core/space.ts`、`core/orientation.ts` |
 | BGM 与音效素材 | 🟡 程序合成版已做（v1.9.0） | 见 6.6.2 / 6.6.3；6 首 BGM 谱面在 `game/src/core/bgm.ts`、14 条音效在 `AudioKit`，真人音源到货只换播放层 |
 | 单位行走与攻击动画帧 | 🟡 从底图切帧（v1.9.1） | 见 6.3.2；`core/unitFrames.ts` 按腿带切出 stepA/stepB/swing 三帧，`gfx/UnitFrames.ts` 烘成派生纹理，对甲方出的老兵种同样生效；两帧步态，不做四帧循环 |
-| 第二幕人物贴图与立绘 | 🟡 立绘 + 兵种贴图都已做（v1.9.0 / v1.9.1） | 见 6.3.2；立绘 `tools/gen_portraits.py`（14 人 96×112），兵种 `tools/gen_units.py`（20 兵种 × 四朝向 24×32）；都是程序生成，等真人美术替换 |
+| 第二幕人物贴图与立绘 | 🟡 立绘 + 兵种贴图都已做（v1.9.0 / v1.9.1） | 见 6.3.2；立绘 `tools/gen_portraits.py`（22 人 96×112），兵种 `tools/gen_units.py`（20 兵种 × 四朝向 24×32）；都是程序生成，等真人美术替换 |
 | 像素中文字体 | 🟡 方案 ② 已做（v1.9.1） | 见 4.9.2；≥16px 短标题走「1 倍栅格 + 1px 描边」点阵化，小字保持清晰（甲方 m01507/m14676），判据 `core/pixelFont.ts`；①开源字库 / ③自绘仍留待定稿后评估 |
 
 ## 7.2 验收（可执行，按顺序跑）
 
 ```bash
 pnpm exec tsc --noEmit          # 类型
-pnpm test                       # 25 个测试文件 / 474 条，见 game/tests/README.md
+pnpm test                       # 26 个测试文件 / 486 条，见 game/tests/README.md
 pnpm build                      # 产物能构建
 node game/tools/serve.mjs       # 起本地服务（另开一个终端）
 node game/tools/cdp-e2e.mjs     # 端到端：首屏 → 第一幕 → 战斗 → 存档
@@ -38,7 +39,7 @@ node game/tools/cdp-e2e.mjs     # 端到端：首屏 → 第一幕 → 战斗 �
 | 编号 | 验收项 | 通过条件 | 测量方式 |
 | --- | --- | --- | --- |
 | A-1 | 引擎稳定 | 连续运行 20 分钟无崩溃、无卡死 | Chrome 开发者工具监听 |
-| A-2 | 流程可通 | 标题 → 两幕 → 章末测验一气呵成，无需重开 | 3 名试玩者全部完成 |
+| A-2 | 流程可通 | 标题 → 五幕 → 章末测验 → 终局卡一气呵成，无需重开 | 3 名试玩者全部完成 |
 | A-3 | Boss 可过 | 每个 Boss 在 40 秒内可通过（含走位与闪避） | 计时器统计 |
 | A-4 | 存档可靠 | 中途退出 → 重新打开 → "继续" → 回到离开位置 | 任意关卡中途退出再恢复 |
 | A-5 | 首屏速度 | 点击链接到标题画面 ≤ 3 秒（4G） | Chrome 限速 Fast 3G |

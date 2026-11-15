@@ -283,6 +283,333 @@
     "OK",
     "OK"
    ]
+  },
+  {
+   "id": "ev_1861_zongli",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act3",
+   "title": "总理衙门设立",
+   "date": "1861.1",
+   "place": "北京东堂子胡同",
+   "figures": [
+    "yixin",
+    "woren",
+    "li_hongzhang",
+    "cixi"
+   ],
+   "document": "",
+   "result": "清政府设立总理各国事务衙门，专管外交与洋务。中国第一次有了近代意义上的外交机构，洋务运动由此展开。",
+   "archetype": "F",
+   "knowledge_id": "kc_1861_zongli",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1865_jiangnan",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act3",
+   "title": "江南制造总局创办",
+   "date": "1865",
+   "place": "上海高昌庙",
+   "figures": [
+    "li_hongzhang",
+    "gongjiang"
+   ],
+   "document": "",
+   "result": "李鸿章在上海创办江南机器制造总局，用机器制造枪炮弹药与轮船，是中国第一个近代军事工业企业。",
+   "archetype": "G",
+   "knowledge_id": "kc_1865_jiangnan",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1872_liuxue",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act3",
+   "title": "幼童留美",
+   "date": "1872—1881",
+   "place": "上海—美国",
+   "figures": [
+    "li_hongzhang"
+   ],
+   "document": "",
+   "result": "清政府先后派出四批 120 名幼童赴美留学，詹天佑即在其中。官派留学由此开始，1881 年因保守派反对被提前撤回。",
+   "archetype": "F",
+   "knowledge_id": "kc_1872_liuxue",
+   "hidden": true,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1894_jiawu",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act3",
+   "title": "甲午战争",
+   "date": "1894.7—1895.4",
+   "place": "朝鲜、黄海、辽东",
+   "figures": [
+    "li_hongzhang",
+    "deng_shichang",
+    "jp_colonel"
+   ],
+   "document": "",
+   "result": "甲午中日战争爆发，北洋舰队在黄海海战中损失惨重，1895 年初全军覆没。洋务运动三十年的成果，在这场战争中被打回原形。",
+   "archetype": "J",
+   "knowledge_id": "kc_1894_jiawu",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1895_maguan",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act3",
+   "title": "《马关条约》签订",
+   "date": "1895.4.17",
+   "place": "日本马关春帆楼",
+   "figures": [
+    "li_hongzhang"
+   ],
+   "document": "《马关条约》",
+   "result": "清政府被迫签订《马关条约》：割台湾、澎湖、辽东，赔款两亿两白银。列强随即掀起瓜分中国的狂潮。",
+   "archetype": "I",
+   "knowledge_id": "kc_1895_maguan",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1895_gongche",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act4",
+   "title": "公车上书",
+   "date": "1895.5",
+   "place": "北京都察院",
+   "figures": [
+    "kang_youwei",
+    "liang_qichao"
+   ],
+   "document": "《上今上皇帝书》",
+   "result": "康有为联合十八省举人上书光绪帝，提出拒和、迁都、练兵、变法。维新思想由议论变为运动。",
+   "archetype": "F",
+   "knowledge_id": "kc_1895_gongche",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1898_bianfa",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act4",
+   "title": "百日维新",
+   "date": "1898.6.11—9.21",
+   "place": "北京",
+   "figures": [
+    "guangxu",
+    "kang_youwei",
+    "cixi"
+   ],
+   "document": "《明定国是诏》",
+   "result": "光绪帝下诏变法，废八股、办学堂、裁冗官、鼓励实业。因守旧派反对，变法仅维持 103 天。",
+   "archetype": "F",
+   "knowledge_id": "kc_1898_bianfa",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1898_coup",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act4",
+   "title": "戊戌政变",
+   "date": "1898.9.21",
+   "place": "北京",
+   "figures": [
+    "cixi",
+    "guangxu",
+    "yuan_shikai"
+   ],
+   "document": "",
+   "result": "慈禧太后发动政变，囚禁光绪帝，废除新政，捕杀维新人士。康有为、梁启超流亡海外。",
+   "archetype": "J",
+   "knowledge_id": "kc_1898_coup",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1898_liujunzi",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act4",
+   "title": "戊戌六君子遇害",
+   "date": "1898.9.28",
+   "place": "北京菜市口",
+   "figures": [
+    "tan_sitong",
+    "cixi"
+   ],
+   "document": "",
+   "result": "谭嗣同、林旭、杨锐、刘光第、杨深秀、康广仁六人遇害。谭嗣同临刑前留下「有心杀贼，无力回天」。",
+   "archetype": "I",
+   "knowledge_id": "kc_1898_liujunzi",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1911_wuchang",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act5",
+   "title": "武昌起义",
+   "date": "1911.10.10",
+   "place": "武昌",
+   "figures": [
+    "xinhai_bing",
+    "li_yuanhong"
+   ],
+   "document": "",
+   "result": "湖北新军工程第八营起义，攻占总督衙门，成立湖北军政府。两个月内十几个省宣布独立，清王朝土崩瓦解。",
+   "archetype": "C",
+   "knowledge_id": "kc_1911_wuchang",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1911_nanjing",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act5",
+   "title": "中华民国成立",
+   "date": "1912.1.1",
+   "place": "南京",
+   "figures": [
+    "sun_zhongshan"
+   ],
+   "document": "《中华民国临时大总统宣言书》",
+   "result": "孙中山在南京就任临时大总统，宣告中华民国成立。中国历史上第一个共和制政权诞生。",
+   "archetype": "F",
+   "knowledge_id": "kc_1911_nanjing",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1912_tuwei",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act5",
+   "title": "清帝退位",
+   "date": "1912.2.12",
+   "place": "北京",
+   "figures": [
+    "longyu",
+    "yuan_shikai",
+    "sun_zhongshan"
+   ],
+   "document": "《清帝退位诏书》",
+   "result": "宣统帝下诏退位，清王朝覆灭，中国两千一百多年的君主专制制度终结。",
+   "archetype": "I",
+   "knowledge_id": "kc_1912_tuwei",
+   "hidden": false,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
+  },
+  {
+   "id": "ev_1912_yuefa",
+   "chapter_id": "ch00",
+   "act_id": "ch00_act5",
+   "title": "《中华民国临时约法》",
+   "date": "1912.3.11",
+   "place": "南京",
+   "figures": [
+    "sun_zhongshan"
+   ],
+   "document": "《中华民国临时约法》",
+   "result": "临时政府颁布《中华民国临时约法》，以根本大法废除君主专制，规定主权在民、三权分立。",
+   "archetype": "F",
+   "knowledge_id": "kc_1912_yuefa",
+   "hidden": true,
+   "unlock_condition": null,
+   "five_element_check": [
+    "OK",
+    "OK",
+    "OK",
+    "OK",
+    "OK"
+   ]
   }
  ]
 }

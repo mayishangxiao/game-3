@@ -1,0 +1,35 @@
+{
+  "id": "ch00_act3",
+  "chapter_id": "ch00",
+  "seq": 3,
+  "name": "洋务运动",
+  "avatar": "av_li_hongzhang",
+  "events": [
+    "ev_1861_zongli",
+    "ev_1865_jiangnan",
+    "ev_1872_liuxue",
+    "ev_1894_jiawu",
+    "ev_1895_maguan"
+  ],
+  "primary_archetype": "G",
+  "secondary_archetypes": [
+    "F",
+    "C",
+    "I"
+  ],
+  "map_refs": [
+    "map_ch00_tp_city",
+    "map_ch00_tp_battlefield"
+  ],
+  "bgm": "bgm_ch00_act3",
+  "first_clear_reward": "eq_wp_dao_dock_blue_01",
+  "exp_base": 620,
+  "nodes": [
+    "nd_1861_zongli_dialog",
+    "nd_1865_jiangnan_manage",
+    "nd_1894_jiawu_battle",
+    "nd_1895_maguan_choice"
+  ],
+  "year_label": "1861",
+  "dynasty_after": 35
+}

@@ -11,10 +11,12 @@ import { dataLoader } from '../core/DataLoader';
 import { getSave, persist } from './BootScene';
 import { effectiveStats } from '../core/balance';
 import { dungeonUnlocked, getDungeonState } from '../core/dungeon';
+import { DYNASTY_MAX } from '../core/cannon';
 import { emitObjective, emitSceneLabel, emitToast } from '../core/EventBus';
 import type { ActDef, ChapterMeta } from '../core/types';
+import { FONT_UI } from '../gfx/TextStyle';
 import { bgm } from '../systems/Bgm';
-import { hideOverlay, showOverlay } from '../systems/DomUi';
+import { hideOverlay, hideTitle, showOverlay } from '../systems/DomUi';
 
 interface DoorEntry {
   actId: string;
@@ -33,6 +35,9 @@ export class HubScene extends Phaser.Scene {
   private targetCamX = 0;
   private corridor!: Phaser.GameObjects.Container;
   private doorLabelEls: HTMLDivElement[] = [];
+  /** 长廊左下角国运血条下面那行「通关本幕后 国运 → N」，随光标变化 */
+  private actDynastyText!: Phaser.GameObjects.Text;
+  private actDefs: (ActDef | null)[] = [];
 
   constructor() {
     super('Hub');
@@ -58,6 +63,9 @@ export class HubScene extends Phaser.Scene {
     }
     this.meta = meta;
 
+    // 标题页大字与长廊底板同为 DOM 层：直接进长廊（探针、以后的选关菜单）时不会经过
+    // TitleScene 的 hideTitle()，不在这里收掉就会压在长廊标题上。
+    hideTitle();
     this.cameras.main.setBackgroundColor(PALETTE.night);
     this.buildSky();
 
@@ -93,14 +101,9 @@ export class HubScene extends Phaser.Scene {
       }),
     );
 
-    const startX = 64;
+    // 副本面板占住左侧 8..168：五幕时第一个门不能从这里起步，否则被面板压住
+    const startX = 200;
     const gap = 118;
-
-    /** 每一幕对应的年代石柱年份 */
-    const ACT_YEARS: Record<string, string> = {
-      ch00_act1: '1840',
-      ch00_act2: '1851',
-    };
 
     all.forEach((a, i) => {
       const act = acts[i];
@@ -147,6 +150,8 @@ export class HubScene extends Phaser.Scene {
     );
 
     if (this.doors.length > 0) this.setCursor(0);
+    this.actDefs = acts;
+    this.buildDynastyBar();
 
     // DOM 层不归 Phaser 的场景生命周期管，离开长廊必须自己收干净。
     // **Phaser 3.90 不会自动调用场景里名叫 `shutdown` 的方法**（dist 里 `Systems.shutdown`
@@ -164,7 +169,7 @@ export class HubScene extends Phaser.Scene {
     this.doorLabelEls = [];
     all.forEach((a, i) => {
       const act = acts[i];
-      const year = ACT_YEARS[a.id] ?? '—';
+      const year = act?.year_label ?? '—';
       const el = document.createElement('div');
       el.style.cssText = `position:absolute;left:0;top:0;transform:translate(-50%,0);text-align:center;font:12px sans-serif;pointer-events:none;`;
       el.innerHTML = `<div style="color:${a.implemented ? '#F2EDE4' : '#6B6489'};font-size:13px;">${act ? `${i + 1}. ${act.name}` : `${i + 1}. 未开放`}</div><div style="color:#C2BCD1;font-size:11px;margin-top:30px;">${year}</div>`;
@@ -218,6 +223,52 @@ export class HubScene extends Phaser.Scene {
     );
 
     this.buildDungeonPanel();
+  }
+
+  /**
+   * 长廊左下角的国运（清王朝）血条。
+   *
+   * 老师要的第一段历史总线是「清王朝 100 → 归零」：每一幕按史实扣一截
+   * （鸦片战争 −30、太平天国 −15、甲午 −20、戊戌 −10、辛亥 −25）。
+   * 这里既画当前值，也跟着光标显示「通关这一幕之后会降到几」——
+   * 不这样的话，玩家在长廊里完全看不出国运在动（甲方反馈的点）。
+   */
+  private buildDynastyBar(): void {
+    const s = getSave();
+    const dyn = Phaser.Math.Clamp(s.progress.dynasty ?? DYNASTY_MAX, 0, DYNASTY_MAX);
+    const x = 10;
+    const y = 214;
+    const w = 132;
+    const h = 7;
+    this.add
+      .rectangle(x + w / 2, y, w, h, PALETTE.plumDark)
+      .setStrokeStyle(1, PALETTE.greyPlum)
+      .setDepth(DEPTH.hud);
+    this.add
+      .rectangle(x, y, Math.max(1, (w * dyn) / DYNASTY_MAX), h, PALETTE.redBright)
+      .setOrigin(0, 0.5)
+      .setDepth(DEPTH.hud + 1);
+    this.add
+      .text(x, y - 14, `清王朝 ${dyn}`, { fontFamily: FONT_UI, fontSize: '11px', color: '#F0C419' })
+      .setDepth(DEPTH.hud + 1);
+    this.actDynastyText = this.add
+      .text(x, y + 7, '', { fontFamily: FONT_UI, fontSize: '9px', color: '#948DAB' })
+      .setDepth(DEPTH.hud + 1);
+    this.updateActDynastyText();
+  }
+
+  /** 光标所在幕通关后的国运刻度（没有配 dynasty_after 的幕不显示） */
+  private updateActDynastyText(): void {
+    if (!this.actDynastyText) return;
+    const d = this.doors[this.cursor];
+    const act = d ? this.actDefs[this.doors.indexOf(d)] : null;
+    const target = act?.dynasty_after;
+    if (target === undefined || target === null) {
+      this.actDynastyText.setText('');
+      return;
+    }
+    const cleared = getSave().achievements.includes(`act_cleared_${d.actId}`);
+    this.actDynastyText.setText(cleared ? `本幕已过　国运 → ${target}` : `通关本幕后　国运 → ${target}`);
   }
 
   private actsAllCleared(): boolean {
@@ -325,6 +376,7 @@ export class HubScene extends Phaser.Scene {
     const d = this.doors[i];
     if (!d) return;
     this.targetCamX = Phaser.Math.Clamp(d.x - VIEW_W / 2, 0, Math.max(0, this.doors.length * 118));
+    this.updateActDynastyText();
   }
 
   private enter(i: number): void {

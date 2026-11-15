@@ -514,6 +514,9 @@ export const UNIT_ART: Record<string, string> = {
   thug: `${ART_ROOT}/units/thug`,
   qing_cavalry: `${ART_ROOT}/units/qing_cavalry`,
   uk_officer: `${ART_ROOT}/units/uk_officer`,
+  // v2.0（洋务/戊戌/辛亥三幕）：日军步兵与大尉
+  jp_infantry: `${ART_ROOT}/units/jp_infantry`,
+  jp_officer: `${ART_ROOT}/units/jp_officer`,
 };
 
 /**
@@ -558,6 +561,14 @@ export function unitArtOf(enemyId: string): string {
       return 'thug';
     case 'en_boss_steamfrigate':
       return 'uk_infantry';
+    // 甲午（第三幕）与辛亥革命（第五幕）的兵种
+    case 'en_jp_infantry':
+      return 'jp_infantry';
+    case 'en_jp_officer':
+    case 'en_boss_jp_colonel':
+      return 'jp_officer';
+    case 'en_boss_qing_zhitong':
+      return 'qing_batou';
     default:
       break;
   }

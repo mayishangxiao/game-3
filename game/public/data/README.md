@@ -7,23 +7,23 @@
 
 | 路径 | 内容 | 数量 | 主键 |
 | --- | --- | --- | --- |
-| `index.json` | 游戏索引：章列表与每章已实现的 `acts`（本期只有 ch00，两幕都已完成；旧字段 `acts_planned` 已删除） | 1 章 | `chapters[].id` |
+| `index.json` | 游戏索引：章列表与每章已实现的 `acts`（本期只有 ch00，五幕都已完成；旧字段 `acts_planned` 已删除） | 1 章 | `chapters[].id` |
 | `config.json` | **数值唯一真相**：经验曲线、HP/攻/防公式、伤害与闪避、**`damage.player_damage_mult`（我方出手总体倍率）**、等级系数、4 把武器、敌人档位（含 Boss HP）、10 条词条、品质倍率、知识加成、战斗反馈、UI、**`ui.portraits`（说话人 → 立绘路径）** | — | `weapons[].id` `affixes[].id` |
 | `chapters/ch00.json` | 章节元数据：名称、年代、主角链、长廊地图、完成度权重 | 1 | `id` |
-| `acts/ch00_act1.json` `acts/ch00_act2.json` | 幕定义：`events[]` `nodes[]` `map_refs[]` 顺序、原型（主/次）、首通奖励、`exp_base` | 2 | `id` |
-| `nodes/nodes_ch00.json` | 节点（关卡内的一次挑战）：`type` = explore/combat/cutscene/choice/escort/management + `params` | 9 | `id` |
-| `events/events_ch00.json` | 历史事件卡（图鉴条目 + 关卡题材）：时间、地点、人物、文献、结果、五要素核对 | 11 | `id` |
-| `knowledge/knowledge_all.json` | 知识卡：摘要/详解/出处/标签/**`links`（因果边，图谱玩法就靠它）** | 12 | `id` |
-| `enemies/enemies_ch00.json` | 敌人：`tier` `hp_base` `atk_base` `def_base` `spd` `ai_params`（`attack_cooldown_ms` = 出手间隔）、`boss_phases`、**`final_strike`（Boss 半血剧情杀）**、`color` `size` | 19 | `id` |
+| `acts/ch00_act1.json` `acts/ch00_act2.json` `acts/ch00_act3.json` `acts/ch00_act4.json` `acts/ch00_act5.json` | 幕定义：`events[]` `nodes[]` `map_refs[]` 顺序、原型（主/次）、首通奖励、`exp_base`、**`year_label`（长廊年代石柱）**、**`dynasty_after`（通关后国运落在几）** | 5 | `id` |
+| `nodes/nodes_ch00.json` | 节点（关卡内的一次挑战）：`type` = explore/combat/cutscene/choice/escort/management + `params` | 20 | `id` |
+| `events/events_ch00.json` | 历史事件卡（图鉴条目 + 关卡题材）：时间、地点、人物、文献、结果、五要素核对 | 24 | `id` |
+| `knowledge/knowledge_all.json` | 知识卡：摘要/详解/出处/标签/**`links`（因果边，图谱玩法就靠它，只能指向事件卡 id）** | 25 | `id` |
+| `enemies/enemies_ch00.json` | 敌人：`tier` `hp_base` `atk_base` `def_base` `spd` `ai_params`（`attack_cooldown_ms` = 出手间隔）、`boss_phases`、**`final_strike`（Boss 半血剧情杀）**、`color` `size` | 23 | `id` |
 | `equipment/items_base.json` | 装备模板：`slot` `quality` `stat` `base_value` `quality_multiplier` `source`，武器模板可选 `weapon_ref`（指向 `config.json.weapons`，进关卡真的换武器；见 `design/03_systems.md` 4.3.7） | 16 | `id` |
 | `equipment/drops.json` | 掉落规则：按来源类型的掉率、部位权重、品质权重；`pity` 保底参数 | 5 条规则 | `rules[].source_type` |
 | `dungeons/dungeons.json` | 副本：波次（`waves[]`）、Boss、`quality_weights`、`unique_drop`、`unlock_act` | 3 | `id` |
 | `maps/map_ch00_act1a.json` `maps/map_ch00_act1b.json` `maps/map_ch00_act2a.json` `maps/map_ch00_act2b.json` `maps/map_ch00_tp_village.json` `maps/map_ch00_tp_city.json` `maps/map_ch00_tp_battlefield.json` `maps/map_dg01_alley.json` `maps/map_dg02_bandit.json` `maps/map_dg03_dock.json` | 瓦片地图：`width/height` `tile_colors` `spawn` `layers[]` `objects[]` `triggers[]`（清单见第六节）。`map_ch00_act2a/b` 自 v1.1 起保留为回退素材、不再被引用 | 10 张 | `id` |
-| `quiz/quiz_ch00.json` | 章末题库：题干/选项/答案/解析/`knowledge_ref` | 12 题（抽 5） | `pool[].id` |
-| `dialogues/dlg_ch00.json` | 对话块 + NPC 表 | 9 块 | `dialogues[].id` |
+| `quiz/quiz_ch00.json` | 章末题库：题干/选项/答案/解析/`knowledge_ref` | 22 题（抽 5） | `pool[].id` |
+| `dialogues/dlg_ch00.json` | 对话块 + NPC 表 | 48 块 | `dialogues[].id` |
 
 > **美术资源不在这张表里**：图片放 `public/art/`（`ship/` 舰船帧、`props/` 地图物件、`portrait_*.png` 立绘），
-> 路径登记在两处——立绘在 `config.json → ui.portraits`（说话人 id → 文件，v1.9.0 起共 14 人），舰船/箱子在 `src/core/constants.ts` 的 `ART`。
+> 路径登记在两处——立绘在 `config.json → ui.portraits`（说话人 id → 文件，v1.9.2 起共 22 人），舰船/箱子在 `src/core/constants.ts` 的 `ART`。
 > `ui.portraits` 是立绘的**唯一登记处**：`systems/DialogueBox.ts` 只把这里的路径交给 DOM 的 `#dom-dlg-portrait`（canvas 上的图会被半透明对白底板压暗，所以不在 canvas 画）。
 > `tests/art.test.ts` 会拿磁盘上的 `art/portrait_*.png` 与这张登记表**互相**校验（多一张、少一张、文件名与说话人 id 不一致都红），并检查尺寸统一 96×112。
 > 加一位说话人：① `tools/gen_portraits.py` 的 `PEOPLE` 表加一行并重跑，② 在这里加一条 `"<speaker>": "art/portrait_<speaker>.png"`，③ 对白数据里 `speaker` 用同一个 id。

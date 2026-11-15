@@ -46,7 +46,7 @@ import {
 import { DefeatCinematic } from '../systems/DefeatCinematic';
 import { controls } from '../systems/InputSystem';
 import { DialogueBox } from '../systems/DialogueBox';
-import { hideDialogue, hideFloat, hideOverlay, hideToast, moveFloat, prefetchPortraits, showFloat, showOverlay } from '../systems/DomUi';
+import { hideDialogue, hideFloat, hideOverlay, hideTitle, hideToast, moveFloat, prefetchPortraits, showFloat, showOverlay } from '../systems/DomUi';
 import { MapRenderer } from '../gfx/MapRenderer';
 import { backdropImage, horizonImage, HORIZON_H } from '../gfx/Backdrop';
 import { isFootBlocked, nearestOpenPoint } from '../core/space';
@@ -860,6 +860,9 @@ export class LevelScene extends Phaser.Scene {
     hideOverlay();
     hideDialogue();
     hideFloat();
+    // 标题页的三行大字（含底部 WASD 提示）也是 DOM：不是从「开始游戏」进来的路径
+    // （探针直跳、以后加选关菜单）不会经过 TitleScene 的 hideTitle()，会整块压在关卡上。
+    hideTitle();
     // 甲方「我方攻击减半」：倍率来自内容层，缺省 1（旧配置不会突然变弱）
     PLAYER_DMG = this.cfg.player_damage_mult ?? 1;
 
@@ -966,8 +969,12 @@ export class LevelScene extends Phaser.Scene {
         this.save.equipment,
         this.cfg,
       );
-      this.player.resetForNode(stats);
-      this.applyEquippedWeapon();
+      // create() 里 player 先置空再等 boot()：若上一轮 stop/start 撞在 await 上，
+      // 这里会拿到 null（探针连跳节点时踩到过）。没有 player 就没得复位，直接跳过。
+      if (this.player) {
+        this.player.resetForNode(stats);
+        this.applyEquippedWeapon();
+      }
 
       const st = getDungeonState(this.save, d.id);
       // 副本没有「幕」：左上角直接显示副本名与推荐等级年份位
@@ -1489,35 +1496,42 @@ export class LevelScene extends Phaser.Scene {
     if (b.ours) troopRows.push(['我方', b.ours]);
     if (b.enemy) troopRows.push(['敌军', b.enemy]);
 
+    // 战力对比 + 双方兵力**必须放在同一个顺序流里**。
+    // 旧版把两块分别绝对定位在 top:150 / top:210，中间只留 60px；而「岸炮要打穿铁壳
+    // 才能伤到船，装填一次要一分多钟」这类说明换行后单块就有 70–90px 高，直接把兵力块
+    // 压在下面（甲方截图里的「文字重叠」）。这里改成从上往下自然堆叠，高度由内容决定。
     const powerHtml = b.power
-      ? `<div style="position:absolute;left:118px;right:46px;top:150px;">
-          <div style="color:#F0C419;font-weight:bold;font-size:13px;margin-bottom:4px;">${b.power.title ?? '战力对比'}</div>
-          ${powerRows
-            .map(
-              (r) => `<div style="margin:2px 0;"><span style="color:${r.color};font-weight:bold;font-size:14px;margin-right:8px;">${r.tag}</span><span style="font-size:14px;">${r.val}</span></div>`,
-            )
-            .join('')}
-          ${b.power.gap ? `<div style="color:#F0C419;font-size:14px;margin-top:6px;">${b.power.gap}</div>` : ''}
-        </div>`
+      ? `<div style="color:#F0C419;font-weight:bold;font-size:13px;margin-bottom:3px;">${b.power.title ?? '战力对比'}</div>
+         ${powerRows
+           .map(
+             (r) => `<div style="margin:1px 0;font-size:13px;line-height:1.45;"><span style="color:${r.color};font-weight:bold;margin-right:6px;">${r.tag}</span>${r.val}</div>`,
+           )
+           .join('')}
+         ${b.power.gap ? `<div style="color:#F0C419;font-size:13px;line-height:1.45;margin-top:5px;">${b.power.gap}</div>` : ''}`
       : '';
 
     const troopHtml =
       troopRows.length > 0
-        ? `<div style="position:absolute;left:118px;right:46px;top:210px;background:rgba(13,11,20,.42);padding:4px 8px;">
+        ? `<div style="margin-top:6px;background:rgba(13,11,20,.42);padding:3px 7px;">
           ${troopRows
             .map(
               ([label, value]) =>
-                `<div style="margin:2px 0;"><span style="color:${label === '敌军' ? '#E85C4A' : '#C2BCD1'};font-size:12px;margin-right:12px;">${label}</span><span style="font-size:14px;">${value}</span></div>`,
+                `<div style="margin:1px 0;font-size:13px;line-height:1.4;"><span style="color:${label === '敌军' ? '#E85C4A' : '#C2BCD1'};font-size:12px;margin-right:10px;">${label}</span>${value}</div>`,
             )
             .join('')}
         </div>`
         : '';
 
+    // 一个容器从 top:118 往下排，不再出现「第二块固定 top」被上一块盖住的情况
+    const infoHtml =
+      powerHtml || troopHtml
+        ? `<div style="position:absolute;left:96px;right:38px;top:118px;">${powerHtml}${troopHtml}</div>`
+        : '';
+
     showOverlay(
-      `<div style="position:absolute;left:0;top:24px;width:100%;text-align:center;color:#F0C419;font-weight:bold;font-size:26px;">${b.time}</div>
-       <div style="position:absolute;left:0;top:52px;width:100%;text-align:center;font-size:16px;">${b.place}</div>
-       ${powerHtml}
-       ${troopHtml}
+      `<div style="position:absolute;left:0;top:18px;width:100%;text-align:center;color:#F0C419;font-weight:bold;font-size:22px;line-height:1.25;">${b.time}</div>
+       <div style="position:absolute;left:0;top:52px;width:100%;text-align:center;font-size:15px;line-height:1.3;">${b.place}</div>
+       ${infoHtml}
        <div id="dom-hint" style="position:absolute;left:0;top:252px;width:100%;text-align:center;color:#F0C419;font-size:13px;animation:blink 1.4s ease-in-out infinite;">点击开始战斗</div>
        <style>@keyframes blink{0%,100%{opacity:.4}50%{opacity:1}}</style>`,
     );
@@ -2147,12 +2161,17 @@ export class LevelScene extends Phaser.Scene {
       this.save.equipment,
       this.cfg,
     );
-    this.player.resetForNode(stats);
-    this.applyEquippedWeapon();
-    // 重试必须回到关卡出生点：以前只把 alive 翻回 true，玩家还站在倒下的位置，
-    // 看起来就是「原地诈尸」。地图没换时 buildWorld 不会重跑，这一步得在这里做。
-    const spawn = this.map?.def.spawn;
-    if (spawn) this.player.rig.setPosition((spawn.x + 0.5) * TILE, (spawn.y + 0.5) * TILE);
+    // 没有地图的节点（过场 / 抉择）不会建 world，也就没有 player。
+    // 正常流程里玩家是从上一关走进来的，player 还在；但直接起在无图节点时
+    // （探针跳节点、以后做「从章节菜单选关」）会拿到 null，旧版在这里直接崩。
+    if (this.player) {
+      this.player.resetForNode(stats);
+      this.applyEquippedWeapon();
+      // 重试必须回到关卡出生点：以前只把 alive 翻回 true，玩家还站在倒下的位置，
+      // 看起来就是「原地诈尸」。地图没换时 buildWorld 不会重跑，这一步得在这里做。
+      const spawn = this.map?.def.spawn;
+      if (spawn) this.player.rig.setPosition((spawn.x + 0.5) * TILE, (spawn.y + 0.5) * TILE);
+    }
 
     // 第一幕「搬鸦片箱投销烟池」的 pickup 是专属可交互物，只在探索关有意义。
     // 战斗 / 经营 / 护送关里出现就会串幕（天京战场残留两箱、头顶还带金色标记）。
@@ -3801,29 +3820,67 @@ export class LevelScene extends Phaser.Scene {
 
     const overlay = this.add.container(0, 0).setDepth(DEPTH.overlay);
     overlay.add(
-      this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.9).setOrigin(0.5),
-    );
-    overlay.add(
-      this.add
-        .text(VIEW_W / 2, 54, params.prompt ?? '', {
-          fontFamily: FONT_UI,
-          fontSize: '12px',
-          color: '#F2EDE4',
-          align: 'center',
-          wordWrap: { width: VIEW_W - 60 },
-        })
-        .setOrigin(0.5),
+      this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.94).setOrigin(0.5),
     );
 
+    // 抉择是整屏面板：左上角的战役条 / 清王朝条属于 UIScene（画在 LevelScene 之上的
+    // 另一个场景），不藏起来就会盖住题干（甲方反馈的「答题画面文字被遮挡」）。
+    // 上一节点的对白框同理，它是 DOM 层，比 canvas 更高。
+    setHudVisible(false);
+    this.dialogue?.hide();
+    hideToast();
+
+    // ── 题干：按实际文本高度排版，不再假定只有一行
+    const promptText = this.add
+      .text(VIEW_W / 2, 30, params.prompt ?? '', {
+        fontFamily: FONT_UI,
+        fontSize: '12px',
+        color: '#F2EDE4',
+        align: 'center',
+        wordWrap: { width: VIEW_W - 56 },
+        lineSpacing: 4,
+      })
+      .setOrigin(0.5, 0);
+    overlay.add(promptText);
+
+    // ── 选项：逐个量高度（长选项换行后底板跟着变高），从上往下顺序堆叠。
+    // 旧版固定 220×20 + y=104+i*26，长标签既不换行也没有底板兜住，
+    // 换行后文字会压到相邻选项上。
+    const panelW = VIEW_W - 40;
+    let y = 30 + promptText.height + 14;
+    const buttons: { rect: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text }[] = [];
+
+    options.forEach((opt) => {
+      const label = this.add.text(VIEW_W / 2 - panelW / 2 + 12, 0, opt.label, {
+        fontFamily: FONT_UI,
+        fontSize: '11px',
+        color: '#F2EDE4',
+        wordWrap: { width: panelW - 24 },
+        lineSpacing: 3,
+      });
+      const h = Math.ceil(label.height) + 10;
+      label.setY(y + (h - label.height) / 2);
+      const rect = this.add
+        .rectangle(VIEW_W / 2, y + h / 2, panelW, h, PALETTE.plumMid, 0.95)
+        .setStrokeStyle(1, PALETTE.greyPlum)
+        .setInteractive({ useHandCursor: true });
+      overlay.add(rect);
+      overlay.add(label);
+      buttons.push({ rect, label });
+      y += h + 6;
+    });
+
+    // ── 结果行接在选项下方
     const resultText = this.add
-      .text(VIEW_W / 2, 168, '', {
+      .text(VIEW_W / 2, Math.min(y + 8, VIEW_H - 40), '', {
         fontFamily: FONT_UI,
         fontSize: '10px',
         color: '#C2BCD1',
         align: 'center',
-        wordWrap: { width: VIEW_W - 60 },
+        wordWrap: { width: VIEW_W - 56 },
+        lineSpacing: 3,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5, 0);
     overlay.add(resultText);
 
     setInputEnabled(false);
@@ -3835,6 +3892,7 @@ export class LevelScene extends Phaser.Scene {
         this.time.delayedCall(1500, () => {
           overlay.destroy();
           setInputEnabled(true);
+          setHudVisible(true);
           this.completeNode();
         });
       } else {
@@ -3846,23 +3904,13 @@ export class LevelScene extends Phaser.Scene {
       }
     };
 
-    options.forEach((opt, i) => {
-      const y = 104 + i * 26;
-      const rect = this.add
-        .rectangle(VIEW_W / 2, y, 220, 20, PALETTE.plumMid, 0.95)
-        .setStrokeStyle(1, PALETTE.greyPlum)
-        .setInteractive({ useHandCursor: true });
-      const label = this.add
-        .text(VIEW_W / 2, y, opt.label, { fontFamily: FONT_UI, fontSize: '11px', color: '#F2EDE4' })
-        .setOrigin(0.5);
-      overlay.add(rect);
-      overlay.add(label);
+    buttons.forEach((b, i) => {
       const onClick = () => {
         setInputEnabled(false);
         tryFinish(i);
       };
-      rect.on('pointerdown', onClick);
-      label.setInteractive({ useHandCursor: true }).on('pointerdown', onClick);
+      b.rect.on('pointerdown', onClick);
+      b.label.setInteractive({ useHandCursor: true }).on('pointerdown', onClick);
     });
   }
 
@@ -4935,10 +4983,13 @@ export class LevelScene extends Phaser.Scene {
       const dmg = this.player.takeDamage(incoming(e.atk * p.damageMult));
       if (dmg > 0) {
         this.cameras.main.shake(240, 0.012);
-        emitToast('被舰炮命中！看到红圈就该躲开', 1500);
+        emitToast(
+          this.bossIsShip(e) ? '被舰炮命中！看到红圈就该躲开' : '被炮火覆盖！看到红圈就该躲开',
+          1500,
+        );
       }
     } else {
-      emitToast('躲开了舰炮', 800);
+      emitToast(this.bossIsShip(e) ? '躲开了舰炮' : '躲开了炮火', 800);
     }
   }
   private bossSummon(e: Enemy, enemyId: string, count: number): void {
@@ -4947,7 +4998,7 @@ export class LevelScene extends Phaser.Scene {
     for (let i = 0; i < count; i++) {
       this.time.delayedCall(i * 300, () => this.spawnEnemy(def, 'right'));
     }
-    emitToast('敌军放下登陆艇', 1300);
+    emitToast(this.bossIsShip(e) ? '敌军放下登陆艇' : '敌兵从两翼压上', 1300);
     void e;
   }
 
@@ -4995,9 +5046,22 @@ export class LevelScene extends Phaser.Scene {
       },
       onComplete: () => {
         e.finishCharge();
-        emitToast('炮舰搁浅，露出弱点！', 1800);
+        // 台词按 Boss 是船还是人分派：湘军统领不会「搁浅」。
+        emitToast(this.bossIsShip(e) ? '炮舰搁浅，露出弱点！' : '主帅阵脚大乱，露出破绽！', 1800);
       },
     });
+  }
+
+  /**
+   * Boss 是舰船还是人 —— **只用于分派台词与预警文案**，不参与伤害、招式表或碰撞。
+   *
+   * 判据沿用 `spawnBossEntities` 的 `body === 'ship'`：换一艘 Boss 船不用改代码。
+   * 背景：太平天国终局（天京陷落）的 Boss 是湘军统领，却沿用军舰的
+   * 「舷炮齐射 / 搁浅」台词，玩家反馈「这场战斗明显没有炮舰」
+   * （原话记作「炮舰击沉」，实际看到的是「炮舰搁浅，露出弱点」）。
+   */
+  private bossIsShip(e: Enemy): boolean {
+    return e.def.body === 'ship';
   }
 
   /**
@@ -5301,10 +5365,139 @@ export class LevelScene extends Phaser.Scene {
         emitToast(`首通奖励：${item.name}`, 2400);
       }
     }
+    // 国运按史实刻度落位（见 ActDef.dynasty_after）。
+    // 关卡内的战败卡也会扣国运，这里用绝对值收口：不管玩家输几次，
+    // 离开这一幕时血条一定停在史实刻度上，长廊里才看得出「一场比一场低」。
+    if (typeof this.act.dynasty_after === 'number') {
+      const before = this.save.progress.dynasty ?? DYNASTY_MAX;
+      this.save.progress.dynasty = Phaser.Math.Clamp(this.act.dynasty_after, 0, DYNASTY_MAX);
+      if (before !== this.save.progress.dynasty) {
+        emitToast(`国运 ${before} → ${this.save.progress.dynasty}`, 2200);
+      }
+    }
     persist();
     setInputEnabled(true);
+
+    // 最后一幕打完 = 清王朝覆灭 = 全篇结束，不再回长廊
+    if (this.isLastAct()) {
+      this.showEnding();
+      return;
+    }
     this.scene.stop('UI');
     this.scene.start('Hub', { chapterId: this.act.chapter_id });
+  }
+
+  /** 这一章里最后一幕？（清帝退位之后不再有内容） */
+  private isLastAct(): boolean {
+    const meta = dataLoader.getChapterMeta(this.act.chapter_id);
+    if (!meta) return false;
+    return meta.acts[meta.acts.length - 1] === this.act.id;
+  }
+
+  /**
+   * 终局：清王朝覆灭。
+   *
+   * 甲方原话「只有到最后清王朝覆灭了才能说觉醒年代游戏结束」，所以这里不再出现
+   * 「觉醒年代，到此收卷」这种像交作业的收尾，而是把 1840—1912 这条线收到「帝制终结」上，
+   * 并明确写出「全篇终」。
+   */
+  private showEnding(): void {
+    this.save.progress.dynasty = 0;
+    if (!this.save.achievements.includes('finale_seen')) this.save.achievements.push('finale_seen');
+    persist();
+
+    this.scene.stop('UI');
+    setHudVisible(false);
+    setControlsVisible(false);
+    setInputEnabled(false);
+    hideOverlay();
+    hideToast();
+    this.dialogue?.hide();
+
+    const c = this.add.container(0, 0).setDepth(DEPTH.overlay + 6).setScrollFactor(0);
+    c.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.97));
+    c.add(
+      this.add
+        .text(VIEW_W / 2, 34, '清 王 朝 覆 灭', {
+          fontFamily: FONT_UI,
+          fontSize: '20px',
+          color: '#F0C419',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5),
+    );
+    c.add(
+      this.add
+        .text(VIEW_W / 2, 58, '国运归零 · 1912 年 2 月 12 日 · 宣统帝退位', {
+          fontFamily: FONT_UI,
+          fontSize: '11px',
+          color: '#C2BCD1',
+        })
+        .setOrigin(0.5),
+    );
+    c.add(
+      this.add
+        .text(
+          VIEW_W / 2,
+          76,
+          [
+            '两千一百三十二年的君主专制，',
+            '在这一纸诏书上结束。',
+            '',
+            '从虎门的硝烟，到天京的火；',
+            '从江南的机器，到菜市口的血；',
+            '再到武昌城头那一声枪响——',
+            '八十年，中国人一直在找出路。',
+          ].join('\n'),
+          {
+            fontFamily: FONT_UI,
+            fontSize: '12px',
+            color: '#F2EDE4',
+            align: 'center',
+            lineSpacing: 4,
+          },
+        )
+        .setOrigin(0.5, 0),
+    );
+    c.add(
+      this.add
+        .text(VIEW_W / 2, 222, '帝制终结了，可路还长。《觉醒年代》全篇终 · 1840—1912', {
+          fontFamily: FONT_UI,
+          fontSize: '10px',
+          color: '#948DAB',
+        })
+        .setOrigin(0.5),
+    );
+    this.endingButton(c, VIEW_W / 2 - 58, VIEW_H - 20, 96, 20, '返回主菜单', () => {
+      this.scene.start('Title');
+    });
+    this.endingButton(c, VIEW_W / 2 + 58, VIEW_H - 20, 96, 20, '留在长廊', () => {
+      this.scene.start('Hub', { chapterId: this.act.chapter_id });
+    });
+  }
+
+  private endingButton(
+    parent: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    label: string,
+    onClick: () => void,
+  ): void {
+    const rect = this.add
+      .rectangle(x, y, w, h, PALETTE.redDark, 0.95)
+      .setStrokeStyle(1, PALETTE.ink)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
+    const text = this.add
+      .text(x, y, label, { fontFamily: FONT_UI, fontSize: '10px', color: '#F2EDE4' })
+      .setOrigin(0.5)
+      .setScrollFactor(0);
+    parent.add(rect);
+    parent.add(text);
+    rect.on('pointerdown', onClick);
+    text.setInteractive({ useHandCursor: true }).on('pointerdown', onClick);
   }
 
   /* ==================== 主循环 ==================== */

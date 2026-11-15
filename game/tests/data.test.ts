@@ -172,8 +172,8 @@ describe('章与幕', () => {
     for (const a of index.chapters[0].acts) {
       expect(existsSync(join(DATA, `acts/${a}.json`)), `${a} 缺少幕定义`).toBe(true);
     }
-    // 本期只做一章两幕：章节里声明的幕就是全部内容，不再有"未开放"占位
-    expect(index.chapters[0].acts.length).toBe(2);
+    // 序章五幕：鸦片战争 / 太平天国 / 洋务运动 / 戊戌变法 / 辛亥革命
+    expect(index.chapters[0].acts.length).toBe(5);
   });
 
   it('已实现的幕都声明了节点、事件与地图，且经验为正', () => {

@@ -36,6 +36,8 @@ export class QuizScene extends Phaser.Scene {
   private root!: Phaser.GameObjects.Container;
   /** 当前题的选项底板，用于作答后高亮；不要靠下标去猜容器里的元素 */
   private optionRects: Phaser.GameObjects.Rectangle[] = [];
+  /** 最后一个选项的底边：解释行接在它下面，避免压住选项 */
+  private optionsBottom = 0;
   private lastCompletion = 0;
 
   constructor() {
@@ -110,38 +112,44 @@ export class QuizScene extends Phaser.Scene {
         .setOrigin(1, 0),
     );
 
-    this.root.add(
-      this.add.text(14, 36, q.question, {
-        fontFamily: FONT_UI,
-        fontSize: '12px',
-        color: '#F2EDE4',
-        wordWrap: { width: VIEW_W - 28 },
-        lineSpacing: 4,
-      }),
-    );
+    const qText = this.add.text(14, 36, q.question, {
+      fontFamily: FONT_UI,
+      fontSize: '12px',
+      color: '#F2EDE4',
+      wordWrap: { width: VIEW_W - 28 },
+      lineSpacing: 4,
+    });
+    this.root.add(qText);
 
-    const baseY = 78;
+    // 选项从题干下面开始，逐个按文本高度排版。
+    // 旧版固定在 78 + i*26、底板 22px 高，长选项换行后会溢出底板、压到相邻选项上
+    // （甲方截图里的「文字被遮挡」）。
+    const panelW = VIEW_W - 40;
+    let y = Math.max(70, 36 + qText.height + 12);
     q.options.forEach((opt, i) => {
-      const y = baseY + i * 26;
+      const label = this.add.text(20, 0, `${'ABCD'[i]}. ${opt}`, {
+        fontFamily: FONT_UI,
+        fontSize: '11px',
+        color: '#F2EDE4',
+        wordWrap: { width: panelW - 24 },
+        lineSpacing: 3,
+      });
+      const h = Math.max(20, Math.ceil(label.height) + 8);
+      label.setY(y + (h - label.height) / 2);
       const rect = this.add
-        .rectangle(VIEW_W / 2, y, VIEW_W - 40, 22, PALETTE.plumMid, 0.95)
+        .rectangle(VIEW_W / 2, y + h / 2, panelW, h, PALETTE.plumMid, 0.95)
         .setStrokeStyle(1, PALETTE.greyPlum)
         .setInteractive({ useHandCursor: true });
-      const label = this.add
-        .text(20, y, `${'ABCD'[i]}. ${opt}`, {
-          fontFamily: FONT_UI,
-          fontSize: '11px',
-          color: '#F2EDE4',
-          wordWrap: { width: VIEW_W - 60 },
-        })
-        .setOrigin(0, 0.5);
       this.root.add(rect);
       this.root.add(label);
       this.optionRects.push(rect);
       const onPick = () => this.pick(i);
       rect.on('pointerdown', onPick);
       label.setInteractive({ useHandCursor: true }).on('pointerdown', onPick);
+      y += h + 5;
     });
+    // 解释行接在选项之后（由 pick() 使用），不再写死 VIEW_H-54
+    this.optionsBottom = y;
 
     this.root.add(
       this.add
@@ -191,8 +199,8 @@ export class QuizScene extends Phaser.Scene {
       else if (i === index) rect.setFillStyle(PALETTE.redDark, 1).setStrokeStyle(2, PALETTE.redBright);
     });
 
-    // 解释
-    const explain = this.add.text(16, VIEW_H - 54, `${ok ? '答对。' : '答错。'}${q.explanation}`, {
+    // 解释：接在选项下方；选项变高时它跟着下移，但绝不越过底部按钮那条线
+    const explain = this.add.text(16, Math.min(this.optionsBottom + 6, VIEW_H - 42), `${ok ? '答对。' : '答错。'}${q.explanation}`, {
       fontFamily: FONT_UI,
       fontSize: '9.5px',
       color: ok ? '#7EC08A' : '#F2A08C',
@@ -268,24 +276,25 @@ export class QuizScene extends Phaser.Scene {
         .setOrigin(0.5, 0),
     );
 
-    // 完成度
+    // 完成度 —— 逐行往下排，每行按实际文本高度推进。
+    // 旧版把这些行写死在 82/100/122/146/166/186，`tier.note` 一换行就压住下一行。
     const completion = this.lastCompletion || this.computeCompletion(r);
     const tier = completionTier(completion);
-    this.root.add(
-      this.add.text(16, 82, `章节完成度　${completion}%　·　${tier.label}`, {
+    let y = 82;
+    const line = (text: string, size: string, color: string): void => {
+      const t = this.add.text(16, y, text, {
         fontFamily: FONT_UI,
-        fontSize: '11px',
-        color: '#F0C419',
-      }),
-    );
-    this.root.add(
-      this.add.text(16, 100, tier.note, {
-        fontFamily: FONT_UI,
-        fontSize: '9.5px',
-        color: '#C2BCD1',
+        fontSize: size,
+        color,
         wordWrap: { width: VIEW_W - 32 },
-      }),
-    );
+        lineSpacing: 3,
+      });
+      this.root.add(t);
+      y += Math.ceil(t.height) + 6;
+    };
+
+    line(`章节完成度　${completion}%　·　${tier.label}`, '11px', '#F0C419');
+    line(tier.note, '9.5px', '#C2BCD1');
 
     // 答错题的知识卡提示
     if (r.knowledgeToReview.length > 0) {
@@ -293,24 +302,11 @@ export class QuizScene extends Phaser.Scene {
         .map((id) => dataLoader.findKnowledge(id)?.title ?? id)
         .slice(0, 3)
         .join('；');
-      this.root.add(
-        this.add.text(16, 122, `建议补看：${titles}`, {
-          fontFamily: FONT_UI,
-          fontSize: '9px',
-          color: '#F2A08C',
-          wordWrap: { width: VIEW_W - 32 },
-        }),
-      );
+      line(`建议补看：${titles}`, '9px', '#F2A08C');
     }
 
     if (perfectBonusGranted(r.correct, r.total)) {
-      this.root.add(
-        this.add.text(16, 146, '满分奖励：已解锁一张隐藏知识卡的延伸解读。', {
-          fontFamily: FONT_UI,
-          fontSize: '9px',
-          color: '#F0C419',
-        }),
-      );
+      line('满分奖励：已解锁一张隐藏知识卡的延伸解读。', '9px', '#F0C419');
     }
 
     const save = getSave();
@@ -318,19 +314,12 @@ export class QuizScene extends Phaser.Scene {
     const unlockMsg = r.passed
       ? nextChapterId
         ? '已解锁下一章。'
-        : '已通过。第二章尚在开发中（见设计书第四章）。'
+        : '已通过。这一章的故事讲完了——1840 到 1912，帝制终结。'
       : '可随时重答；建议先补看知识卡。';
 
+    line(unlockMsg, '9.5px', '#C2BCD1');
     this.root.add(
-      this.add.text(16, 166, unlockMsg, {
-        fontFamily: FONT_UI,
-        fontSize: '9.5px',
-        color: '#C2BCD1',
-        wordWrap: { width: VIEW_W - 32 },
-      }),
-    );
-    this.root.add(
-      this.add.text(16, 186, `累计知识卡 ${save.knowledge.length} 张　已通关节点 ${save.progress.nodes_done.length} 个`, {
+      this.add.text(16, Math.min(y, VIEW_H - 34), `累计知识卡 ${save.knowledge.length} 张　已通关节点 ${save.progress.nodes_done.length} 个`, {
         fontFamily: FONT_UI,
         fontSize: '9px',
         color: '#6B6489',
