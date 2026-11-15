@@ -30,7 +30,7 @@
 
 1. **不要在 `game/` 全盘 grep 找位置**。先查目录 README 的表格定位文件；需要骨架清单时跑
    `node game/tools/map_repo.mjs game`（打印每个文件的头部注释 + 导出符号）。
-2. **`game/src/core/` 里那 15 个模块一律不许 import Phaser**（balance / cannon / constants / DataLoader / defeat / dungeon / EventBus / graph / management / orientation / quiz / SaveManager / space / types / waveUpgrade）。它们是纯逻辑层，14 个测试文件跑在 node 环境，加了 Phaser 会全炸。
+2. **`game/src/core/` 里那 21 个模块一律不许 import Phaser**（balance / bgm / cannon / constants / critShake / DataLoader / defeat / dungeon / escort / EventBus / graph / management / orientation / quiz / SaveManager / space / types / upgradeSelection / waveUpgrade / weaponSelection / weaponSwap）。它们是纯逻辑层，22 个测试文件跑在 node 环境，加了 Phaser 会全炸。
 3. **改内容不动代码**：数值、事件、节点、敌人、装备、副本、地图都在 `game/public/data/`。改完必须跑 `pnpm test`——数据引用错会让关卡直接不可通关。
 4. **数据文件必须 UTF-8 无 BOM**（PowerShell 的 `Set-Content -Encoding UTF8` 会写 BOM，`JSON.parse` 会报 `Unexpected token '﻿'`）。改 JSON 用 Python（`encoding='utf-8'`）。
 5. **文档即契约**：新增文件必须同步写进所在目录的 `README.md`——`game/tests/docs.test.ts` 会检查「每个文件都被文档提到、每条相对链接都存在」，漏了直接红。设计书里的 `# 第X章` 与章节号也要和 `design/README.md` 的对照表一致。

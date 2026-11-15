@@ -42,7 +42,7 @@ const server = isRemote ? null : createServer(async (req, res) => {
     const file = resolve(staticDir, rel === '' || rel === '.' ? 'index.html' : rel);
     if (!file.startsWith(staticDir)) { res.writeHead(403).end(); return; }
     const body = await readFile(file);
-    res.writeHead(200, { 'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
     res.end(body);
   } catch { res.writeHead(404).end('not found'); }
 });
@@ -117,6 +117,31 @@ try {
       enemies: window.__dshLevel?.allEnemies?.().length ?? 0,
     };
   })()`);
+  // 立绘状态：全部读 DOM。<img> 的 src 是绝对地址，故用 endsWith 匹配文件名。
+  const portraitState = `(() => {
+    const d = window.__dshGame.scene.getScene('Level').dialogue;
+    const img = document.getElementById('dom-dlg-portrait');
+    const panel = document.getElementById('dom-dialogue');
+    const name = document.getElementById('dom-dlg-name');
+    const pr = img ? img.getBoundingClientRect() : null;
+    const br = panel ? panel.getBoundingClientRect() : null;
+    // 名字栏是块级元素，rect.left 是盒子左边而不是文字起点：文字起点还要加上 padding-left
+    const nr = name ? name.getBoundingClientRect() : null;
+    const textLeft = nr ? nr.left + (parseFloat(getComputedStyle(name).paddingLeft) || 0) : null;
+    return {
+      speaker: d.currentSpeaker,
+      url: d.portraitUrl,
+      src: img ? (img.getAttribute('src') ?? '') : '',
+      shown: !!(img && img.style.display !== 'none' && pr && pr.width > 0 && pr.height > 0),
+      loaded: !!(img && img.complete && img.naturalWidth > 0),
+      insidePanel: !!(pr && br && pr.left >= br.left - 1 && pr.top >= br.top - 1 &&
+        pr.right <= br.right + 1 && pr.bottom <= br.bottom + 1),
+      leftOfText: !!(pr && textLeft !== null && pr.right <= textLeft + 1),
+      textLeft: textLeft === null ? null : Math.round(textLeft),
+      box: pr ? { x: Math.round(pr.x), y: Math.round(pr.y), w: Math.round(pr.width), h: Math.round(pr.height) } : null,
+      panelBox: br ? { x: Math.round(br.x), y: Math.round(br.y), w: Math.round(br.width), h: Math.round(br.height) } : null,
+    };
+  })()`;
   const startLevel = (init) => evaluate(`(() => {
     const g = window.__dshGame;
     const src = g.scene.isActive('Title') ? g.scene.getScene('Title') : g.scene.getScene('Level');
@@ -134,6 +159,8 @@ try {
   };
 
   await send('Page.enable'); await send('Runtime.enable');
+  // 每次构建 bundle 名都会变：不禁缓存会跑到上一次的 boot-*.js（已从 dist 删除）
+  await send('Network.enable'); await send('Network.setCacheDisabled', { cacheDisabled: true });
   await send('Emulation.setDeviceMetricsOverride', { width: 960, height: 540, deviceScaleFactor: 1, mobile: false });
   await send('Page.navigate', { url: baseUrl }); await sleep(500);
   await waitFor(() => evaluate('!!window.__dshGate'), 40000, 'gate');
@@ -223,12 +250,48 @@ try {
   report.snapshots.managementIntro = m0;
   report.checks.managementIntro = m0.active && m0.name === '洪秀全';
   report.checks.panelDeferredUntilIntroEnds = !m0.overlay.includes('天京经营');
+
+  // v1.9.0：第二幕人物立绘补齐。洪秀全是这一场的第一个说话人，框里必须是他的图，
+  // 而不是灰占位框——「第二幕人物贴图与立绘 ⬜ 未做」这一格就是靠这条盯住的。
+  const mPortrait = await evaluate(portraitState);
+  report.snapshots.managementPortrait = mPortrait;
+  // v1.9.0：立绘改由 DOM 的 #dom-dlg-portrait 画（canvas 上的会被半透明底板压暗），
+  // 所以判据从「Phaser 贴图 visible」换成「<img> 真的加载出来了、且 src 是这个人」。
+  report.checks.portraitOfSpeakerShown = mPortrait.speaker === 'hong_xiuquan' &&
+    /portrait_hong_xiuquan\.png$/.test(mPortrait.src) && mPortrait.shown && mPortrait.loaded;
+  // 立绘不能盖住整个对话框：整个盒子要落在对白底板内，右沿还要在名字文字左边（不压字）
+  report.checks.portraitInsideFrame = mPortrait.insidePanel && mPortrait.leftOfText;
+  await shot('sd-5-portrait-tai-ping.png');
+
   await drainDialogue();
   await sleep(300);
   const m1 = await dlgState();
   report.snapshots.managementAfterIntro = m1;
   report.checks.panelAfterIntro = m1.overlay.includes('天京经营') && !m1.active;
   await shot('sd-4-management-panel.png');
+
+  // 旁白没有人可画：画框要收掉，否则对白左边会永远蹲一个灰方块
+  const narratorPortrait = await evaluate(`(() => {
+    const g = window.__dshGame.scene.getScene('Level');
+    g.dialogue.show(
+      { id: 'probe_narrator', speaker: 'narrator', lines: [{ text: '探针', speaker: 'narrator' }] },
+      {}, () => {}, () => {}
+    );
+    const d = g.dialogue;
+    const img = document.getElementById('dom-dlg-portrait');
+    return {
+      speaker: d.currentSpeaker,
+      url: d.portraitUrl,
+      display: img ? img.style.display : null,
+      hasSrc: !!(img && img.getAttribute('src')),
+      padLeft: document.getElementById('dom-dlg-body')?.style.paddingLeft ?? '',
+    };
+  })()`);
+  report.snapshots.narratorPortrait = narratorPortrait;
+  report.checks.narratorHasNoPortrait = narratorPortrait.speaker === 'narrator' &&
+    narratorPortrait.url === null && narratorPortrait.display === 'none' &&
+    narratorPortrait.hasSrc === false && parseFloat(narratorPortrait.padLeft) === 0;
+  await evaluate(`window.__dshGame.scene.getScene('Level').dialogue.hide()`);
 
   report.checks.noConsoleErrors = report.errors.length === 0;
 } catch (e) {

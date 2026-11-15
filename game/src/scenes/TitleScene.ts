@@ -10,6 +10,7 @@ import { getSave, persist, reloadSave, saveManager } from './BootScene';
 import { emitToast } from '../core/EventBus';
 import type { SaveData } from '../core/types';
 import { FONT_UI } from '../gfx/TextStyle';
+import { bgm } from '../systems/Bgm';
 import { hideTitle, setTitleHint, showTitle } from '../systems/DomUi';
 
 /**
@@ -44,6 +45,9 @@ export class TitleScene extends Phaser.Scene {
     const cx = VIEW_W / 2;
     this.titleButtons = [];
     this.cameras.main.setBackgroundColor(PALETTE.ink);
+    // 标题曲：这里已经在 `#tap-gate` 的点击手势之后，AudioContext 能正常起。
+    // 同曲目重复进入（重新开始、从长廊返回主菜单）是空操作，不会重头再响一遍。
+    bgm.play('title');
 
     // 远景：破碎山河（占位色块分层）
     const sky = this.add.rectangle(cx, VIEW_H * 0.34, VIEW_W, VIEW_H * 0.68, PALETTE.plumDark).setDepth(0);

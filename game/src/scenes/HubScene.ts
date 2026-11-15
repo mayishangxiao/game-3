@@ -13,6 +13,7 @@ import { effectiveStats } from '../core/balance';
 import { dungeonUnlocked, getDungeonState } from '../core/dungeon';
 import { emitObjective, emitSceneLabel, emitToast } from '../core/EventBus';
 import type { ActDef, ChapterMeta } from '../core/types';
+import { bgm } from '../systems/Bgm';
 import { hideOverlay, showOverlay } from '../systems/DomUi';
 
 interface DoorEntry {
@@ -46,6 +47,8 @@ export class HubScene extends Phaser.Scene {
     this.cursor = 0;
     this.camX = 0;
     this.targetCamX = 0;
+    // 长廊曲：从战斗/副本退回这里会从 battle 淡出切过来，玩家能听出「打完了」
+    bgm.play('hub');
 
     const chapterId = data.chapterId ?? 'ch00';
     const meta = dataLoader.getChapterMeta(chapterId);

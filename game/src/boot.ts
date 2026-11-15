@@ -28,6 +28,8 @@ import { GraphScene } from './scenes/GraphScene';
 import { installTextResolution, retuneAllTexts } from './gfx/TextResolution';
 import { installStartGate } from './systems/OrientationGate';
 import { controls } from './systems/InputSystem';
+import { audio } from './systems/AudioKit';
+import { bgm } from './systems/Bgm';
 
 export function boot(): Phaser.Game {
   // 走到这里引擎必然就绪（main.ts 已经 await 过 loadPhaser）。留个断言，
@@ -114,6 +116,9 @@ export function boot(): Phaser.Game {
   (window as unknown as { __dshControls?: typeof controls }).__dshControls = controls;
   // 按钮坐标也挂出去：E2E 不该硬编码按钮位置（每次加新按钮都会重排）
   (window as unknown as { __dshLayout?: typeof CONTROL_LAYOUT }).__dshLayout = CONTROL_LAYOUT;
+  // 音频钩子：探针要证明「这一刻该响哪首」、暂停菜单的开关是不是真的落到播放器上。
+  // 无头浏览器没有音箱，能断言的只有播放器状态，所以把两个单例交出去。
+  (window as unknown as { __dshAudio?: unknown }).__dshAudio = { bgm, audio };
 
   // 「点击开始」+ 自动横屏（全屏与方向锁都只能在用户手势里申请）
   installStartGate(game);

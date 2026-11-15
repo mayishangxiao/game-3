@@ -9,6 +9,9 @@ import { InputSystem } from '../systems/InputSystem';
 import { EV, bus, emitOpenWeaponBag, getCannonVisible, getControlsVisible, getHudVisible, getSceneLabel, getWeaponBagVisible, setControlsVisible, type HudPayload, type SceneLabelPayload, type ToastPayload } from '../core/EventBus';
 import { DYNASTY_MAX } from '../core/cannon';
 import { FONT_UI } from '../gfx/TextStyle';
+import { audio } from '../systems/AudioKit';
+import { bgm } from '../systems/Bgm';
+import { getSave, persist } from './BootScene';
 import { hideFloat, hideOverlay, scaleHudButtons, setHudDynasty, setHudLevel, setHudObjective, setHudScene, setHudVisible, setHudWeapon, showOverlay, showToast } from '../systems/DomUi';
 
 const BAR_X = 6;
@@ -501,33 +504,72 @@ export class UIScene extends Phaser.Scene {
     };
 
     push(this.add.rectangle(cx, cy, VIEW_W, VIEW_H, PALETTE.ink, 0.8).setDepth(DEPTH.overlay + 1));
+    // v1.9.0：面板从 118 加高到 158，塞进「音乐 / 音效」两行。
+    // 这两项是存档 `settings` 里早就有的字段，之前没有任何入口，等于写了不生效。
     push(
       this.add
-        .rectangle(cx, cy, 168, 118, PALETTE.plumDark, 0.96)
+        .rectangle(cx, cy + 6, 172, 158, PALETTE.plumDark, 0.96)
         .setStrokeStyle(1, PALETTE.star)
         .setDepth(DEPTH.overlay + 2),
     );
 
-    const buttons: Array<{ label: string; y: number; onTap: () => void }> = [
-      { label: '继　续', y: cy + 6, onTap: () => this.closePause() },
-      { label: '返回主菜单', y: cy + 34, onTap: () => this.backToTitle() },
+    // 四行按钮：y 之间留 25px（框高 21），文字才不会互相贴住；
+    // 「继续」比原来的 cy+6 上移了 12px，给副标题让出一行的高度。
+    const buttons: Array<{ y: number; onTap: () => void }> = [
+      { y: cy - 6, onTap: () => this.closePause() },
+      { y: cy + 19, onTap: () => this.toggleMusic() },
+      { y: cy + 44, onTap: () => this.toggleSfx() },
+      { y: cy + 69, onTap: () => this.backToTitle() },
     ];
     for (const b of buttons) {
       const box = this.add
-        .rectangle(cx, b.y, 120, 22, PALETTE.ink, 0.95)
+        .rectangle(cx, b.y, 132, 21, PALETTE.ink, 0.95)
         .setStrokeStyle(1, PALETTE.greyPlum)
         .setDepth(DEPTH.overlay + 3)
         .setInteractive({ useHandCursor: true });
-      box.on('pointerdown', () => b.onTap());
+      // 点击音放在 onTap 之前：关音效的那一下也要听得见
+      box.on('pointerdown', () => {
+        audio.click();
+        b.onTap();
+      });
       push(box);
     }
 
+    this.renderPauseText();
+  }
+
+  /** 暂停面板的文字（DOM 层）：开关切换后要整块重画，才能看到「音乐：关」 */
+  private renderPauseText(): void {
+    const cy = VIEW_H / 2;
+    const s = getSave().settings;
+    const on = (v: number): string => (v > 0 ? '开' : '关');
+    // 文字块顶部 = 按钮中心 - 10（14px 字的行高约 19），四行与 canvas 上的框逐一对齐
     showOverlay(
-      `<div style="position:absolute;left:0;top:${cy - 52}px;width:100%;text-align:center;font-size:22px;color:#F0C419;">暂　停</div>
-       <div style="position:absolute;left:0;top:${cy - 24}px;width:100%;text-align:center;font-size:11px;color:#C2BCD1;">战斗进度已冻结</div>
-       <div style="position:absolute;left:0;top:${cy - 5}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">继　续</div>
-       <div style="position:absolute;left:0;top:${cy + 23}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">返回主菜单</div>`,
+      `<div style="position:absolute;left:0;top:${cy - 66}px;width:100%;text-align:center;font-size:22px;color:#F0C419;">暂　停</div>
+       <div style="position:absolute;left:0;top:${cy - 38}px;width:100%;text-align:center;font-size:11px;color:#C2BCD1;">战斗进度已冻结</div>
+       <div style="position:absolute;left:0;top:${cy - 16}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">继　续</div>
+       <div style="position:absolute;left:0;top:${cy + 9}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">音乐：${on(s.music)}</div>
+       <div style="position:absolute;left:0;top:${cy + 34}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">音效：${on(s.sound)}</div>
+       <div style="position:absolute;left:0;top:${cy + 59}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">返回主菜单</div>`,
     );
+  }
+
+  /** 音乐开关：0 与 0.6 两档（存档里的 music 字段），改完立刻写盘 */
+  private toggleMusic(): void {
+    const s = getSave().settings;
+    s.music = s.music > 0 ? 0 : 0.6;
+    bgm.setVolume(s.music);
+    persist();
+    this.renderPauseText();
+  }
+
+  /** 音效开关：0 与 0.8 两档 */
+  private toggleSfx(): void {
+    const s = getSave().settings;
+    s.sound = s.sound > 0 ? 0 : 0.8;
+    audio.setVolume(s.sound);
+    persist();
+    this.renderPauseText();
   }
 
   private closePause(): void {

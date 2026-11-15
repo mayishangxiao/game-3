@@ -239,7 +239,19 @@
     "max_lines": 3,
     "portraits": {
       "lin_zexu": "art/portrait_lin_zexu.png",
-      "guan_tianpei": "art/portrait_guan_tianpei.png"
+      "guan_tianpei": "art/portrait_guan_tianpei.png",
+      "shuiyong": "art/portrait_shuiyong.png",
+      "xiangmin": "art/portrait_xiangmin.png",
+      "qiying": "art/portrait_qiying.png",
+      "pottinger": "art/portrait_pottinger.png",
+      "li_xiucheng": "art/portrait_li_xiucheng.png",
+      "hong_xiuquan": "art/portrait_hong_xiuquan.png",
+      "yang_xiuqing": "art/portrait_yang_xiuqing.png",
+      "wei_changhui": "art/portrait_wei_changhui.png",
+      "shi_dakai": "art/portrait_shi_dakai.png",
+      "hong_renxuan": "art/portrait_hong_renxuan.png",
+      "zeng_guofan": "art/portrait_zeng_guofan.png",
+      "taiping_bing": "art/portrait_taiping_bing.png"
     }
   },
   "skills": {

@@ -173,7 +173,7 @@ Remove-Item -Recurse -Force tools/_cdp*, tools/_smoke, tools/__pycache__, __pyca
 ## 验证方式
 
 ```bash
-pnpm test                                        # 421 个单元测试
+pnpm test                                        # 436 个单元测试
 
 # 起静态服务器
 node tools/serve.mjs dist 4173 &
@@ -203,12 +203,12 @@ HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser
 
 验证脚本：`node tools/_cdp/domstale.mjs "<msedge.exe>" <url> <out>` —— 走 Hub→Level→Hub→Level 四跳，逐跳把 `#dom-ui` 的子元素列出来（第二跳之后是关键，隐式钩子的坑只在第二次离开时暴露）。本地与线上四跳均干净、`errors: []`；`touch.mjs` 7/7、`salvo.mjs` ALL PASS。右上两枚按钮的专项是 `node tools/_cdp/top-buttons-label.mjs "<msedge.exe>" [staticDir] <out>`（45 项断言，含缩放对齐、暂停/背包往返、场景停建与 DOM 清理）。
 
-### 单元测试锁定了什么（21 个文件 / 421 条）
+### 单元测试锁定了什么（22 个文件 / 436 条）
 
 | 文件 | 数量 | 锁定内容 |
 | --- | --- | --- |
 | `humenPool.test.ts` | 13 | **销烟池只有一个大长方体 + 林则徐不被遮挡**：v1.8.8 的 7 条（地面层无 6/7 装饰瓦片、全图仅一个 deposit、碰撞层 28 格池沿完整、`HUMEN_POOL` 112×64 与池区像素范围相等、`obj_pool` 落在几何中心、8 箱 / 出口坐标未变）；v1.8.9 新增 6 条（尺寸真值不动、人形包围盒出池区、`entityDepth` 高于池子所有装饰、不压虚拟按键、不与箱子重叠、26px 内仍可交谈） |
-| `sceneDialogue.test.ts` | 10 | **v1.8.7 场景对白完整性**：逐句说话人 / 在场人物的纯函数判据；每段对白每句都有说话人且能查到显示名；9 个剧情节点 + 3 个副本都有不相同的开场与收尾对白、`participants` 与两段实际说话人集合一致；11 张事件卡 `figures` 非空（清单见 `design/14_scene_dialogue_roster.md`） |
+| `sceneDialogue.test.ts` | 14 | **v1.8.7 场景对白完整性**：逐句说话人 / 在场人物的纯函数判据；每段对白每句都有说话人且能查到显示名；9 个剧情节点 + 3 个副本都有不相同的开场与收尾对白、`participants` 与两段实际说话人集合一致；11 张事件卡 `figures` 非空（清单见 `design/14_scene_dialogue_roster.md`）。**v1.9.0 加 4 条**：`isNpcInteractable` 闸门（谈完的 NPC 不再是交互目标），以及林则徐「只搭一次话」——修「第二次按交互键一直重复旁白」 |
 | `balance.test.ts` | 38 | 等级属性、经验曲线、关卡系数、伤害公式（暴击/弱点/等级压制/保底）、词条与掉落、知识加成、装备差值与强化收益 |
 | `save.test.ts` | 18 | 存档迁移不清档、紫装背包满不丢失、完成度权重归一化、五槽位进度 |
 | `quiz.test.ts` | 15 | 抽题不重复、通过线、知识卡复习列表、四档评价、题库数据完整性 |
@@ -228,6 +228,7 @@ HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser
 | `escort.test.ts` | 9 | 护送完成门禁：切节点中 / 已结算 / 节点已换 / 战士清空 / 终点未初始化一律不结算，守住「天京经营幕被整幕跳过」这条回归 |
 | `critShake.test.ts` | 11 | 暴击震屏（v1.8.3）：强度 `>0` 且 `≤0.0012`（保留轻微反馈、不会回到旧的 0.002 晕屏）、配置误填也不会把效果关掉、140ms 窗口内一串暴击只震一次、隔窗恢复、时长比旧的 60ms 短促 |
 | `upgradeSelection.test.ts` | 15 | 强化三选一两步确认（v1.8.6）：**连点 10 次 / 切换 / 取消都绝不生效、绝不结算、绝不关界面**；再点已选 = 取消、点别的 = 切换；未选中不能确认（不会替玩家选一项）；只有确认才提交且重复确认幂等；放弃只关界面不提交。守「快速点击误选」这个回归方向 |
+| `bgm.test.ts` | 11 | 程序化 BGM 谱面（v1.9.0）：6 首曲子的音符按 step 递增、不越循环点、MIDI 在可听区间、循环 6–30 秒且音符数 <400、编曲意图（battle 最快 / sorrow 最慢）、幕数据 `bgm` 字段能映射到曲目且未知值回落 `humen` |
 
 其中三条是「设计意图」而非「实现细节」的锁：
 
@@ -373,6 +374,18 @@ AI 美术交付包里的三样已经进游戏，其余（单位帧、瓦片）�
 - **验证**：`tools/_cdp/salvo.mjs`（端口 9421）8 项断言 —— `duskStripPlaced` / `warningRingShown` / `standingStillGetsHit` / `dodgedNoDamage` / `shipNeverMoves`（前后坐标一致）/ `noRuntimeSea` / `playerCannonHasNoFxFrames` / `shipSalvoPlaysFxFrames`，本地与线上各跑一次全过，五张截图逐张看过。
 - 踩过的坑：① **Arc 不能被 tween `radius`**，`TweenData` 会去 set 一个不存在的 setter → 运行时抛 `Cannot set properties of null (setting 'radius')`，必须用 `scale`（先按最终半径画，再 `setScale(小值)` tween 到 1）；② `this.bossShip` 以前**从来没被赋值**（军舰前压链时代漏的），在 `spawnBoss()` 里按 `body === 'ship'` 认领；③ 探针里「我方开炮无特效帧」连续三次假失败，最后归因到**前面躲炮那轮留下的 `delayedCall` 在测量窗口里落地**——改成用 `salvoActive` 计数归因（`salvoRestarted: 9` 说明 Boss 自动齐射频率很高，静音窗口几乎抢不到）。
 
+### 程序化 BGM、音效与第二幕立绘（2026-11，v1.9.0）
+
+这一轮补的是「看起来像半成品」的两块：**没声音**和**第二幕说话人没脸**。两件事都没等美术素材，先用可复现的方式顶住。
+
+- **BGM**：`core/bgm.ts` 只放谱面数据与纯函数（和弦进行 → bass/pad/lead/drum/hat 五轨 → 音符表），`systems/Bgm.ts` 才碰 Web Audio（lookahead 调度器，每 60ms 排未来 0.35s）。6 首：标题 / 长廊 / 虎门 / 天京 / 战斗 / 哀乐。**同一曲目反复 `play()` 是空操作**，切曲 0.25s 淡出；幕数据只写 `bgm` 字段，`songIdOfAct()` 负责映射，未知值回落 `humen`（宁可曲子不搭，也不要没声）。
+- **音效**：`AudioKit` 从 4 个扩到 14 个（UI 的 click/confirm/cancel、战斗的 swing/hit/hurt、玩法的 pickup/splash/levelUp/cannonShot），全部现场合成、无素材。`throttle(name, ms)` 是必须的——横扫连中五个敌人时若不节流，同一帧五声 `hit` 叠成电流声。
+- **音量入口**：存档里 `settings.sound` / `settings.music` 早就有，但一直没有 UI。现在暂停面板是四个按钮（继续 / 音乐 / 音效 / 返回主菜单），改完立刻写回存档并作用到正在播的曲子。
+- **第二幕立绘**：`tools/gen_portraits.py`（纯标准库、自写 PNG）按 `PEOPLE` 表生成 14 张 96×112 胸像，文件名必须与 `config.json → ui.portraits` 的 key 同名。
+- **立绘改由 DOM 画**：对白底板 `#dom-dialogue` 是 94% 不透明的深色块，整块盖在 canvas 之上——画在 canvas 里的立绘会被一起压暗（林则徐那张一直是偏黑的，属于老问题）。现在立绘是 `#dom-dlg-portrait` 这个 `<img>`，浏览器自己画，天然在底板之上；`config.json → ui.portraits` 仍是唯一登记处，`DialogueBox` 只把路径交给 `setDialoguePortrait()`，`preload` 只做 HTTP 预取、不进 Phaser 纹理表。
+
+验证：`tools/_cdp/audio-pause.mjs` 16 项（曲目切换、音量取自存档、暂停面板两行开关的真实鼠标点击与存档回写）、`tools/_cdp/scene-dialogue.mjs` 22 项（含「洪秀全说话时 `<img>` 的 src 就是他那张、落在框内、不压字；旁白时收起并清 src」），`tests/bgm.test.ts` 11 条锁谱面、`tests/art.test.ts` 改成拿磁盘上的 `portrait_*.png` 与登记表互相校验（多一张少一张都红）。
+
 ### 第八箱找不到 → 金色指引标（2026-11-08，甲方第二次提同一个问题）
 
 甲方原话（m14809）「第八个鸦片找不到」。**这是第二次**：第一次（m02255）只把箱子从虚拟按键底下挪开，属于「修了碰撞没修可见性」。这一轮先量了现场——截图是 444×99 的微信缩略条，画布只占 2532 宽里的 1136px（缩到 0.45 倍），一个 16×16 的箱子在手机上实际只有 7.2 CSS px，**任何纯像素方案都救不了这个尺寸**，所以改的是「标记」而不是「贴图」。
@@ -480,10 +493,10 @@ AI 美术交付包里的三样已经进游戏，其余（单位帧、瓦片）�
 
 ## 已知待办（本期未做完的，按优先级）
 
-1. **第二幕的贴图与立绘**：湘军、匪兵、租界巡捕、码头把头只有兵种贴图或纯色方块；`李秀成` 等第二幕说话人没有立绘，对话框会画空框（设计书 6.3.2 的缺口表）
-2. **音频**：BGM 7 首 + SFX 43 条都还没有素材，只有 `AudioKit` 的合成音；清单见设计书 6.6.2 / 6.6.3
-3. **像素中文字体**：现在是系统黑体栈（D-4），画布内的中文不是像素字
-4. **单位动作帧**：`units/` 只有四向静止帧；`parts/` 68 张肢体切图未启用（`PART_ART` 是空表，机制保留）
+1. **像素中文字体**：现在是系统黑体栈（D-4），画布内的中文不是像素字
+2. **单位动作帧**：`units/` 只有四向静止帧；`parts/` 68 张肢体切图未启用（`PART_ART` 是空表，机制保留）
+3. **真人音源**：v1.9.0 的 BGM 与音效都是现场合成的（谱面在 `core/bgm.ts`、音色表在 `AudioKit` 的 `SYNTH`），有素材时只换播放层/音色，不改任何调用点
+4. **第二幕次要人物立绘**：主要说话人（洪秀全 / 杨秀清 / 韦昌辉 / 石达开 / 李秀成 / 洪仁玕 / 曾国藩 / 水勇 / 乡民 / 耆英 / 璞鼎查 / 太平兵）都有脸了；巡捕、码头把头这类只出现在副本的临时角色仍然没有图（对话框会收掉立绘、文字靠左），需要时往 `tools/gen_portraits.py` 的 `PEOPLE` 表加一行重跑
 5. **长廊可走动版本**（D-1）：现在是可横向滚动的节点门，尚不可走动
 6. 第一幕的叙事收束：Boss 战「弹药耗尽」的固定结局、关天培殉国的静帧处理
 7. 副本结算面板中部留白偏大，信息密度可再压一档

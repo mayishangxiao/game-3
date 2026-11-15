@@ -10,6 +10,8 @@ import { dataLoader } from '../core/DataLoader';
 import { SaveManager } from '../core/SaveManager';
 import type { SaveData } from '../core/types';
 import { FONT_UI } from '../gfx/TextStyle';
+import { audio } from '../systems/AudioKit';
+import { bgm } from '../systems/Bgm';
 
 /**
  * 开局引导层（index.html 的 #tap-gate）的「浏览器里已经重新开始了」标记。
@@ -78,6 +80,9 @@ export class BootScene extends Phaser.Scene {
     try {
       await dataLoader.loadGlobals();
       SAVE = saveManager.init(dataLoader.getBalance());
+      // 音量先按存档记下来；AudioContext 仍然懒创建，第一次播放（标题曲）才真正建
+      audio.setVolume(SAVE.settings.sound);
+      bgm.setVolume(SAVE.settings.music);
 
       // 隐藏 HTML 层的启动提示
       const hint = document.getElementById('boot-hint');

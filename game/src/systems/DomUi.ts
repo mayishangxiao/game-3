@@ -14,6 +14,14 @@ let dlg: HTMLDivElement | null = null;
 let dlgName: HTMLDivElement | null = null;
 let dlgBody: HTMLDivElement | null = null;
 let dlgHint: HTMLDivElement | null = null;
+/**
+ * 说话人立绘（v1.9.0 起画在 DOM 层）。
+ *
+ * 为什么不在 canvas 上画：对白底板 `#dom-dialogue` 是 94% 不透明的深色块，整块盖在
+ * canvas 之上，canvas 里的立绘会被它一起压暗（林则徐那张看着「偏黑」就是这个原因）。
+ * 立绘交给浏览器画，天然在底板之上，也顺带省掉「贴图异步到了但已经切到下一句」的竞态。
+ */
+let dlgPortrait: HTMLImageElement | null = null;
 /** 对白框右上角的「在场：A · B」——本场参与对话的人物（v1.8.7） */
 let dlgCast: HTMLDivElement | null = null;
 let hudScene: HTMLDivElement | null = null;
@@ -38,6 +46,7 @@ function ensure(): void {
   dlgName = ui.querySelector('#dom-dlg-name') as HTMLDivElement;
   dlgBody = ui.querySelector('#dom-dlg-body') as HTMLDivElement;
   dlgHint = ui.querySelector('#dom-dlg-hint') as HTMLDivElement;
+  dlgPortrait = ui.querySelector('#dom-dlg-portrait') as HTMLImageElement;
   dlgCast = ui.querySelector('#dom-dlg-cast') as HTMLDivElement;
   hudScene = ui.querySelector('#dom-hud-scene') as HTMLDivElement;
   hudObjective = ui.querySelector('#dom-hud-objective') as HTMLDivElement;
@@ -76,6 +85,39 @@ export function showDialogue(): void {
 export function hideDialogue(): void {
   ensure();
   if (dlg) dlg.style.display = 'none';
+}
+
+/**
+ * 提前把登记过的立绘塞进浏览器 HTTP 缓存。
+ * 立绘现在由 `<img>` 画，不进 Phaser 纹理表；但没有预取的话，第一次轮到某人说话
+ * 会先空一帧。这里只发起下载，图片对象用完即弃，不占 GPU 显存。
+ */
+export function prefetchPortraits(map: Record<string, string>): void {
+  if (typeof Image === 'undefined') return;
+  for (const url of Object.values(map)) {
+    if (!url) continue;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = new URL(url, document.baseURI).href;
+  }
+}
+
+/**
+ * 说话人立绘。`url` 传 null（旁白 / 没登记素材的人）时整块收起，
+ * 文字靠左——与 `setDialogueSpeaker(label, hasPortrait)` 的 padding 是配套的。
+ */
+export function setDialoguePortrait(url: string | null): void {
+  ensure();
+  if (!dlgPortrait) return;
+  if (!url) {
+    dlgPortrait.style.display = 'none';
+    dlgPortrait.removeAttribute('src');
+    return;
+  }
+  // 同一张图不重设 src：换句不换人时重设会让浏览器闪一下白
+  const abs = new URL(url, document.baseURI).href;
+  if (dlgPortrait.src !== abs) dlgPortrait.src = abs;
+  dlgPortrait.style.display = 'block';
 }
 
 export function setDialogueSpeaker(speaker: string, hasPortrait: boolean): void {

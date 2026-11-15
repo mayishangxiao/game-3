@@ -7,8 +7,6 @@
  * 老数据没写逐句 speaker / participants 时，一律回落到块级默认，行为与以前一致。
  */
 
-import Phaser from 'phaser';
-import { DEPTH, PALETTE } from '../core/constants';
 import { castLabel, lineSpeaker, resolveDialogueCast } from '../core/sceneDialogue';
 import { setInputEnabled } from '../core/EventBus';
 import type { DialogueAction, DialogueBlock, DialogueLine } from '../core/types';
@@ -16,22 +14,16 @@ import {
   hideDialogue,
   setDialogueBody,
   setDialogueCast,
+  setDialoguePortrait,
   setDialogueSpeaker,
   setDialogueTyping,
   showDialogue,
 } from './DomUi';
 
-const BOX_TOP = 160;
-/** 立绘画框尺寸（config.json → ui.portraits 的图按这个比例出） */
-const PORTRAIT_W = 72;
-const PORTRAIT_H = 84;
-
 export class DialogueBox {
-  private container: Phaser.GameObjects.Container;
-  private portrait: Phaser.GameObjects.Rectangle;
-  /** 说话人立绘（有素材时盖在占位框上） */
-  private portraitImg: Phaser.GameObjects.Image | null = null;
   private portraits: Record<string, string> = {};
+  /** 当前显示在 `#dom-dlg-portrait` 里的图（null = 这一句没人可画）。只写不读，供探针判定素材是否到位。 */
+  portraitUrl: string | null = null;
 
   private lines: DialogueLine[] = [];
   private block: DialogueBlock | null = null;
@@ -44,25 +36,15 @@ export class DialogueBox {
   private onDone: (() => void) | null = null;
   private onAction: ((a: DialogueAction) => void) | null = null;
   private speakerNames: Record<string, string> = {};
-  private scene: Phaser.Scene;
   private lastAdvance = 0;
   private currentSpeaker = '';
   private speakerLabel = '';
 
-  constructor(scene: Phaser.Scene, charDelayMs = 40, portraits: Record<string, string> = {}) {
+  constructor(charDelayMs = 40, portraits: Record<string, string> = {}) {
     this.charDelay = charDelayMs;
     this.portraits = portraits;
-    this.scene = scene;
-
-    // 对话框底板/文字已搬到 DOM（DomUi），这里只留立绘画框，其余画在 canvas 上会糊。
-    this.portrait = scene.add
-      .rectangle(46, BOX_TOP + 44, PORTRAIT_W, PORTRAIT_H, PALETTE.plumMid)
-      .setStrokeStyle(1, PALETTE.greyPlum);
-
-    this.container = scene.add
-      .container(0, 0, [this.portrait])
-      .setDepth(DEPTH.overlay)
-      .setVisible(false);
+    // 底板 / 文字 / 立绘全在 DOM（DomUi）里，canvas 上不画对话框的任何零件：
+    // 底板是 94% 不透明的深色块，画在它"下面"的东西一律被压暗（立绘曾经就是这样发黑的）。
   }
 
   get isActive(): boolean {
@@ -82,9 +64,8 @@ export class DialogueBox {
     this.onAction = onAction;
     this.onDone = onDone;
     this.active = true;
-    // 强制首行重画立绘：上一段对白可能停在同一说话人上，画框状态不能直接复用。
+    // 强制首行重画立绘：上一段对白可能停在同一说话人上，DOM 里的 img 状态不能直接复用。
     this.currentSpeaker = '';
-    this.container.setVisible(true);
     showDialogue();
     // 这一场的参与人物整段固定，只设一次；逐句切换的是「谁在说」，不是「谁在场」。
     setDialogueCast(castLabel(resolveDialogueCast(block), speakerNames));
@@ -114,47 +95,14 @@ export class DialogueBox {
   }
 
   /**
-   * 说话人立绘：config.json → ui.portraits 里登记了才显示。
-   * 素材按需加载（首次出现时 load.image），加载完成前先显示占位框，
-   * 避免对话因为等图而停一帧。
+   * 说话人立绘：config.json → ui.portraits 里登记了才显示，具体由 DOM 层的
+   * `#dom-dlg-portrait` 画（浏览器自己加载图片，不占 canvas，也不会被底板压暗）。
+   * 旁白与没登记素材的人只是收起图，文字会靠左——padding 由 `setDialogueSpeaker` 配套控制。
    */
   private applyPortrait(speaker: string): void {
-    const file = this.portraits[speaker];
-    if (this.portraitImg) {
-      this.portraitImg.destroy();
-      this.portraitImg = null;
-    }
-    if (!file) {
-      // 旁白没有人可画：画框收掉，文字靠左（DOM 层 padding 由 setDialogueSpeaker 控制）
-      if (speaker === 'narrator') {
-        this.portrait.setVisible(false);
-        return;
-      }
-      this.portrait.setVisible(true).setStrokeStyle(1, PALETTE.greyPlum);
-      return;
-    }
-    const key = `portrait_${speaker}`;
-    const place = () => {
-      // 贴图是异步到的，这期间玩家可能已经把对白推进到别人（或整段关掉）。
-      // 不校验就会把上一个人的头像贴到下一句的名字旁边。
-      if (!this.active || this.currentSpeaker !== speaker || !this.scene.textures.exists(key)) return;
-      // 底板留着当画框（深色画在深色底上会看不出边界），立绘缩进 2px 盖在上面
-      this.portrait.setVisible(true).setStrokeStyle(1, PALETTE.star);
-      this.portraitImg = this.scene.add
-        .image(46, BOX_TOP + 44, key)
-        .setDisplaySize(PORTRAIT_W - 4, PORTRAIT_H - 4)
-        .setOrigin(0.5);
-      // addAt(…, 2)：容器里 0=底板、1=占位框；插在 1 会被占位框盖住（踩过一次）
-      this.container.addAt(this.portraitImg, 2);
-    };
-    if (this.scene.textures.exists(key)) {
-      place();
-      return;
-    }
-    this.portrait.setVisible(true).setStrokeStyle(1, PALETTE.greyPlum);
-    this.scene.load.image(key, file);
-    this.scene.load.once(Phaser.Loader.Events.COMPLETE, place);
-    this.scene.load.start();
+    const file = this.portraits[speaker] ?? null;
+    this.portraitUrl = file;
+    setDialoguePortrait(file);
   }
 
   /** 每帧驱动打字机 */
@@ -219,8 +167,11 @@ export class DialogueBox {
 
   private finish(): void {
     this.active = false;
-    this.container.setVisible(false);
     hideDialogue();
+    // 立绘跟着底板一起收：DOM 的 #dom-dialogue 已经 display:none，
+    // 但清掉 src 能让浏览器立刻释放这张图，下一段对白换人时不会闪一下上一张。
+    this.portraitUrl = null;
+    setDialoguePortrait(null);
     setDialogueCast('');
     setInputEnabled(true);
     const cb = this.onDone;

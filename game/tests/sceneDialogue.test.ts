@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   castLabel,
+  isNpcInteractable,
   lineSpeaker,
   resolveDialogueCast,
   sceneCast,
@@ -36,6 +37,9 @@ const blocks = new Map(dlg.dialogues.map((b) => [b.id, b]));
 const nodes = readJson<{ nodes: NodeDef[] }>('public/data/nodes/nodes_ch00.json').nodes;
 const dungeons = readJson<{ dungeons: DungeonDef[] }>('public/data/dungeons/dungeons.json').dungeons;
 const events = readJson<{ events: EventCard[] }>('public/data/events/events_ch00.json').events;
+const act1a = readJson<{
+  objects: { id: string; kind: string; dialogue_ref?: string | null }[];
+}>('public/data/maps/map_ch00_act1a.json');
 
 const sorted = (xs: string[]): string[] => [...xs].sort();
 const sameSet = (a: string[], b: string[]): boolean =>
@@ -85,6 +89,18 @@ describe('core/sceneDialogue 纯函数', () => {
     expect(shouldPlayOutro('dlg_out', 'n1', null)).toBe(true);
     expect(shouldPlayOutro('dlg_out', 'n1', 'n1')).toBe(false);
     expect(shouldPlayOutro('dlg_out', 'n2', 'n1')).toBe(true);
+  });
+
+  it('NPC 闸门：没谈过可交互、谈过即锁死、别的 NPC 不受牵连', () => {
+    // 没配 npc_talk（talkObjId 为 null）——始终可以反复搭话
+    expect(isNpcInteractable('obj_x', null, false)).toBe(true);
+    expect(isNpcInteractable('obj_x', null, true)).toBe(true);
+    // 配了 npc_talk，但还没搭话
+    expect(isNpcInteractable('obj_linzexu', 'obj_linzexu', false)).toBe(true);
+    // 谈完 → 终止态：不再进交互候选、不再兜底播对白
+    expect(isNpcInteractable('obj_linzexu', 'obj_linzexu', true)).toBe(false);
+    // 闸门只锁那一位，其它可交互对象照旧（箱子/池子/出口）
+    expect(isNpcInteractable('obj_crate_1', 'obj_linzexu', true)).toBe(true);
   });
 });
 
@@ -165,5 +181,45 @@ describe('所有场景：开场 + 收尾 + 参与人物', () => {
         expect(npcs[f], `${e.id} 的 ${f} 没有显示名`).toBeTruthy();
       }
     }
+  });
+});
+
+/**
+ * v1.9.0 回归：林则徐的「谈完还能源源不断播旁白」。
+ *
+ * 数据上有两个对白来源叠在同一个对象身上：`npc_talk.dialogue` 是他的正台词，
+ * 对象自带的 `dialogue_ref` 是这一幕的开场旁白（给进关时用的）。一旦闸门失效，
+ * 第二次交互就会掉进 `dialogue_ref` 兜底。这里既锁判据，也锁「两个 ref 不能是同一段」——
+ * 同段的话测试看不出问题，但玩家会听到自己的台词被当成旁白重播。
+ */
+describe('林则徐搭话只发生一次（v1.9.0）', () => {
+  const talkNode = nodes.find((n) => (n.params as { npc_talk?: { npc?: string } }).npc_talk);
+  const cfg = (talkNode?.params as { npc_talk?: { npc?: string; dialogue?: string } } | undefined)?.npc_talk;
+  const npcObj = act1a.objects.find((o) => o.kind === 'npc');
+
+  it('销烟关确实配了 npc_talk，且指向地图里那位 NPC', () => {
+    expect(talkNode, '没有任何节点配置 npc_talk').toBeTruthy();
+    expect(cfg?.npc).toBe('obj_linzexu');
+    expect(npcObj?.id).toBe('obj_linzexu');
+    expect(blocks.has(String(cfg?.dialogue))).toBe(true);
+  });
+
+  it('npc_talk 正台词与对象自带 dialogue_ref 不是同一段（否则谈完重播的是自己的台词）', () => {
+    expect(npcObj?.dialogue_ref).toBeTruthy();
+    expect(cfg?.dialogue).not.toBe(npcObj?.dialogue_ref);
+    // 兜底那段就是开场旁白：确认它确实是旁白块，说明「重播旁白」这个症状对得上
+    const fallback = blocks.get(String(npcObj?.dialogue_ref));
+    expect(fallback?.speaker).toBe('narrator');
+  });
+
+  it('谈完那一刻闸门关闭，重开节点（talked 复位）又重新放行', () => {
+    const id = String(npcObj?.id);
+    const talkId = String(cfg?.npc);
+    // 进关 → 未谈
+    expect(isNpcInteractable(id, talkId, false)).toBe(true);
+    // 播完正台词 → 锁死：findNearObject 跳过它、handleInteract 直接 break
+    expect(isNpcInteractable(id, talkId, true)).toBe(false);
+    // 重试 / 换图：startNodeInner 会把 npcTalked 复位，闸门重新打开
+    expect(isNpcInteractable(id, talkId, false)).toBe(true);
   });
 });

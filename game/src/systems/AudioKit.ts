@@ -18,8 +18,12 @@ class AudioKitImpl {
   private ctx: Ctx | null = null;
   private master: GainNode | null = null;
   private muted = false;
+  /** 音效总线音量，来自存档 `settings.sound`（缺省 0.8） */
+  private sfxVolume = 0.8;
   /** 战斗音效（目前没有 BGM，但留一个闸门：演出开始时统一静音） */
   private battleSilenced = false;
+  /** 每个音效上一次播放的时间戳，用来做最小间隔防叠音 */
+  private lastAt: Record<string, number> = {};
 
   /** 建/取音频上下文；失败返回 null（后续所有播放静默跳过） */
   private ensure(): Ctx | null {
@@ -51,7 +55,20 @@ class AudioKitImpl {
 
   setMuted(v: boolean): void {
     this.muted = v;
-    if (this.master) this.master.gain.value = v ? 0 : 0.85;
+    if (this.master) this.master.gain.value = v ? 0 : this.sfxVolume * 0.85;
+  }
+
+  /**
+   * 音效总线音量 0..1（暂停菜单里的「音效」开关写 0 / 0.8）。
+   * 与 BGM 是两条独立总线：关掉音乐要还能听见刀声，反过来也一样。
+   */
+  setVolume(v: number): void {
+    this.sfxVolume = Math.max(0, Math.min(1, v));
+    if (this.master) this.master.gain.value = this.muted ? 0 : this.sfxVolume * 0.85;
+  }
+
+  get currentVolume(): number {
+    return this.sfxVolume;
   }
 
   get isMuted(): boolean {
@@ -152,11 +169,178 @@ class AudioKitImpl {
     }
   }
 
+  /* ==================== 通用音效（v1.9.0） ====================
+   *
+   * 演出音之外的「一按一响」都在这里，全部控制在 150ms 内：长音会盖住下一次按键，
+   * 玩家会觉得手柄延迟。战败演出期间（`battleSilenced`）一律不响，否则丧钟里掺刀声。
+   */
+
+  /** 取一条可用的音频链；静音、演出静默、上下文建不起来都返回 null */
+  private ready(): Ctx | null {
+    if (this.muted || this.battleSilenced) return null;
+    const ctx = this.ensure();
+    if (!ctx) return null;
+    this.wake(ctx);
+    return ctx;
+  }
+
+  /** 同一音效最小间隔；连击同帧命中时不会叠成爆音 */
+  private throttle(key: string, ms: number): boolean {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (now - (this.lastAt[key] ?? 0) < ms) return false;
+    this.lastAt[key] = now;
+    return true;
+  }
+
+  /** 一个短音：给 UI 点击、拾取这类「音高本身就是信息」的提示 */
+  private tone(
+    ctx: Ctx,
+    freq: number,
+    seconds: number,
+    gain: number,
+    type: OscillatorType = 'square',
+    delay = 0,
+  ): void {
+    if (!this.master) return;
+    const t0 = ctx.currentTime + delay;
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + seconds);
+    osc.connect(g);
+    g.connect(this.master);
+    osc.start(t0);
+    osc.stop(t0 + seconds + 0.02);
+  }
+
+  /** 一段扫过去的带通噪声：挥刀、箭矢、落水都用它 */
+  private swish(
+    ctx: Ctx,
+    fromHz: number,
+    toHz: number,
+    seconds: number,
+    gain: number,
+    delay = 0,
+  ): void {
+    if (!this.master) return;
+    const t0 = ctx.currentTime + delay;
+    const frames = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+    const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frames; i++) {
+      const env = Math.sin((i / frames) * Math.PI);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(fromHz, t0);
+    bp.frequency.exponentialRampToValueAtTime(Math.max(60, toHz), t0 + seconds);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t0);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(this.master);
+    src.start(t0);
+    src.stop(t0 + seconds + 0.02);
+  }
+
+  /** UI 点击：短、干，别让玩家点一次菜单就听一段音 */
+  click(): void {
+    if (!this.throttle('click', 40)) return;
+    const ctx = this.ready();
+    if (!ctx) return;
+    this.tone(ctx, 920, 0.045, 0.12, 'square');
+  }
+
+  /** 确认（买装备、确认强化）：比点击高一度，听起来是「成了」 */
+  confirm(): void {
+    const ctx = this.ready();
+    if (!ctx) return;
+    this.tone(ctx, 784, 0.07, 0.14, 'square');
+    this.tone(ctx, 1175, 0.09, 0.12, 'square', 0.06);
+  }
+
+  /** 取消 / 无效操作 */
+  cancel(): void {
+    const ctx = this.ready();
+    if (!ctx) return;
+    this.tone(ctx, 220, 0.09, 0.12, 'square');
+  }
+
+  /** 挥刀：刀风的带通噪声，从 3kHz 扫到 700Hz */
+  swing(): void {
+    if (!this.throttle('swing', 70)) return;
+    const ctx = this.ready();
+    if (!ctx) return;
+    this.swish(ctx, 3000, 700, 0.12, 0.16);
+  }
+
+  /** 命中：一记短闷响 + 一点金属噪声，和挥刀分开，玩家能听出「砍到了」 */
+  hit(): void {
+    if (!this.throttle('hit', 45)) return;
+    const ctx = this.ready();
+    if (!ctx) return;
+    this.thud(ctx, 260, 120, 0.1, 0.18);
+    this.swish(ctx, 4200, 2400, 0.05, 0.08);
+  }
+
+  /** 玩家受伤：低频下滑，比命中更闷更长一点 */
+  hurt(): void {
+    if (!this.throttle('hurt', 140)) return;
+    const ctx = this.ready();
+    if (!ctx) return;
+    this.thud(ctx, 220, 80, 0.28, 0.3);
+    this.swish(ctx, 900, 300, 0.16, 0.1);
+  }
+
+  /** 捡起 / 抱起箱子：两个上行音，短到不打断节奏 */
+  pickup(): void {
+    if (!this.throttle('pickup', 90)) return;
+    const ctx = this.ready();
+    if (!ctx) return;
+    this.tone(ctx, 622, 0.06, 0.1, 'triangle');
+    this.tone(ctx, 933, 0.08, 0.1, 'triangle', 0.055);
+  }
+
+  /** 投箱 / 落水：低通噪声裹一层闷响 */
+  splash(): void {
+    if (!this.throttle('splash', 120)) return;
+    const ctx = this.ready();
+    if (!ctx) return;
+    this.swish(ctx, 1200, 200, 0.34, 0.22);
+    this.thud(ctx, 140, 60, 0.32, 0.2);
+  }
+
+  /** 升级 / 开箱：三音上行，是全局唯一「明显变强」的听觉信号 */
+  levelUp(): void {
+    const ctx = this.ready();
+    if (!ctx) return;
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((hz, i) => this.tone(ctx, hz, 0.14, 0.13, 'triangle', i * 0.075));
+  }
+
+  /** 开炮：一声闷响 + 一团爆裂噪声，比 cannonAftermath 短、脆、近 */
+  cannonShot(): void {
+    if (!this.throttle('cannon', 180)) return;
+    const ctx = this.ready();
+    if (!ctx) return;
+    this.thud(ctx, 120, 40, 0.5, 0.45);
+    this.swish(ctx, 2400, 300, 0.3, 0.24);
+  }
+
   /** 只给测试与调试用：把内部状态复位 */
   reset(): void {
     this.muted = false;
     this.battleSilenced = false;
-    if (this.master) this.master.gain.value = 0.85;
+    this.sfxVolume = 0.8;
+    this.lastAt = {};
+    if (this.master) this.master.gain.value = 0.8 * 0.85;
   }
 }
 

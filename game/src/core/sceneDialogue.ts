@@ -65,3 +65,23 @@ export function shouldPlayOutro(
 ): boolean {
   return !!ref && playedFor !== sceneId;
 }
+
+/**
+ * 配了 `params.npc_talk` 的 NPC 谈过一次之后就锁住：不再进交互候选、不再显示名字、
+ * 按交互键也不再播任何对白。
+ *
+ * 这条判据存在的原因是它踩过：林则徐同时带着 `npc_talk.dialogue`（他的台词）和
+ * 对象自带的 `dialogue_ref`（这一幕的开场旁白）。第一次交互走 npc_talk 分支、播完
+ * 置 `talked = true`，之后再交互就落到 `dialogue_ref` 兜底分支——玩家按一次听一遍
+ * 「一八三九年……」的开场旁白，怎么按都停不下来。
+ *
+ * 所以「谈完」必须是一个**终止态**，而不是「下次换一段」。没配 npc_talk 的 NPC
+ * （`talkObjId` 为 null 或不是它）不受影响，仍可反复搭话。
+ */
+export function isNpcInteractable(
+  objId: string,
+  talkObjId: string | null,
+  talked: boolean,
+): boolean {
+  return !(talked && talkObjId !== null && talkObjId === objId);
+}

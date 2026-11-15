@@ -46,7 +46,7 @@ import {
 import { DefeatCinematic } from '../systems/DefeatCinematic';
 import { controls } from '../systems/InputSystem';
 import { DialogueBox } from '../systems/DialogueBox';
-import { hideDialogue, hideFloat, hideOverlay, hideToast, moveFloat, showFloat, showOverlay } from '../systems/DomUi';
+import { hideDialogue, hideFloat, hideOverlay, hideToast, moveFloat, prefetchPortraits, showFloat, showOverlay } from '../systems/DomUi';
 import { MapRenderer } from '../gfx/MapRenderer';
 import { backdropImage, horizonImage, HORIZON_H } from '../gfx/Backdrop';
 import { isFootBlocked, nearestOpenPoint } from '../core/space';
@@ -127,7 +127,10 @@ import {
   recordDungeonClear,
   shouldGrantUnique,
 } from '../core/dungeon';
-import { shouldPlayOutro } from '../core/sceneDialogue';
+import { isNpcInteractable, shouldPlayOutro } from '../core/sceneDialogue';
+import { songIdOfAct } from '../core/bgm';
+import { audio } from '../systems/AudioKit';
+import { bgm } from '../systems/Bgm';
 import { getSave, persist } from './BootScene';
 import type {
   ActDef,
@@ -284,6 +287,8 @@ export class LevelScene extends Phaser.Scene {
    * 甲方要求：旁白先说完，林则徐不自动开口；玩家自己走过去点他，他才一次说完，
    * 说完才能搬箱子。所以箱子的交互被这道闸门挡住，而不是靠改对白数据糊过去。
    */
+  /** 上一帧的玩家血量，只用来判断「这一帧挨打了」并放一声受伤音 */
+  private lastHp = 0;
   private npcTalked = false;
   private npcTalkObjId: string | null = null;
   private npcDialogueRef: string | null = null;
@@ -473,15 +478,11 @@ export class LevelScene extends Phaser.Scene {
       if (!this.textures.exists(key)) this.load.image(key, path);
     });
     if (!this.textures.exists(TEX_CRATE)) this.load.image(TEX_CRATE, ART.crate);
-    // 立绘的 key 必须和 DialogueBox 的 `portrait_${speaker}` 一致，
-    // 否则对白会一直显示灰色占位框。每加一位有立绘的说话人：config.json 的 ui.portraits 登记 + 这里补一行。
-    const portraits: Array<[string, string]> = [
-      ['portrait_lin_zexu', ART.portraitLinZexu],
-      ['portrait_guan_tianpei', ART.portraitGuanTianpei],
-    ];
-    for (const [key, path] of portraits) {
-      if (!this.textures.exists(key)) this.load.image(key, path);
-    }
+    // 立绘：config.json → ui.portraits 是**唯一登记处**。v1.9.0 起立绘由 DOM 层的
+    // `#dom-dlg-portrait` 画（canvas 上的图会被半透明底板压暗），所以这里不进 Phaser 纹理表，
+    // 只提前把图片塞进浏览器 HTTP 缓存，轮到谁说话都不会出现一帧空白。
+    // 注意 preload 阶段 `this.cfg` 还没赋值（它在 create 里才拿），必须直接问 dataLoader。
+    prefetchPortraits(dataLoader.getBalance().ui.portraits ?? {});
     // 围观百姓（6×12 像素小人，游戏里放大 3 倍）。缺图时 `spawnCrowd` 会退回暗色方块。
     Object.values(CROWD_TEX).forEach((key, i) => {
       if (!this.textures.exists(key)) this.load.image(key, `${ART.crowd}door_${i}.png`);
@@ -894,7 +895,7 @@ export class LevelScene extends Phaser.Scene {
     this.loadingLabel.destroy();
     this.loadingLabel = null;
 
-    this.dialogue = new DialogueBox(this, this.cfg.ui.dialog_speed, this.cfg.ui.portraits ?? {});
+    this.dialogue = new DialogueBox(this.cfg.ui.dialog_speed, this.cfg.ui.portraits ?? {});
     this.scene.launch('UI');
 
     // 离开关卡时同样得自己收 DOM：暂停菜单「回主菜单」经常是在对白没播完时走的，
@@ -937,6 +938,7 @@ export class LevelScene extends Phaser.Scene {
     try {
       this.nodeBusy = true;
       this.mode = 'combat';
+      this.syncBgm();
       this.enemyLevel = d.recommended_level;
       this.spawnedTotal = 0;
       this.runDrops = [];
@@ -1317,6 +1319,8 @@ export class LevelScene extends Phaser.Scene {
     const treaty = (p.treaty_lines as string[] | undefined) ?? [];
     this.defeated = true;
     this.mode = 'cutscene';
+    // 城破演出自带炮火余响与丧钟，BGM 必须先让位——两段低频叠在一起会糊成一团
+    bgm.stop();
     setControlsVisible(false);
     this.nodeBusy = true;
     this.player.hp = 0;
@@ -2063,6 +2067,19 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * 场景音乐：战斗（含全部副本）→ battle；第二幕 → taiping；其余鸦片战争场景 → humen。
+   * 同一个曲目重复调用是空操作，所以节点之间切来切去不会重头再响。
+   */
+  private syncBgm(): void {
+    if (this.dungeon || this.mode === 'combat') {
+      bgm.play('battle');
+      return;
+    }
+    // 走幕数据里的 `bgm` 字段（core/bgm.ts 的 ACT_SONG 是唯一映射），不在场景里硬编码幕 id
+    bgm.play(songIdOfAct(this.act?.bgm));
+  }
+
   private async startNodeInner(index: number): Promise<void> {
     const nodeId = this.act.nodes[index];
     const node = this.bundle.nodes.find((n) => n.id === nodeId);
@@ -2078,6 +2095,7 @@ export class LevelScene extends Phaser.Scene {
     // 换图是 await：模式必须在这个异步窗口之前切过去，否则让出的一帧里
     // updateWorld 仍会按上一幕的模式跑完成判定（护送 → 经营串幕的根因）。
     this.mode = ((node.params.mode as Mode) ?? 'explore') as Mode;
+    this.syncBgm();
     // 左上角战役条：幕名 · 这一场 + 年份（老师评审时要一眼看出打的是哪一段史实）
     emitSceneLabel({
       act: this.act.name,
@@ -3041,8 +3059,11 @@ export class LevelScene extends Phaser.Scene {
       this.npcMark.destroy();
       this.npcMark = null;
     }
-    this.floatObj = null;
-    hideFloat();
+    // 谈完当场把这个 NPC 从「当前可交互」里摘掉：玩家是站着不动听完的，
+    // 不主动清就会一直显示「与林则徐交谈」，按交互键却已经什么都不发生。
+    if (this.nearObject?.id === this.npcTalkObjId) this.nearObject = null;
+    // nearObject 已清空，这一趟会把浮动名字全部收掉（内部同时 hideFloat）
+    this.refreshObjectLabels();
     emitToast('可以搬鸦片箱了', 1200);
   }
 
@@ -3899,6 +3920,9 @@ export class LevelScene extends Phaser.Scene {
     let bestDist = 26;
     for (const o of this.worldObjects) {
       if (!o.rect.visible) continue;
+      // 谈完的林则徐不再是可交互对象：既不会亮「与林则徐交谈」，
+      // 也不会因为「离得最近」把交互键抢走（旁边就是箱子时尤其明显）。
+      if (!isNpcInteractable(o.def.id, this.npcTalkObjId, this.npcTalked)) continue;
       let d = Phaser.Math.Distance.Between(this.player.x, this.player.y, o.rect.x, o.rect.y);
       // 销烟池是 7×4 格的大长方体且池区实心，玩家只能站在池沿外：
       // 还按「到中心 26px」判，离池心最近也有 40px，抱着箱子会投不进去。
@@ -3935,6 +3959,7 @@ export class LevelScene extends Phaser.Scene {
         this.carrying = true;
         const entry = this.worldObjects.find((o) => o.def.id === obj.id);
         if (entry) this.hideWorldObject(entry);
+        audio.pickup();
         emitObjective(`搬运鸦片箱并投入销烟池　${this.cratesDelivered}/${this.crateTarget}`);
         emitToast('抱起一箱鸦片', 900);
         break;
@@ -3947,6 +3972,7 @@ export class LevelScene extends Phaser.Scene {
         this.carrying = false;
         this.cratesDelivered += 1;
         this.poolPuff(obj);
+        audio.splash();
         emitObjective(`搬运鸦片箱并投入销烟池　${this.cratesDelivered}/${this.crateTarget}`);
         if (this.cratesDelivered >= this.crateTarget) {
           this.setExitVisible(true);
@@ -3955,6 +3981,9 @@ export class LevelScene extends Phaser.Scene {
         break;
       }
       case 'npc': {
+        // 谈完就是终止态：这里必须整体早退，不能落到下面的 `obj.dialogue_ref` 兜底。
+        // 林则徐的 dialogue_ref 是这一幕的开场旁白，兜底会让玩家每按一次听一遍旁白。
+        if (!isNpcInteractable(obj.id, this.npcTalkObjId, this.npcTalked)) break;
         // 幕内指定了 npc_talk 的这位：播完他的台词才算「说过话」
         if (this.npcTalkObjId === obj.id && this.npcDialogueRef && !this.npcTalked) {
           this.playDialogue(this.npcDialogueRef, () => this.finishNpcTalk());
@@ -4053,6 +4082,8 @@ export class LevelScene extends Phaser.Scene {
     if (target) this.player.faceTowards(dirX, dirY);
 
     if (power <= 1 && !this.player.tryAttack()) return;
+    // 真正出手才响（冷却中被吃掉的按键不该有刀风）
+    audio.swing();
 
     if (ranged) {
       // 远程：投射物朝敌人飞，而不是朝玩家原来的朝向
@@ -4301,6 +4332,8 @@ export class LevelScene extends Phaser.Scene {
       rng,
     );
     const died = e.takeDamage(res.damage, res.crit, this.cfg);
+    // 命中音在 takeDamage 之后：爆击与死亡各自还有自己的反馈，这里只给「砍到了」
+    audio.hit();
 
     const fb = this.cfg.combat_feedback;
     // v1.8「震荡强击」：只给近战加额外击退，远程投射物不受影响
@@ -4402,6 +4435,8 @@ export class LevelScene extends Phaser.Scene {
     const target = inRange[0];
     // 朝向目标（关天培亲燃大炮，炮口要对准）
     this.player.faceTowards(target.x - this.player.x, target.y - this.player.y);
+    // 炮声放在「确认真有目标」之后：空按技能不该有炮响
+    audio.cannonShot();
 
     // 溅射范围内的所有敌人（含主目标）
     const splash = alive.filter((e) =>
@@ -5308,6 +5343,10 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
     if (!this.player || !this.map) return;
+    // 受伤音统一在这里判：4 条 takeDamage 路径（近战 / 投射物 / 炮火 / 环境）不必各插一行，
+    // 也不会因为某条新路径忘了加而变成「这次怎么没声音」。
+    if (this.lastHp > 0 && this.player.hp < this.lastHp) audio.hurt();
+    this.lastHp = this.player.hp;
     // 战败面板：冻结世界，也别让下面每帧的 setControlsVisible 把摇杆又放回来
     if (this.storyFailOpen) return;
     // 节点切换期间（startNode 内有 await）不做任何世界逻辑

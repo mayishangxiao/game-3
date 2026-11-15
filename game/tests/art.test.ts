@@ -4,7 +4,9 @@
  * 这一层挡的是「资源路径打错／图被误删／尺寸被改」这类**在浏览器里只会静默不显示**的问题：
  * 贴图挂了不会报错，只是 Boss 舰退回矩形占位形体，截图评审时极难发现。
  * 顺带守住两条约定：
- *   1. 立绘纹理 key 必须是 `portrait_${speaker}`（DialogueBox 按这个规则拼 key）；
+ *   1. 立绘文件名必须是 `portrait_${speaker}`，且 art 目录里每一张立绘都要在
+ *      config.json → ui.portraits 登记（v1.9.0 起立绘由 DOM 的 <img> 按这张表加载，
+ *      漏登记 = 那个人说话时永远没有脸，不会报错）；
  *   2. 舰船帧数固定 6，序号的语义写进 constants 的 SHIP_FRAME。
  */
 
@@ -107,14 +109,24 @@ describe('正式美术资源', () => {
       readFileSync(join(PUBLIC, 'data', 'config.json'), 'utf8'),
     ) as { ui?: { portraits?: Record<string, string> } };
     const portraits = config.ui?.portraits ?? {};
-    // 用户 m05506：关天培用回原稿立绘，所有立绘都只要头（96×112 胸像）
-    expect(Object.keys(portraits).sort()).toEqual(['guan_tianpei', 'lin_zexu']);
+    // 登记表与磁盘上的立绘**互相**对齐：加了图忘了登记，或登记了删了图，都要红。
+    // 不再写死人数——v1.9.0 一次补了 12 位第二幕人物，写死名单每次加人都得改测试。
+    const onDisk = readdirSync(join(PUBLIC, 'art'))
+      .filter((f) => /^portrait_.+\.png$/.test(f))
+      .map((f) => f.replace(/^portrait_/, '').replace(/\.png$/, ''))
+      .sort();
+    expect(Object.keys(portraits).sort()).toEqual(onDisk);
     for (const [speaker, file] of Object.entries(portraits)) {
       expect(existsSync(join(PUBLIC, file))).toBe(true);
       expect(file.endsWith('.png')).toBe(true);
-      // DialogueBox.applyPortrait 的 key 规则：文件名必须与说话人 id 同名
+      // 文件名必须与说话人 id 同名：DOM 立绘按这张表取图，名字对不上就是错人
       expect(file.endsWith(`portrait_${speaker}.png`)).toBe(true);
-      expect(pngSize(file)).toEqual({ width: 96, height: 112 });
+      // 所有立绘都只要头（96×112 胸像），对白框按 72×84 显示
+      expect(pngSize(file), file).toEqual({ width: 96, height: 112 });
+    }
+    // 第二幕主要人物必须都有自己的脸（「第二幕人物立绘 ⬜ 未做」这一格的判据）
+    for (const speaker of ['hong_xiuquan', 'yang_xiuqing', 'wei_changhui', 'zeng_guofan']) {
+      expect(portraits[speaker], speaker).toBeTruthy();
     }
     expect(portraits.lin_zexu).toBe(ART.portraitLinZexu);
     expect(portraits.guan_tianpei).toBe(ART.portraitGuanTianpei);

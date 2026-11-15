@@ -23,8 +23,10 @@
 | `dialogues/dlg_ch00.json` | 对话块 + NPC 表 | 9 块 | `dialogues[].id` |
 
 > **美术资源不在这张表里**：图片放 `public/art/`（`ship/` 舰船帧、`props/` 地图物件、`portrait_*.png` 立绘），
-> 路径登记在两处——立绘在 `config.json → ui.portraits`（说话人 id → 文件），舰船/箱子在 `src/core/constants.ts` 的 `ART`。
-> `tests/art.test.ts` 会校验文件存在、尺寸正确、`ui.portraits` 的 key 符合 `portrait_${speaker}` 约定。
+> 路径登记在两处——立绘在 `config.json → ui.portraits`（说话人 id → 文件，v1.9.0 起共 14 人），舰船/箱子在 `src/core/constants.ts` 的 `ART`。
+> `ui.portraits` 是立绘的**唯一登记处**：`systems/DialogueBox.ts` 只把这里的路径交给 DOM 的 `#dom-dlg-portrait`（canvas 上的图会被半透明对白底板压暗，所以不在 canvas 画）。
+> `tests/art.test.ts` 会拿磁盘上的 `art/portrait_*.png` 与这张登记表**互相**校验（多一张、少一张、文件名与说话人 id 不一致都红），并检查尺寸统一 96×112。
+> 加一位说话人：① `tools/gen_portraits.py` 的 `PEOPLE` 表加一行并重跑，② 在这里加一条 `"<speaker>": "art/portrait_<speaker>.png"`，③ 对白数据里 `speaker` 用同一个 id。
 
 ## 二、包装形状（**最容易踩的坑**）
 

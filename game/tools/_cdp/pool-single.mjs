@@ -47,7 +47,7 @@ const server = isRemote ? null : createServer(async (req, res) => {
     const file = resolve(staticDir, rel === '' || rel === '.' ? 'index.html' : rel);
     if (!file.startsWith(staticDir)) { res.writeHead(403).end(); return; }
     const body = await readFile(file);
-    res.writeHead(200, { 'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
     res.end(body);
   } catch { res.writeHead(404).end('not found'); }
 });
@@ -118,6 +118,8 @@ try {
   };
 
   await send('Page.enable'); await send('Runtime.enable');
+  // 每次构建 bundle 名都会变：不禁缓存会跑到上一次的 boot-*.js（已从 dist 删除）
+  await send('Network.enable'); await send('Network.setCacheDisabled', { cacheDisabled: true });
   await send('Emulation.setDeviceMetricsOverride', { width: 960, height: 540, deviceScaleFactor: 1, mobile: false });
   await send('Page.navigate', { url: baseUrl }); await sleep(500);
   await waitFor(() => evaluate('!!window.__dshGate'), 40000, 'gate');
@@ -325,6 +327,61 @@ try {
     width: 56 * sc,
     height: 58 * sc,
   });
+
+  // ---- v1.9.0：林则徐「搭话只发生一次」 ----
+  // 修复前：第一次交互播 npc_talk 的正台词，第二次就掉进 obj.dialogue_ref
+  // （这一幕的开场旁白），玩家每按一次听一遍「一八三九年……」，按不完。
+  // 修复后谈完是终止态：不再进交互候选、浮动名字撤掉、按交互键什么都不发生。
+  const talkOnce = await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    l.player.rig.setPosition(264, 232);          // 池前、林则徐左脚边
+    l.npcTalked = false;                          // 回到「刚进关」
+    l.nearObject = l.findNearObject();
+    const before = {
+      near: l.nearObject && l.nearObject.id,
+      talked: l.npcTalked,
+      mark: !!l.npcMark,
+      floatText: (document.getElementById('dom-float') || {}).textContent || '',
+    };
+    l.handleInteract();
+    return { before, dialogueActive: !!(l.dialogue && l.dialogue.isActive) };
+  })()`);
+  await sleep(220);
+  const drained = await drainDialogue();
+  await sleep(260);
+  const afterTalk = await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    const nearNow = l.findNearObject();
+    const floatEl = document.getElementById('dom-float');
+    const rec = {
+      talked: l.npcTalked,
+      markGone: !l.npcMark,
+      nearAfter: nearNow && nearNow.id,
+      nearObject: l.nearObject && l.nearObject.id,
+      floatShown: !!floatEl && floatEl.style.display !== 'none',
+      dialogueActive: !!(l.dialogue && l.dialogue.isActive),
+    };
+    // 模拟「旧引用还挂在身上」：即便 nearObject 仍是林则徐，也不能再播任何对白
+    l.nearObject = l.worldObjects.find(o => o.def.id === 'obj_linzexu').def;
+    l.handleInteract();
+    rec.secondDialogue = !!(l.dialogue && l.dialogue.isActive);
+    // 闸门只锁林则徐：箱子照旧能搬
+    const crate = l.worldObjects.find(o => o.def.kind === 'pickup');
+    l.player.rig.setPosition(crate.rect.x, crate.rect.y + 6);
+    l.nearObject = l.findNearObject();
+    rec.nearCrate = l.nearObject && l.nearObject.id;
+    l.handleInteract();
+    rec.carrying = l.carrying;
+    return rec;
+  })()`);
+  report.snapshots.talkOnce = { talkOnce, afterTalk, drained };
+  report.checks.npcFirstTalkPlays = talkOnce.before.near === 'obj_linzexu' &&
+    talkOnce.before.mark === true && talkOnce.dialogueActive === true && drained > 0;
+  report.checks.npcLocksAfterTalk = afterTalk.talked === true && afterTalk.markGone === true;
+  report.checks.npcNoLongerNearest = afterTalk.nearAfter !== 'obj_linzexu' && afterTalk.nearObject === null;
+  report.checks.npcNoRepeatDialogue = afterTalk.secondDialogue === false && afterTalk.dialogueActive === false;
+  report.checks.npcFloatLabelGone = afterTalk.floatShown === false;
+  report.checks.crateUnlockedAfterTalk = afterTalk.nearCrate !== null && afterTalk.carrying === true;
 
   report.checks.noConsoleErrors = report.errors.length === 0;
   const failed = Object.entries(report.checks).filter(([, v]) => v !== true).map(([k]) => k);
