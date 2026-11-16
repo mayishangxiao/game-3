@@ -14,6 +14,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { inflateSync } from 'node:zlib';
 import { MELEE_RANGE_MAX, SEA_SHEET_COLS, SEA_TILESET_ID, TILE } from '../src/core/constants';
 
 const ROOT = process.cwd();
@@ -229,5 +230,78 @@ describe('海战文案：不许残留陆战措辞', () => {
     const kc = cards.find((c) => c.id === 'kc_1894_jiawu')!;
     expect(kc.title).toContain('黄海海战');
     expect(kc.summary).toContain('北洋');
+  });
+});
+
+/**
+ * 解一张 8bit RGBA 非隔行小 PNG 的 RGB（本工程瓦片都是这个格式，不引第三方依赖）。
+ * 只用来数「甲板接缝瓦片里有没有亮钉像素」，不需要 alpha。
+ */
+function tileRgb(rel: string): { w: number; h: number; rgb: Uint8Array } {
+  const buf = readFileSync(join(ROOT, 'public', rel));
+  let pos = 8;
+  let idat = Buffer.alloc(0);
+  let w = 0;
+  let h = 0;
+  while (pos < buf.length) {
+    const len = buf.readUInt32BE(pos);
+    const tag = buf.subarray(pos + 4, pos + 8).toString('ascii');
+    const body = buf.subarray(pos + 8, pos + 8 + len);
+    pos += 12 + len;
+    if (tag === 'IHDR') {
+      w = body.readUInt32BE(0);
+      h = body.readUInt32BE(4);
+    } else if (tag === 'IDAT') {
+      idat = Buffer.concat([idat, body]);
+    } else if (tag === 'IEND') {
+      break;
+    }
+  }
+  const raw = inflateSync(idat);
+  const stride = w * 4;
+  const prev = new Uint8Array(stride);
+  const rgb = new Uint8Array(w * h * 3);
+  let p = 0;
+  for (let y = 0; y < h; y++) {
+    const filter = raw[p++];
+    const line = new Uint8Array(raw.subarray(p, p + stride));
+    p += stride;
+    for (let i = 0; i < stride; i++) {
+      const a = i >= 4 ? line[i - 4] : 0;
+      const b = prev[i];
+      const c = i >= 4 ? prev[i - 4] : 0;
+      if (filter === 1) line[i] = (line[i] + a) & 255;
+      else if (filter === 2) line[i] = (line[i] + b) & 255;
+      else if (filter === 3) line[i] = (line[i] + ((a + b) >> 1)) & 255;
+      else if (filter === 4) {
+        const pp = a + b - c;
+        const pa = Math.abs(pp - a);
+        const pb = Math.abs(pp - b);
+        const pc = Math.abs(pp - c);
+        line[i] = (line[i] + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 255;
+      }
+    }
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 3;
+      const s = x * 4;
+      rgb[o] = line[s];
+      rgb[o + 1] = line[s + 1];
+      rgb[o + 2] = line[s + 2];
+    }
+    prev.set(line);
+  }
+  return { w, h, rgb };
+}
+
+describe('甲板接缝不许再连成亮虚线', () => {
+  it('deck_seam 瓦片里没有浅灰亮钉（GREY_L / 亮度 > 180）像素', () => {
+    const { w, h, rgb } = tileRgb('art/tiles/sea/sea_deck_seam.png');
+    expect([w, h]).toEqual([16, 16]);
+    let bright = 0;
+    for (let i = 0; i < rgb.length; i += 3) {
+      if (rgb[i] > 180 && rgb[i + 1] > 180 && rgb[i + 2] > 180) bright++;
+    }
+    // 亮钉每 4px 一对、成列铺满整船时，实拍是一排贯穿甲板的黄色虚线
+    expect(bright, `deck_seam 还剩 ${bright} 个亮钉像素`).toBe(0);
   });
 });

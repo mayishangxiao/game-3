@@ -134,3 +134,20 @@ describe('终局：清帝退位，而不是「到此收卷」', () => {
     }
   });
 });
+
+describe('终局：年数与底板', () => {
+  const finaleSrc = readFileSync(join(ROOT, 'src/scenes/LevelScene.ts'), 'utf8');
+
+  it('年表跨度是 72 年，终局正文写「七十二年」而不是「八十年」', () => {
+    const [from, to] = chapter.period.split('—').map(Number);
+    expect(to - from).toBe(72);
+    // 终局正文在 LevelScene.showEnding() 里，不在对白 JSON 中，所以直接锁源码
+    expect(finaleSrc).toContain('七十二年，中国人一直在找出路。');
+    expect(finaleSrc).not.toContain('八十年');
+  });
+
+  it('终局底板全不透明（0.97 会漏出下层红色按钮框，变成孤零零的空框）', () => {
+    expect(finaleSrc).toMatch(/PALETTE\.ink,\s*1\)/);
+    expect(finaleSrc).not.toMatch(/PALETTE\.ink,\s*0\.97\)/);
+  });
+});

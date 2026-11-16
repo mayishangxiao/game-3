@@ -225,13 +225,16 @@ def tile_deck_b(cv: Canvas, ox: int, oy: int) -> None:
 
 
 def tile_deck_seam(cv: Canvas, ox: int, oy: int) -> None:
-    """甲板接缝：纵向拼缝 + 四颗铁钉。海战图里成列铺，读作「一块块钢板/木板拼起来」。"""
+    """甲板接缝：一道纵向暗拼缝 + 稀疏铁钉。
+
+    第一版是 GREY_L 亮钉每 4px 一对、成列铺满整船，实拍出来是一排贯穿甲板的
+    亮虚线，像没关掉的网格辅助线（和海面「蓝色方块阵列」同类观感问题）。
+    现在缝只留一道暗棕、钉子降成中灰且每格两颗错列，远看读作木板拼缝。
+    """
     deck_base(cv, ox, oy, 0)
     cv.vline(ox + 7, oy, TILE, BROWN_DD)
-    cv.vline(ox + 8, oy, TILE, BROWN)
-    for y in (2, 6, 10, 14):
-        cv.put(ox + 6, oy + y, GREY_L)
-        cv.put(ox + 9, oy + y, GREY_L)
+    cv.put(ox + 6, oy + 4, GREY_P)
+    cv.put(ox + 9, oy + 12, GREY_P)
 
 
 def _wall_band(cv: Canvas, ox: int, oy: int, side: str) -> None:

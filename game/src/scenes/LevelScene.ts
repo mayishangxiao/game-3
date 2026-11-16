@@ -5461,7 +5461,9 @@ export class LevelScene extends Phaser.Scene {
     this.dialogue?.hide();
 
     const c = this.add.container(0, 0).setDepth(DEPTH.overlay + 6).setScrollFactor(0);
-    c.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.97));
+    // 全不透明：0.97 会漏出下层关卡 / 长廊的红色按钮框，在终局黑底上变成一枚
+    // 孤零零的淡红空框（甲方反复报过「空框 / 孤字」）。这里要的是一块干净的收卷底板。
+    c.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 1));
     c.add(
       this.add
         .text(VIEW_W / 2, 34, '清 王 朝 覆 灭', {
@@ -5493,7 +5495,7 @@ export class LevelScene extends Phaser.Scene {
             '从虎门的硝烟，到天京的火；',
             '从江南的机器，到菜市口的血；',
             '再到武昌城头那一声枪响——',
-            '八十年，中国人一直在找出路。',
+            '七十二年，中国人一直在找出路。',
           ].join('\n'),
           {
             fontFamily: FONT_UI,
