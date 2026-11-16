@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ART, CONTROL_LAYOUT, FX_CANNON_FRAMES, HORIZON_ROWS, SCAR_TEX, SHIP_FRAME, SHIP_TEX, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TP_SHEET_COLS, TP_TILESET_ID, type SunnyProp } from '../src/core/constants';
+import { ART, CONTROL_LAYOUT, FX_CANNON_FRAMES, HORIZON_ROWS, MATSUSHIMA_TEX, SCAR_TEX, SHIP_ART_SETS, SHIP_FRAME, SHIP_TEX, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TP_SHEET_COLS, TP_TILESET_ID, type SunnyProp } from '../src/core/constants';
 
 const ROOT = process.cwd();
 const PUBLIC = join(ROOT, 'public');
@@ -34,13 +34,13 @@ function pngSize(rel: string): PngHeader {
 
 describe('正式美术资源', () => {
   it('ART 里登记的每个文件都存在', () => {
-    const all = [...ART.shipBossFrames, ART.crate, ART.portraitLinZexu, ART.portraitGuanTianpei, ART.tpSheet];
+    const all = [...ART.shipBossFrames, ...ART.matsushimaFrames, ART.crate, ART.portraitLinZexu, ART.portraitGuanTianpei, ART.tpSheet];
     const missing = all.filter((p) => !existsSync(join(PUBLIC, p)));
     expect(missing).toEqual([]);
   });
 
   it('路径写法统一：不带 public 前缀，用正斜杠', () => {
-    for (const p of [...ART.shipBossFrames, ART.crate, ART.portraitLinZexu, ART.portraitGuanTianpei, ART.tpSheet]) {
+    for (const p of [...ART.shipBossFrames, ...ART.matsushimaFrames, ART.crate, ART.portraitLinZexu, ART.portraitGuanTianpei, ART.tpSheet]) {
       expect(p.startsWith('public/')).toBe(false);
       expect(p.includes('\\')).toBe(false);
       expect(p.startsWith('art/')).toBe(true);
@@ -51,6 +51,14 @@ describe('正式美术资源', () => {
     expect(ART.shipBossFrames.length).toBe(6);
     for (const p of ART.shipBossFrames) {
       expect(pngSize(p)).toEqual({ width: 96, height: 48 });
+    }
+  });
+
+  it('松岛舰专属 6 帧也是 96×48，且与英舰不是同一批文件', () => {
+    expect(ART.matsushimaFrames.length).toBe(6);
+    for (const p of ART.matsushimaFrames) {
+      expect(pngSize(p)).toEqual({ width: 96, height: 48 });
+      expect(ART.shipBossFrames).not.toContain(p);
     }
   });
 
@@ -102,6 +110,15 @@ describe('正式美术资源', () => {
     // 帧序号的语义：0..5 全覆盖，不多不少
     expect(Object.values(SHIP_FRAME).sort()).toEqual([0, 1, 2, 3, 4, 5]);
     expect(TEX_CRATE).not.toBe(SHIP_TEX[0]);
+  });
+
+  it('两套舰船帧集互不混淆（ship_art → SHIP_ART_SETS）', () => {
+    expect(Object.keys(SHIP_ART_SETS).sort()).toEqual(['matsushima', 'steamfrigate']);
+    expect(SHIP_ART_SETS.steamfrigate).toEqual(SHIP_TEX);
+    expect(SHIP_ART_SETS.matsushima).toEqual(MATSUSHIMA_TEX);
+    expect(MATSUSHIMA_TEX.length).toBe(ART.matsushimaFrames.length);
+    // 12 个纹理 key 必须全不一样：撞了就会「第三幕又画回英舰」且不报错
+    expect(new Set([...SHIP_TEX, ...MATSUSHIMA_TEX]).size).toBe(12);
   });
 
   it('config.json 的立绘登记能对上真实文件，且 key 符合 portrait_${speaker}', () => {

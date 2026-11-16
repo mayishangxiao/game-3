@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SEA_SHEET_TEX, SEA_TILESET_ID, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MATSUSHIMA_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SEA_SHEET_TEX, SEA_TILESET_ID, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -486,6 +486,12 @@ export class LevelScene extends Phaser.Scene {
     if (!this.textures.exists(LQ_SHEET_TEX)) this.load.image(LQ_SHEET_TEX, ART.lateQingSheet);
     ART.shipBossFrames.forEach((path, i) => {
       const key = SHIP_TEX[i] as string;
+      if (!this.textures.exists(key)) this.load.image(key, path);
+    });
+    // 第三幕松岛舰的 6 帧与英舰完全独立（日章旗 / 双烟囱 / 主炮塔 / 舷侧速射炮）。
+    // 两套都要抢在 buildWorld 之前进纹理表，缺一套会静默回落成第一幕的英舰。
+    ART.matsushimaFrames.forEach((path, i) => {
+      const key = MATSUSHIMA_TEX[i] as string;
       if (!this.textures.exists(key)) this.load.image(key, path);
     });
     if (!this.textures.exists(TEX_CRATE)) this.load.image(TEX_CRATE, ART.crate);

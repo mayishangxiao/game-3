@@ -430,6 +430,9 @@ export class CharacterRig extends Phaser.GameObjects.Container {
       } else if (this.shipImage) {
         this.shipImage.setX(0);
         this.tickShipFrames(dtMs);
+        // 航行起伏：±1px 慢波，让 6 张静帧船看起来浮在浪上。只动 y，
+        // 不动吃水线锚点（origin(0.5,1) + y=8）、不碰帧状态机与开炮后坐。
+        this.shipImage.setY(8 + Math.round(Math.sin(this.frameTimer / 620) * 0.8));
       }
       if (this.flashTimer > 0) {
         this.flashTimer -= dtMs;

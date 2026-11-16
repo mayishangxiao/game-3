@@ -322,3 +322,64 @@ describe('海面不许铺近黑噪点', () => {
     }
   });
 });
+
+describe('松岛舰专属 6 帧（不再复用第一幕英舰）', () => {
+  const frames = [0, 1, 2, 3, 4, 5].map((i) =>
+    tileRgb(`art/ship/matsushima_${String(i).padStart(2, '0')}.png`),
+  );
+  type EnemyLite = { id: string; body?: string; ship_art?: string };
+  const raw = read<EnemyLite[] | { enemies: EnemyLite[] }>('enemies/enemies_ch00.json');
+  const list = Array.isArray(raw) ? raw : raw.enemies;
+
+  it('数据里松岛舰用 matsushima 帧集、英舰仍用 steamfrigate', () => {
+    const byId = new Map(list.map((e) => [e.id, e]));
+    expect(byId.get('en_boss_jp_matsushima')?.ship_art).toBe('matsushima');
+    expect(byId.get('en_boss_steamfrigate')?.ship_art).toBe('steamfrigate');
+  });
+
+  it('6 帧都是 96×48、颜色数 ≥14（旧英舰只有 8 色几何占位）', () => {
+    for (const f of frames) {
+      expect([f.w, f.h]).toEqual([96, 48]);
+      const colors = new Set<string>();
+      for (let i = 0; i < f.rgb.length; i += 3) {
+        colors.add(`${f.rgb[i]},${f.rgb[i + 1]},${f.rgb[i + 2]}`);
+      }
+      expect(colors.size, `只有 ${colors.size} 种颜色`).toBeGreaterThanOrEqual(14);
+    }
+  });
+
+  it('6 帧状态各不相同（旧图几乎一样，看不出开炮 / 冒烟 / 破损）', () => {
+    const base = frames[0].rgb;
+    for (let k = 1; k < frames.length; k++) {
+      const o = frames[k].rgb;
+      let diff = 0;
+      for (let i = 0; i < base.length; i += 3) {
+        if (base[i] !== o[i] || base[i + 1] !== o[i + 1] || base[i + 2] !== o[i + 2]) diff++;
+      }
+      expect(diff, `第 ${k} 帧与 idle 只有 ${diff} 个像素不同`).toBeGreaterThanOrEqual(60);
+    }
+  });
+
+  it('贴图里没有旧英舰那整条蓝色水线（水面交给地图瓦片）', () => {
+    for (const f of frames) {
+      let blue = 0;
+      for (let i = 0; i < f.rgb.length; i += 3) {
+        const [r, g, b] = [f.rgb[i], f.rgb[i + 1], f.rgb[i + 2]];
+        // INDIGO(42,90,138) / BLUE(74,144,200)：旧图 y=40..47 铺满的一整条
+        if ((r === 42 && g === 90 && b === 138) || (r === 74 && g === 144 && b === 200)) blue++;
+      }
+      expect(blue, `还残留 ${blue} 个水线像素`).toBe(0);
+    }
+  });
+
+  it('挂的是日章旗（白底红日），不是第一幕的英军十字旗', () => {
+    // RED(192,57,43) 只用于旗面红日；火光是 RED_B / RED_D，不会误伤
+    for (const f of frames) {
+      let red = 0;
+      for (let i = 0; i < f.rgb.length; i += 3) {
+        if (f.rgb[i] === 192 && f.rgb[i + 1] === 57 && f.rgb[i + 2] === 43) red++;
+      }
+      expect(red, `红日只有 ${red} 像素`).toBeGreaterThanOrEqual(15);
+    }
+  });
+});

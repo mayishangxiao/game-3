@@ -308,6 +308,16 @@ export const ART = {
     `${ART_ROOT}/ship/boss_steamfrigate_04.png`,
     `${ART_ROOT}/ship/boss_steamfrigate_05.png`,
   ],
+  /** 第三幕日本联合舰队「松岛舰」专用 6 帧：同规格 96×48、同一套 SHIP_FRAME 语义，
+   *  但换成日章旗 / 双烟囱 / 主炮塔 / 舷侧速射炮群，不再复用第一幕英舰的十字旗。 */
+  matsushimaFrames: [
+    `${ART_ROOT}/ship/matsushima_00.png`,
+    `${ART_ROOT}/ship/matsushima_01.png`,
+    `${ART_ROOT}/ship/matsushima_02.png`,
+    `${ART_ROOT}/ship/matsushima_03.png`,
+    `${ART_ROOT}/ship/matsushima_04.png`,
+    `${ART_ROOT}/ship/matsushima_05.png`,
+  ],
   /** 鸦片箱 20×20（地图可捡物） */
   crate: `${ART_ROOT}/props/opium_chest.png`,
   /** 林则徐立绘 96×112（config.json → ui.portraits 引用）；全部立绘都是「只要头」的胸像 */
@@ -718,6 +728,19 @@ export const SHIP_FRAME = {
  * 预加载和创建舰船时都用这一份，避免「加载时叫 ship_boss_0、使用时叫 boss_ship_0」这类静默失配。
  */
 export const SHIP_TEX = ART.shipBossFrames.map((_, i) => `ship_boss_${i}`);
+
+/** 松岛舰 6 帧的纹理 key（与 ART.matsushimaFrames 一一对应） */
+export const MATSUSHIMA_TEX = ART.matsushimaFrames.map((_, i) => `ship_matsushima_${i}`);
+
+/**
+ * `body:'ship'` 的敌人按 `ship_art` 选帧集：第一幕英舰走 steamfrigate，
+ * 第三幕松岛舰走 matsushima。两套都是 6 帧 / 96×48 / 同一套 SHIP_FRAME 语义，
+ * 未登记或拼错一律回落英舰帧，绝不出现空贴图。
+ */
+export const SHIP_ART_SETS: Record<string, readonly string[]> = {
+  steamfrigate: SHIP_TEX,
+  matsushima: MATSUSHIMA_TEX,
+};
 
 /** 纹理 key：鸦片箱 */
 export const TEX_CRATE = 'prop_opium_chest';

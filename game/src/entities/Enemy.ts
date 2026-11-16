@@ -6,7 +6,7 @@
 import Phaser from 'phaser';
 import { CharacterRig } from '../gfx/CharacterRig';
 import type { MapRenderer } from '../gfx/MapRenderer';
-import { PALETTE, SHIP_TEX, TILE, unitArtOf } from '../core/constants';
+import { PALETTE, SHIP_ART_SETS, SHIP_TEX, TILE, unitArtOf } from '../core/constants';
 import { computeDamage, type Rng } from '../core/balance';
 import { advanceWithCollision, ENEMY_FOOT, isFootBlocked } from '../core/space';
 import type { BalanceConfig, BossPhase, EnemyDef } from '../core/types';
@@ -140,8 +140,11 @@ export class Enemy {
       weaponColor: def.tier === 'ranged' ? PALETTE.brownDeep : PALETTE.greyPlum,
       scale: Math.max(size.w / 24, size.h / 32),
       body: def.body ?? 'human',
-      // 舰船有正式美术帧（96×48 ×6）；没加载成功时 CharacterRig 自己退回矩形占位形体
-      art: def.body === 'ship' ? SHIP_TEX : undefined,
+      // 舰船按数据里的 ship_art 选 6 帧贴图：松岛舰用日舰专属帧，英舰用老帧。
+      // 未登记 / 拼错一律回落 SHIP_TEX；贴图没加载成功时 CharacterRig 再兜一层矩形占位形体。
+      art: def.body === 'ship'
+        ? (SHIP_ART_SETS[def.ship_art ?? 'steamfrigate'] ?? SHIP_TEX)
+        : undefined,
     });
     if (def.tier === 'elite' || this.isBoss) {
       this.rig.setScale(this.rig.scaleX * 1.15, this.rig.scaleY * 1.15);

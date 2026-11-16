@@ -304,6 +304,12 @@ export interface EnemyDef {
   /** 占位形体：'ship' 画成铁壳蒸汽炮舰（英军 Boss），缺省人形 */
   body?: 'human' | 'ship';
   /**
+   * `body:'ship'` 时用哪套 6 帧贴图。`'matsushima'` = 第三幕日本联合舰队松岛舰，
+   * 缺省 / `'steamfrigate'` = 第一幕英军蒸汽炮舰。两套都是 96×48、都走 SHIP_FRAME，
+   * 没登记时一律回落英舰帧，保证老存档与老数据行为不变。
+   */
+  ship_art?: 'steamfrigate' | 'matsushima';
+  /**
    * 半血剧情杀（甲方：军舰半血时全屏打击，伤害 = 角色血量的三倍，必死）。
    *
    * 只在 `tier === 'boss'` 的敌人上生效。写了 `true` 的 Boss 血量跌破一半时，

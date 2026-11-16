@@ -14,7 +14,7 @@
 | `nodes/nodes_ch00.json` | 节点（关卡内的一次挑战）：`type` = explore/combat/cutscene/choice/escort/management + `params` | 20 | `id` |
 | `events/events_ch00.json` | 历史事件卡（图鉴条目 + 关卡题材）：时间、地点、人物、文献、结果、五要素核对 | 24 | `id` |
 | `knowledge/knowledge_all.json` | 知识卡：摘要/详解/出处/标签/**`links`（因果边，图谱玩法就靠它，只能指向事件卡 id）** | 25 | `id` |
-| `enemies/enemies_ch00.json` | 敌人：`tier` `hp_base` `atk_base` `def_base` `spd` `ai_params`（`attack_cooldown_ms` = 出手间隔）、`boss_phases`、**`final_strike`（Boss 半血剧情杀）**、`color` `size` | 23 | `id` |
+| `enemies/enemies_ch00.json` | 敌人：`tier` `hp_base` `atk_base` `def_base` `spd` `ai_params`（`attack_cooldown_ms` = 出手间隔）、`boss_phases`、**`final_strike`（Boss 半血剧情杀）**、`color` `size`、**`ship_art`（`body:'ship'` 时选 6 帧贴图集：`steamfrigate` 第一幕英舰 / `matsushima` 第三幕日舰；缺省回落英舰帧）** | 23 | `id` |
 | `equipment/items_base.json` | 装备模板：`slot` `quality` `stat` `base_value` `quality_multiplier` `source`，武器模板可选 `weapon_ref`（指向 `config.json.weapons`，进关卡真的换武器；见 `design/03_systems.md` 4.3.7） | 16 | `id` |
 | `equipment/drops.json` | 掉落规则：按来源类型的掉率、部位权重、品质权重；`pity` 保底参数 | 5 条规则 | `rules[].source_type` |
 | `dungeons/dungeons.json` | 副本：波次（`waves[]`）、Boss、`quality_weights`、`unique_drop`、`unlock_act` | 3 | `id` |

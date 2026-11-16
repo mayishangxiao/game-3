@@ -155,6 +155,7 @@
         "h": 48
       },
       "body": "ship",
+      "ship_art": "steamfrigate",
       "final_strike": {
         "warn": "炮舰主炮转向炮台 —— 全线预警",
         "hit_line": "蒸汽炮舰只用了主炮的一轮齐射。虎门的岸炮连它的铁壳都打不穿。",
@@ -680,7 +681,8 @@
         "w": 96,
         "h": 48
       },
-      "body": "ship"
+      "body": "ship",
+      "ship_art": "matsushima"
     },
     {
       "id": "en_boss_qing_zhitong",
