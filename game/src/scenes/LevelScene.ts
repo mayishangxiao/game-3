@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SEA_SHEET_TEX, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SEA_SHEET_TEX, SEA_TILESET_ID, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -49,6 +49,7 @@ import { DialogueBox } from '../systems/DialogueBox';
 import { hideDialogue, hideFloat, hideOverlay, hideTitle, hideToast, moveFloat, prefetchPortraits, showFloat, showOverlay } from '../systems/DomUi';
 import { MapRenderer } from '../gfx/MapRenderer';
 import { backdropImage, horizonImage, HORIZON_H } from '../gfx/Backdrop';
+import { applyBattleAtmosphere, atmosphereEnabled } from '../gfx/BattleAtmosphere';
 import { isFootBlocked, nearestOpenPoint } from '../core/space';
 import { canCompleteEscort } from '../core/escort';
 import { resolveSelectedWeapon } from '../core/weaponSelection';
@@ -260,6 +261,9 @@ export class LevelScene extends Phaser.Scene {
   private node!: NodeDef;
 
   private map: MapRenderer | null = null;
+  /** 第三幕氛围层的对象。它们不进 worldObjects（否则会被当成可交互物），
+   *  所以 buildWorld 重入时必须自己先销毁，不然每换一张图就多蒙一层黑。 */
+  private atmosphereObjects: Phaser.GameObjects.GameObject[] = [];
   /** 关卡载入提示（「载入中……」）。只在数据拉取期间存在；用 this 持有引用，
    *  防止场景复用同一实例时并发 boot 留下孤儿文字，也便于 SHUTDOWN 兜底销毁。 */
   private loadingLabel: Phaser.GameObjects.Text | null = null;
@@ -528,6 +532,11 @@ export class LevelScene extends Phaser.Scene {
     // tp_act2 + sky_rows 的关卡使用；其它战斗关卡继续加载并使用 horizonDusk。
     if (!this.textures.exists(BG_TEX.horizonCityFall)) {
       this.load.image(BG_TEX.horizonCityFall, ART.bgStripTianjingFall);
+    }
+    // 第三幕洋务 / 甲午战时阴云远景条（铁甲舰 + 煤烟 + 火光）。
+    // 只在 buildWorld 判定为第三幕 tp_sea 海战图时选用；缺图自动回退 dusk。
+    if (!this.textures.exists(BG_TEX.horizonJiawu)) {
+      this.load.image(BG_TEX.horizonJiawu, ART.bgStripJiawu);
     }
     // 地面残破贴花（弹坑 / 血泊 / 尸骸 / 碎砖），MapRenderer 把它们印进地面纹理
     SCAR_TEX.forEach((key, i) => {
@@ -2285,6 +2294,10 @@ export class LevelScene extends Phaser.Scene {
     if (!this.scene.isActive() || !this.cameras?.main) return;
     this.map?.destroy();
     this.clearWorldObjects();
+    // 氛围层不进 worldObjects，换图时先销毁旧的（否则每换一张图多蒙一层黑）。
+    // 只对第三幕生效；其它幕返回空数组，画面一个像素都不变。
+    this.atmosphereObjects.forEach((o) => o.destroy());
+    this.atmosphereObjects = applyBattleAtmosphere(this, this.act?.id);
     // 围观百姓是直接 add 到显示列表的（不进 worldObjects，否则会变成可交互目标），
     // 所以换图时必须自己收：`MapRenderer.destroy()` 只清它自己的图层。
     // 漏了这一步的后果不是「多画几个人」那么轻——上一张图（销烟池）的 10 个百姓
@@ -2319,11 +2332,15 @@ export class LevelScene extends Phaser.Scene {
       // 看着像背景没画好。顶边贴 0 让船身落在可见的下半段，桅杆被 UI 压住也不碍事，
       // 读起来反而像「远处的船被台沿挡住」，比整艘船悬在空地中间更合理。
       const ZOOM = 1.6;
-      // 只替换 1864 天京城破之战这一张背景图：tp_act2 图集 + 有远景带才走
-      // 火光/浓烟条带；其它关卡（当前 sky_rows 均为 0）不叠远景条，仍走
-      // horizonImage 的 dusk 默认分支。布局/文案/前景与其它素材一律不动，
-      // 缺图时 horizonImage 自动回退 dusk，不会黑屏。
-      const horizonPrefer: 'cityfall' | 'dusk' = def.tileset === TP_TILESET_ID ? 'cityfall' : 'dusk';
+      // 两张专用远景条，各自只认自己的关卡，其它关卡继续走 dusk：
+      //   · tp_act2 + 城破之战 → 火光 / 浓烟 / 城墙（1864 天京）
+      //   · 第三幕 + tp_sea 海战 → 铅灰浓云 / 蒸汽铁甲舰 / 煤烟硝烟（1894 大东沟）
+      // 判据都走 constants 里的唯一真值，别在场景里写死 act id 或图集名。
+      // 缺图时 horizonImage 自动逐级回退 dusk，不会黑屏。
+      const horizonPrefer: 'cityfall' | 'jiawu' | 'dusk' =
+        def.tileset === TP_TILESET_ID ? 'cityfall'
+          : (atmosphereEnabled(this.act?.id) && def.tileset === SEA_TILESET_ID) ? 'jiawu'
+            : 'dusk';
       horizonImage(this, DEPTH.ground - 1, horizonPrefer, ZOOM).setScrollFactor(0).setPosition(-(VIEW_W * (ZOOM - 1)) / 2, 0);
       // 海面与石台的交界：铺一层很淡的暗影，让「海在远处、台子在前」有纵深。
       // 没有这层的话，海平线与第一行地砖是一条刀刃般的硬线，看着像两张图上下拼接。

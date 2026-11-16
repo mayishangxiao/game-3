@@ -211,10 +211,17 @@ try {
     const ui = await evaluate(`(() => {
       const o = document.getElementById('dom-overlay');
       const s = window.__dshGame.scene.getScene('UI');
+      const l = window.__dshGame.scene.getScene('Level');
       return { overlay: o ? (o.innerText || '').slice(0, 240) : '',
-               objective: s?.objectiveText?.text ?? '' };
+               objective: s?.objectiveText?.text ?? '',
+               atmosphereCount: l?.atmosphereObjects?.length ?? -1 };
     })()`);
     report.maps[c.name].ui = ui;
+    // v2.4：肃杀黑暗的战场氛围只允许出现在第三幕。视觉对比不够可靠
+    // （第四幕本来就是深紫砖地），直接读 Level 场景持有的氛围层对象数。
+    report.checks[`${c.name}Atmosphere`] = c.actId === 'ch00_act3'
+      ? ui.atmosphereCount > 0
+      : ui.atmosphereCount === 0;
     if (c.name === 'factory') {
       report.checks.factoryPanelEra = /江南制造总局/.test(ui.overlay)
         && !/天京经营|粮草|兵员|民心/.test(ui.overlay);

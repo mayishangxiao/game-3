@@ -335,6 +335,14 @@ export const ART = {
    * `tools/_art_in/tianjing_fall_src.png` 生成，锁 24 色盘、顶部压暗保 HUD 可读。
    */
   bgStripTianjingFall: `${ART_ROOT}/bg/bg_strip_tianjing_fall.png`,
+  /**
+   * 第三幕（洋务 / 甲午）专用战时远景条：480×64，铅灰浓云 + 蒸汽铁甲舰剪影
+   * （烟囱 / 桅杆 / 炮塔，**不是帆船**）+ 煤烟硝烟 + 中弹火光。
+   * 由 `tools/gen_jiawu_sky.py` 纯标准库生成，锁 24 色盘、顶部压暗保 HUD 可读。
+   * 甲方要求「背景贴合洋务运动时期，肃杀黑暗、体现战斗的危险」——旧的
+   * `bgStripDusk` 是淡紫黄昏 + 黄帆船，年代与氛围都不对。
+   */
+  bgStripJiawu: `${ART_ROOT}/bg/bg_strip_jiawu.png`,
   /** 地面残破贴花目录前缀（scar_00.png…scar_11.png，逐个按 0.5 缩放进地面纹理） */
   scars: `${ART_ROOT}/scars/`,
   /** 甲方给的炮火特效（金闪 → 爆开 → 火球 → 烟散）逐帧目录前缀，见 `FX_TEX` */
@@ -487,7 +495,30 @@ export const BG_TEX = {
   horizonDusk: 'art_bg_strip_dusk',
   /** 1864 天京城破之战专用远景条；缺图时由 horizonImage 自动回退到 horizonDusk */
   horizonCityFall: 'art_bg_strip_tianjing_fall',
+  /** 第三幕洋务 / 甲午战时阴云远景条；缺图回退 horizonDusk */
+  horizonJiawu: 'art_bg_strip_jiawu',
   skyDusk: 'art_bg_sky_dusk',
+} as const;
+
+/**
+ * 第三幕（洋务 / 甲午）战场氛围 —— 甲方要求「肃杀、黑暗、体现战斗的危险」。
+ *
+ * 为什么不直接改瓦片：上一轮刚把海面瓦片的近黑短划清干净（甲方投诉「全是黑点」），
+ * 黑暗感必须靠**大面积平滑的冷调与暗角**做，不能往地面撒噪点。这三层的深度都在
+ * `DEPTH.vignette`（99）附近：压住地面与实体，但 `DEPTH.hud`（100）与 DOM 文字层
+ * 在其上，所以血条、摇杆、战役条白字一律不受影响，中心区的小人也仍看得清。
+ *
+ * 只有 `acts` 里登记的幕启用；其它四幕画面一个像素都不变。
+ */
+export const WAR_ATMOSPHERE = {
+  /** 启用氛围的幕 id（当前只有第三幕：江南制造总局 + 黄海海战） */
+  acts: ['ch00_act3'] as const,
+  /** 全场冷调压暗：把暖木甲板 / 白砖厂房压成阴冷色 */
+  cool: { color: PALETTE.night, alpha: 0.22 },
+  /** 径向暗角：中心 transparent → 中段微暗 → 四边沉下去 */
+  vignette: { inner: 0.36, mid: 0.18, edge: 0.62 },
+  /** 顶部远景带（天空 / 厂房上沿）再压一层，硝烟更沉 */
+  skyShade: 0.16,
 } as const;
 
 /**

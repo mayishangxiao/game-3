@@ -380,6 +380,8 @@ export function horizonTexture(scene: Phaser.Scene, key = 'bg_horizon'): string 
  *  - `'night'`：早期那张夜色条，留给还在用旧素材的关卡；
  *  - `'cityfall'`：1864 天京陷落专用「火光 / 浓烟 / 城墙」条带，只给城破之战用，
  *    缺图时依次回退 `'dusk'` → `'night'` → 程序化绘制，绝不影响其它关卡。
+ *  - `'jiawu'`：第三幕洋务 / 甲午专用「铅灰浓云 / 蒸汽铁甲舰 / 煤烟硝烟 / 中弹火光」，
+ *    替换原来那张淡紫黄昏 + 黄帆船（年代不对、也不肃杀）；缺图回退 `'dusk'`。
  * 两张都没有时才退回 `horizonTexture()` 的程序化绘制——所以美术没接也不会黑屏。
  *
  * `zoom` 是「把条带放大多少倍」：甲方全景里那几艘巨舰占 288×80，塞进 64px 的带子里
@@ -390,13 +392,14 @@ export function horizonTexture(scene: Phaser.Scene, key = 'bg_horizon'): string 
 export function horizonImage(
   scene: Phaser.Scene,
   depth: number,
-  prefer: 'dusk' | 'night' | 'cityfall' = 'dusk',
+  prefer: 'dusk' | 'night' | 'cityfall' | 'jiawu' = 'dusk',
   zoom = 1,
 ): Phaser.GameObjects.Image {
   // 远景条统一 480×64，画到 `sky_rows`（4 行 = 64px）那条带上刚好对齐；
   // 换图不改尺寸，`zoom` 的水平居中裁切与 `HORIZON_H * zoom` 淡出带才不会错位。
   const order: readonly string[] = {
     cityfall: [BG_TEX.horizonCityFall, BG_TEX.horizonDusk, BG_TEX.horizon],
+    jiawu: [BG_TEX.horizonJiawu, BG_TEX.horizonDusk, BG_TEX.horizon],
     dusk: [BG_TEX.horizonDusk, BG_TEX.horizon],
     night: [BG_TEX.horizon, BG_TEX.horizonDusk],
   }[prefer];
