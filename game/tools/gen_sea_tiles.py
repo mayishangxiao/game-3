@@ -109,28 +109,28 @@ def h2(x: int, y: int) -> float:
 # ---------------------------------------------------------------- 海面
 
 def sea_base(cv: Canvas, ox: int, oy: int, seed: int) -> None:
-    """深海底色：整片 INDIGO + 一两道压暗的涌 + 稀疏亮点。
+    """深海底色：整片 INDIGO + 稀疏的浅蓝波纹。
 
-    第一版每格固定画 3 条横暗纹，铺成一片之后横向条纹完全对齐，
-    读起来是「马赛克地砖」而不是水。现在纹路条数与位置都由 seed 决定，
-    相邻格常常一条纹都不画，整片海才有疏密。
+    甲方 2026-11-16 截图「海面看着很乱，全是黑点」：原来每格撒 1~2 条 NIGHT
+    暗线、约一半格子再压一条 INK 近黑线，377 格海面铺开就是几百个黑色短划。
+    24 色板里没有比 INDIGO 更深的蓝，想压暗只能借到近黑的 NIGHT / INK，
+    所以**海面只往亮处走**：深蓝底 + 四成格子里一道 BLUE 细波纹 + 偶尔一颗
+    BLUE_L 浪尖，不再画任何比底色更暗的像素。
+    四边依旧干净，纹路只落格内、不能贴边（贴边会连成「蓝色方块阵列」）。
     """
     cv.rect(ox, oy, TILE, TILE, INDIGO)
-    n = 1 if h2(seed, 3) > 0.45 else 2
-    for i in range(n):
-        y = 3 + int(h2(seed, i * 5 + 1) * 10)
-        x = int(h2(i + 2, seed) * 9)
-        w = 2 + int(h2(seed + i, 7) * 5)
-        cv.hline(ox + x, oy + y, w, NIGHT)
-        # 暗纹下沿压 1px 更暗的线，水才有厚度（只给一半的格子）
-        if h2(seed + i, 9) > 0.5:
-            cv.hline(ox + x, oy + y + 1, max(1, w - 2), INK)
-    # 浪尖高光：只给一两个像素，多了整片海会闪
-    for i in range(2):
-        if h2(seed + i * 3, 11) < 0.45:
-            continue
-        x = 2 + int(h2(seed + i * 3, 11) * 12)
-        y = 2 + int(h2(seed + i * 5, 13) * 12)
+    # 一道细波纹：只有约四成格子才有，长 4~8px，远看是水不是噪点
+    if h2(seed, 3) > 0.58:
+        y = 3 + int(h2(seed, 1) * 9)
+        x = 1 + int(h2(seed + 2, 5) * 6)
+        w = 4 + int(h2(seed, 7) * 5)
+        cv.hline(ox + x, oy + y, min(w, TILE - x - 1), BLUE)
+        if h2(seed + 1, 9) > 0.72:
+            cv.put(ox + x, oy + y - 1, BLUE_L)
+    # 浪尖高光：一两个像素，多了整片海会闪
+    if h2(seed, 11) > 0.7:
+        x = 2 + int(h2(seed + 3, 11) * 11)
+        y = 2 + int(h2(seed + 5, 13) * 11)
         cv.put(ox + x, oy + y, BLUE)
 
 
@@ -143,9 +143,9 @@ def tile_sea_deep_a(cv: Canvas, ox: int, oy: int) -> None:
 
 def tile_sea_deep_b(cv: Canvas, ox: int, oy: int) -> None:
     sea_base(cv, ox, oy, 7)
-    # 一道斜向的暗涌，打破「全是横线」的规律
-    for i in range(5):
-        cv.put(ox + 3 + i, oy + 6 + (i // 2), NIGHT)
+    # 一道斜向的浅涌，打破「全是横线」的规律（原先是 5 个 NIGHT 黑点）
+    for i in range(4):
+        cv.put(ox + 3 + i, oy + 6 + (i // 2), BLUE)
 
 
 def tile_sea_wave(cv: Canvas, ox: int, oy: int) -> None:
@@ -158,10 +158,8 @@ def tile_sea_wave(cv: Canvas, ox: int, oy: int) -> None:
     cv.hline(ox + 5, oy + 7, 6, BLUE_L)
     cv.put(ox + 7, oy + 6, BLUE_L)
     cv.put(ox + 10, oy + 6, BLUE_L)
-    # 波峰下面压暗，浪才有厚度（否则像一条贴上去的亮线）
-    cv.hline(ox + 5, oy + 10, 7, NIGHT)
-    cv.put(ox + 12, oy + 10, NIGHT)
-    cv.put(ox + 1, oy + 10, NIGHT)
+    # 波峰下面不再压 NIGHT 暗线：整片海铺开会变成一排黑点。
+    # 厚度改由 BLUE / BLUE_L 两级明度差表达，海面全程不出现比底色更暗的像素。
 
 
 def tile_sea_foam(cv: Canvas, ox: int, oy: int) -> None:
@@ -185,18 +183,19 @@ def tile_sea_swell(cv: Canvas, ox: int, oy: int) -> None:
     现在只留「一条斜抬的深色浪墙 + 顶端一条白沫」，远看就是一道涌。
     """
     sea_base(cv, ox, oy, 9)
-    # 浪墙：左低右高，用两条阶梯描出来（不加内部纹理）
-    cv.hline(ox + 2, oy + 11, 7, INK)
-    cv.hline(ox + 3, oy + 10, 7, INK)
-    cv.hline(ox + 6, oy + 9, 8, INK)
-    cv.hline(ox + 9, oy + 8, 6, INK)
+    # 浪墙：左低右高。原来四道 INK 近黑长条是海面最显眼的黑块，
+    # 换成 PLUM_D（暗紫，24 色板里唯一比 INDIGO 暗又不近黑的颜色）。
+    cv.hline(ox + 2, oy + 11, 7, PLUM_D)
+    cv.hline(ox + 3, oy + 10, 7, PLUM_D)
+    cv.hline(ox + 6, oy + 9, 8, PLUM_D)
+    cv.hline(ox + 9, oy + 8, 6, PLUM_D)
     # 浪顶白沫：压在浪墙最高处，右端拖尾
     cv.hline(ox + 9, oy + 7, 6, PAPER)
     cv.hline(ox + 12, oy + 6, 3, BLUE_L)
     cv.put(ox + 10, oy + 6, BLUE_L)
-    # 浪谷：浪墙下方压一道更深的水
-    cv.hline(ox + 2, oy + 12, 6, NIGHT)
-    cv.hline(ox + 8, oy + 10, 3, NIGHT)
+    # 浪谷：同样用 PLUM_D，不再回 NIGHT
+    cv.hline(ox + 2, oy + 12, 6, PLUM_D)
+    cv.hline(ox + 8, oy + 10, 3, PLUM_D)
 
 
 # ---------------------------------------------------------------- 甲板
@@ -431,7 +430,8 @@ def tile_ammo(cv: Canvas, ox: int, oy: int) -> None:
 def tile_wreck(cv: Canvas, ox: int, oy: int) -> None:
     """沉船残骸：半沉的船肋 + 油污与碎浪。"""
     sea_base(cv, ox, oy, 11)
-    cv.rect(ox, oy + 9, TILE, 5, NIGHT)
+    # 水线阴影也不再用 NIGHT：整条 16×5 近黑带在干净海面上是一块黑斑
+    cv.rect(ox, oy + 9, TILE, 5, PLUM_D)
     # 露出水面的船肋：三段不等高的木板
     cv.rect(ox + 2, oy + 7, 3, 4, BROWN_D)
     cv.hline(ox + 2, oy + 7, 3, BROWN)

@@ -305,3 +305,20 @@ describe('甲板接缝不许再连成亮虚线', () => {
     expect(bright, `deck_seam 还剩 ${bright} 个亮钉像素`).toBe(0);
   });
 });
+
+describe('海面不许铺近黑噪点', () => {
+  it('五张海面瓦片里没有 NIGHT / INK 级别的近黑像素', () => {
+    for (const name of ['sea_deep_a', 'sea_deep_b', 'sea_wave', 'sea_foam', 'sea_swell']) {
+      // 单图命名是 `sea_` + 瓦片 name（海面类因此是 sea_sea_*.png）
+      const { rgb } = tileRgb(`art/tiles/sea/sea_${name}.png`);
+      let dark = 0;
+      for (let i = 0; i < rgb.length; i += 3) {
+        // NIGHT(28,26,43) / INK(13,11,20) 三通道都 < 60；
+        // INDIGO(42,90,138) / PLUM_D(47,43,69) / BLUE 系都够亮，不会误伤。
+        if (rgb[i] < 60 && rgb[i + 1] < 60 && rgb[i + 2] < 60) dark++;
+      }
+      // 377 格海面 × 每格 1~2 条黑短划 = 一屏黑点（甲方 2026-11-16 截图）
+      expect(dark, `${name} 还有 ${dark} 个近黑像素`).toBe(0);
+    }
+  });
+});
