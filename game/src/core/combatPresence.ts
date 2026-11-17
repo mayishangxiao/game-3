@@ -57,6 +57,25 @@ export interface PresenceDef {
   /** 敌人打中玩家时把玩家推开的距离（px） */
   shove: number;
   weight: HitWeight;
+  /**
+   * 近战判定框：真正够得着的距离（px）与挥砍扫过的扇面（度）。
+   *
+   * 以前敌人只是「进入 attack_range 就开始蓄力，时间一到**必中**」——玩家绕后、
+   * 后撤全都没用，屏幕上的刀光和实际命中也不一致（刀光固定 26px，精英的实际射程 34）。
+   * 现在前摇开始的那一刻把挥砍方向锁死，时间到再用这一组数值做真实判定：
+   * 走出扇形就落空。强者够得更远、扇面更宽 —— 不读数值也能感觉到「它比杂鱼难躲」。
+   */
+  attackReach: number;
+  attackArcDeg: number;
+  /**
+   * 被玩家打中后立刻还手（「不许在它脸上站桩贪刀」）。
+   *
+   * - 精英：直接用 `counterWindupMs` 起一次短前摇的报复挥砍（够得更远一点）。
+   * - Boss：不缩短招式预警，只是把「下一招还要等多久」清零；本字段作冷却用。
+   * - 0 = 这一档不还手（杂鱼/正规兵/远程）。
+   */
+  counterWindupMs: number;
+  counterCdMs: number;
 }
 
 /**
@@ -83,6 +102,11 @@ const PRESENCE: Record<EnemyTier, PresenceDef> = {
     auraColor: PALETTE.greyPlum,
     shove: 0,
     weight: 'light',
+    // 短手短刀：够 22px、扫 88°，后撤一步就落空
+    attackReach: 22,
+    attackArcDeg: 88,
+    counterWindupMs: 0,
+    counterCdMs: 0,
   },
   // 正规兵：有一点分量，但还是「砍得动」的。
   standard: {
@@ -103,6 +127,10 @@ const PRESENCE: Record<EnemyTier, PresenceDef> = {
     auraColor: PALETTE.greyPlum,
     shove: 2,
     weight: 'medium',
+    attackReach: 26,
+    attackArcDeg: 98,
+    counterWindupMs: 0,
+    counterCdMs: 0,
   },
   // 火枪/炮队：命中反馈略大（火药），但身板还是不硬。
   ranged: {
@@ -123,6 +151,11 @@ const PRESENCE: Record<EnemyTier, PresenceDef> = {
     auraColor: PALETTE.star,
     shove: 3,
     weight: 'medium',
+    // 远程兵不走近战判定框（它的威胁是弹道）
+    attackReach: 0,
+    attackArcDeg: 0,
+    counterWindupMs: 0,
+    counterCdMs: 0,
   },
   // 精英/主将：明显更硬。半抗击退、多一层护甲色块、脚下有微光。
   elite: {
@@ -143,6 +176,12 @@ const PRESENCE: Record<EnemyTier, PresenceDef> = {
     auraColor: PALETTE.star,
     shove: 12,
     weight: 'heavy',
+    // 长手长刀 + 更宽的扇面：靠后撤很难躲，得绕背
+    attackReach: 36,
+    attackArcDeg: 118,
+    // 挨打就还手：280ms 短前摇（看得见那一下红闪），2.6s 只还一次
+    counterWindupMs: 280,
+    counterCdMs: 2600,
   },
   // Boss / 军舰：顿帧最长、震屏最强、完全打不动。气场更亮更大。
   boss: {
@@ -163,6 +202,12 @@ const PRESENCE: Record<EnemyTier, PresenceDef> = {
     auraColor: PALETTE.redBright,
     shove: 26,
     weight: 'heavy',
+    // Boss 不走近战判定框（招式循环里的炮击/撞角各自判），
+    // counter 只表示「挨打后把下一招提前」，预警时长一秒不减（玩家仍躲得掉）
+    attackReach: 0,
+    attackArcDeg: 0,
+    counterWindupMs: 0,
+    counterCdMs: 3400,
   },
 };
 
@@ -184,6 +229,41 @@ export function knockScale(tier: EnemyTier | string | undefined | null): number 
 /** 命中这一档要顿多久（0 表示不顿帧） */
 export function hitStopFor(tier: EnemyTier | string | undefined | null): number {
   return presenceOf(tier).hitStopMs;
+}
+
+/**
+ * 近战扇形判定：以 (ax, ay) 为刀光原点、`swingAngle` 为中心线、`arcDeg` 为扇面，
+ * 目标在 `reach + targetRadius` 以内、且落在扇面里才算命中。
+ *
+ * 为什么要在「出手那一刻」重新算一次距离：
+ * 以前是「进入射程 → 蓄力 → 时间到必中」，玩家看见刀光也躲不开，绕到背后照样掉血；
+ * 现在蓄力时锁死方向，出手时用这一拳的真实范围判定 —— 走出扇形就是空挥。
+ * 这一条同时决定了屏幕上刀光的大小（同一个 reach / arcDeg），看得见的就是打得着的。
+ *
+ * 贴着身体（≤ targetRadius + 6）一律命中：站在身体里面反而打不到是最反直觉的 bug。
+ */
+export function meleeSwingHits(
+  ax: number,
+  ay: number,
+  swingAngle: number,
+  tx: number,
+  ty: number,
+  reach: number,
+  arcDeg: number,
+  targetRadius = 8,
+): boolean {
+  if (reach <= 0 || arcDeg <= 0) return false;
+  const dx = tx - ax;
+  const dy = ty - ay;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= targetRadius + 6) return true;
+  if (dist > reach + targetRadius) return false;
+  if (arcDeg >= 360) return true;
+  const half = (arcDeg * Math.PI) / 360;
+  // atan2(sin, cos) 是最省事的「角度归一化到 −π..π」，不依赖 Phaser
+  const raw = Math.atan2(dy, dx) - swingAngle;
+  const diff = Math.abs(Math.atan2(Math.sin(raw), Math.cos(raw)));
+  return diff <= half;
 }
 
 /** 全部档位，供测试与调试遍历 */

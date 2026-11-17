@@ -7,7 +7,7 @@ import Phaser from 'phaser';
 import { CharacterRig } from '../gfx/CharacterRig';
 import type { MapRenderer } from '../gfx/MapRenderer';
 import { PALETTE, SHIP_ART_SETS, SHIP_TEX, TILE, unitArtOf } from '../core/constants';
-import { presenceOf, type PresenceDef } from '../core/combatPresence';
+import { presenceOf, meleeSwingHits, type PresenceDef } from '../core/combatPresence';
 import { makePresenceAura, spawnDebris } from '../gfx/CombatFx';
 import { computeDamage, type Rng } from '../core/balance';
 import { advanceWithCollision, ENEMY_FOOT, isFootBlocked } from '../core/space';
@@ -32,9 +32,10 @@ export interface EnemyCallbacks {
    *
    * 甲方反馈「我方和敌人没有攻击动作，没有刀光显示范围」——以前近战只是
    * 前摇闪一下、然后玩家掉血，屏幕上没有任何东西告诉玩家「他刚砍过你，砍到这么远」。
-   * LevelScene 用这个回调画扇形刀光，扇形半径就是这一击的真实攻击距离。
+   * LevelScene 用这个回调画扇形刀光，扇形半径与角度**就是这一击的真实判定框**
+   * （`combatPresence.attackReach / attackArcDeg`），看得见的就是打得着的。
    */
-  onMeleeSwing?: (enemy: Enemy, angle: number, reach: number) => void;
+  onMeleeSwing?: (enemy: Enemy, angle: number, reach: number, arcDeg: number) => void;
 }
 
 /** Boss 招式执行状态 */
@@ -62,8 +63,6 @@ const BOSS_RECOVER_SCALE = 0.5;
 const ENEMY_BASE_SPEED = 44;
 // 脚部占位盒统一放在 core/space.ts：场景侧校正出生点 / 击退落点 / 每帧救援时
 // 必须用同一组四角，否则会出现「场景认为能站、移动认为被挡」的半嵌墙状态。
-/** 近战敌人的刀光长度（世界像素）：比身体略长，一眼看出「他够得着这么远」 */
-const ENEMY_MELEE_REACH = 26;
 
 /**
  * 交战半径（px）：玩家反馈「不靠近敌人敌人就不动」——设计书里的 detect_radius 只有 110–200，
@@ -111,6 +110,23 @@ export class Enemy {
   private auraGlow: Phaser.GameObjects.Container | null = null;
 
   private stateTimer = 0;
+  /**
+   * 蓄力开始那一刻锁定的挥砍方向（rad）。
+   *
+   * 以前是「时间到必中」：玩家看得见刀光却躲不开，绕到背后照样掉血。
+   * 现在方向在蓄力时就定死，出手时按 `attackReach / attackArcDeg` 做真实判定。
+   */
+  private swingAngle = 0;
+  /** 这一击是不是「挨打之后的还手」：还手够得更远、扇面更宽（一步压上来） */
+  private countering = false;
+  /** 还手冷却（精英与 Boss 共用同一字段）：冷却内连续贪刀不会每一下都被反 */
+  private counterCd = 0;
+  /** 还手的红圈提示还没播：提示要场景画，放到下一次 update 里发 */
+  private counterTellPending = false;
+  /** 上一帧的玩家位置：挨打发生在 takeDamage（那里没有回调包），还手判定要用它 */
+  private lastPlayer: { x: number; y: number; alive: boolean } | null = null;
+  /** Boss 过场停手标志：`haltActions()` 之后不许被「挨打提前」重新点着 */
+  private actionsHalted = false;
   /** 连续「两轴都走不动」的累计时长（ms）：超时就翻面，换一侧沿墙绕 */
   private stuckMs = 0;
   /** 沿墙绕行优先走哪一侧，记住上次成功的一侧以免左右来回抽 */
@@ -288,6 +304,11 @@ export class Enemy {
     return this.weakpointMs > 0;
   }
 
+  /** 这一击是不是「挨打之后的还手」：场景用它在刀光上换个更烫的颜色 */
+  get isCountering(): boolean {
+    return this.countering;
+  }
+
   /** Boss 当前阶段对应招式（普通敌人返回 null） */
   currentPhase(cfg: BalanceConfig): BossPhase | null {
     void cfg;
@@ -314,6 +335,40 @@ export class Enemy {
   }
 
   /**
+   * 被玩家打中时的还手。
+   *
+   * 为什么要这条：以前敌人挨打毫无反应，玩家最优解就是贴着精英站桩连砍，
+   * 「实力差距」只体现在它血多、打你疼，不体现在它**会还手**。
+   * 现在：
+   *   - 精英挨打立刻起一次 280ms 的短前摇挥砍（够得比平时远 4px、扇面宽 12°），
+   *     2.6s 只还一次 —— 贪刀有代价，但不至于每一下都被反；
+   *   - Boss 不缩预警（玩家仍躲得掉），只是把「下一招还要等多久」清零，挨打=催它出手。
+   * 只对近身的攻击还手：隔着半个屏幕放箭也触发反击，玩家会觉得莫名其妙。
+   */
+  private provokeCounter(): void {
+    const p = this.presence;
+    if (p.counterCdMs <= 0 || this.counterCd > 0) return;
+    if (this.isBoss) {
+      if (this.actionsHalted || this.bossAction) return;
+      this.bossTimer = 0;
+      this.counterCd = p.counterCdMs;
+      return;
+    }
+    if (p.counterWindupMs <= 0) return;
+    // 已经在蓄力/被打晕时不打断自己那一刀，免得两套计时互相覆盖
+    if (this.state === 'stunned' || this.state === 'windup') return;
+    const t = this.lastPlayer;
+    if (!t?.alive) return;
+    if (Phaser.Math.Distance.Between(this.x, this.y, t.x, t.y) > p.attackReach + 14) return;
+    this.state = 'windup';
+    this.stateTimer = p.counterWindupMs;
+    this.countering = true;
+    this.swingAngle = Math.atan2(t.y - this.y, t.x - this.x);
+    this.counterCd = p.counterCdMs;
+    this.counterTellPending = true;
+  }
+
+  /**
    * 半血必杀的挂钩：实体发现血量刚跌破一半时回调一次，由场景演出（全屏打击）。
    * 不放在 `EnemyCallbacks` 里，是因为那个回调包只在 `update()` 的这一次调用里有效，
    * 而溺水式地传一个「打完这枪才触发」的演出没地方存。
@@ -329,6 +384,9 @@ export class Enemy {
     // 血条抖动只在「打得动」的目标上出现（Boss 的 knockResist = 1，这条恒为 0）
     this.barShake = this.presence.knockResist < 1 ? 1 : 0;
     this.updatePhase();
+    // 挨打还手：精英立刻反一记短前摇的挥砍，Boss 把下一招提前（预警时长不减）。
+    // 放在掉血之后、判死之前——打死了就不该再有还手。
+    if (this.hp > 0) this.provokeCounter();
     if (this.checkFinalStrike(prevHp)) this.onFinalStrike?.(this);
 
     if (this.def.tier === 'elite' && this.hp <= 0) {
@@ -500,6 +558,8 @@ export class Enemy {
   haltActions(): void {
     this.bossAction = null;
     this.bossTimer = 1e9;
+    // 光把计时器推远不够：挨打会把它清零（见 provokeCounter），过场里又会开炮
+    this.actionsHalted = true;
     this.rig.setAlpha(1);
     this.syncBar();
   }
@@ -517,6 +577,8 @@ export class Enemy {
       this.rig.tick(dtMs, false);
       return;
     }
+    this.lastPlayer = player;
+    if (this.counterCd > 0) this.counterCd = Math.max(0, this.counterCd - dtMs);
     if (this.weakpointMs > 0) this.weakpointMs -= dtMs;
     // 血条受击抖动随时间衰减（220ms 抖完）。Boss 的 barShake 恒为 0，不走这条。
     if (this.barShake > 0) this.barShake = Math.max(0, this.barShake - dtMs / 220);
@@ -525,6 +587,12 @@ export class Enemy {
     if (this.isBoss) {
       this.updateBoss(dtMs, player, cfg, cb);
       return;
+    }
+
+    // 还手的红圈提示：takeDamage 里没有回调包，攒到这一帧由场景画
+    if (this.counterTellPending) {
+      this.counterTellPending = false;
+      cb.onTelegraph?.(this, this.presence.attackReach + 4);
     }
 
     const p = this.def.ai_params;
@@ -550,6 +618,9 @@ export class Enemy {
         if (dist <= p.attack_range) {
           this.state = 'windup';
           this.stateTimer = p.attack_windup_ms;
+          this.countering = false;
+          // 蓄力开始就把方向锁死：后撤、绕背能躲开，而不是「时间到必中」
+          this.swingAngle = Math.atan2(player.y - this.y, player.x - this.x);
           cb.onTelegraph?.(this, p.attack_range);
           break;
         }
@@ -612,9 +683,15 @@ export class Enemy {
       cb.onRangedAttack(this, player.x, player.y);
       return;
     }
-    // 先给出刀光：扇形半径用这一击的真实距离（射程），玩家看得见范围
-    const ang = Math.atan2(player.y - this.y, player.x - this.x);
-    cb.onMeleeSwing?.(this, ang, ENEMY_MELEE_REACH);
+    // 判定框与刀光同源：下面这几个数决定「够得多远 / 扫多宽」，场景拿同一组画扇形。
+    // 还手那一下够得更远、扇面更宽——玩家的体感是「它反手压上来一步」。
+    const reach = this.presence.attackReach + (this.countering ? 4 : 0);
+    const arcDeg = this.presence.attackArcDeg + (this.countering ? 12 : 0);
+    const ang = this.swingAngle;
+    cb.onMeleeSwing?.(this, ang, reach, arcDeg);
+    this.countering = false;
+    // 真实判定：蓄力期间走出扇形的就是空挥（刀光照样划过，但不掉血）
+    if (!meleeSwingHits(this.x, this.y, ang, player.x, player.y, reach, arcDeg)) return;
     const res = computeDamage(
       {
         atk: this.atk * this.auraMult,

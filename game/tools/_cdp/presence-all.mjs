@@ -184,6 +184,29 @@ try {
       /* ---------- 1. 普通敌人：薄血条 / 无甲 / 死得快 ---------- */
       await evaluate(`(() => { const l = window.__dshGame.scene.getScene('Level'); try { l.spawnWave(0); } catch (e) {} return true; })()`);
       await sleep(900);
+
+      // v2.9 判定框改动后最容易出的回归：谁都打不到了。
+      // 把一个近战兵贴到站着不动的玩家身边，等它走完「蓄力 → 出手」，血必须真的掉。
+      if (c.key === 'act1') {
+        b.idleHit = await evaluate(`(() => {
+          const l = window.__dshGame.scene.getScene('Level');
+          const e = l.enemies.find((x) => x.alive && x.def.body !== 'ship' && x.def.tier !== 'ranged');
+          if (!e) return null;
+          const hp0 = l.player.hp;
+          e.teleportTo(l.player.x + 20, l.player.y);
+          e.state = 'chase'; e.stateTimer = 0;
+          return { hp0, id: e.def.id, tier: e.def.tier, reach: e.presence.attackReach };
+        })()`);
+        await sleep(1200);
+        b.idleHitAfter = await evaluate(`window.__dshGame.scene.getScene('Level').player.hp`);
+        // 后面还要接着跑精英 / Boss，先把血补满，别让这一下把这一轮打死
+        await evaluate(`(() => {
+          const l = window.__dshGame.scene.getScene('Level');
+          l.player.hp = l.player.maxHp; l.player.alive = true;
+          return true;
+        })()`);
+      }
+
       const foe = await evaluate(`(() => {
         const l = window.__dshGame.scene.getScene('Level');
         const e = l.enemies.find((x) => x.alive && x.def.body !== 'ship' && x.def.tier !== 'boss');
@@ -215,6 +238,42 @@ try {
         b.foeAt540 = await evaluate(`window.__dshGame.scene.getScene('Level').dyingEnemies.length`);
       }
 
+      /* ---------- 1b. 精英挨打还手：短前摇的报复挥砍（v2.9） ---------- */
+      if (c.key === 'act1') {
+        b.eliteSpawn = await evaluate(`(() => {
+          const l = window.__dshGame.scene.getScene('Level');
+          const def = l.findEnemy('en_uk_officer');
+          if (!def) return { error: 'def not found' };
+          l.spawnEnemy(def, 'right');
+          const e = l.enemies.filter((x) => x.alive).find((x) => x.def.id === 'en_uk_officer');
+          if (!e) return { error: 'spawn failed' };
+          e.teleportTo(l.player.x + 18, l.player.y);
+          return { id: e.def.id, reach: e.presence.attackReach, arc: e.presence.attackArcDeg };
+        })()`);
+        await sleep(260); // 让它在 update 里记住玩家位置
+        await evaluate(`(() => {
+          const l = window.__dshGame.scene.getScene('Level');
+          const e = l.enemies.find((x) => x.alive && x.def.id === 'en_uk_officer');
+          if (e) {
+            // 它被贴到身边后已经自己起手了；「正在蓄力」时按设计不还手，
+            // 所以先退回 chase 再打 —— 这才是玩家贪刀时的真实状态
+            e.state = 'chase'; e.stateTimer = 0;
+            e.counterCd = 0;
+            e.takeDamage(5, false, l.cfg);
+          }
+          return true;
+        })()`);
+        await sleep(120);
+        b.eliteCounter = await evaluate(`(() => {
+          const l = window.__dshGame.scene.getScene('Level');
+          const e = l.enemies.find((x) => x.alive && x.def.id === 'en_uk_officer');
+          return e ? { state: e.state, countering: !!e.countering, timer: Math.round(e.stateTimer) } : null;
+        })()`);
+        // 再等一拍让那刀真的砍出来：截图给人眼确认「刀光比杂鱼更长更宽」
+        await sleep(200);
+        await shot('act1-elite-counter.png');
+      }
+
       /* ---------- 2. Boss：厚血条 / 双层甲 / 死得慢、姿态正确 ---------- */
       await evaluate(`(() => { window.__dshGame.scene.getScene('Level').spawnBoss(); return true; })()`);
       await sleep(1000);
@@ -233,6 +292,19 @@ try {
         };
       })()`);
       b.boss = boss;
+      // v2.9 Boss 反击：挨打把「下一招还要等多久」清零（预警时长一秒不减，玩家仍躲得掉）。
+      // 正在放的招式会挡住这次反击，所以先清 bossAction；计时器从 6000 直接归零才算生效。
+      b.bossCounter = await evaluate(`(() => {
+        const l = window.__dshGame.scene.getScene('Level');
+        const e = l.enemies.find((x) => x.def.tier === 'boss');
+        if (!e) return null;
+        e.bossAction = null;
+        e.counterCd = 0;
+        e.bossTimer = 6000;
+        const before = e.bossTimer;
+        e.takeDamage(1, false, l.cfg);
+        return { before, after: Math.round(e.bossTimer), halted: !!e.actionsHalted };
+      })()`);
       // Boss 登场推镜结束后，相机必须回 RENDER_SCALE（= 后缓冲宽 / 480）。
       // 回 1 会让整个画面缩进左上角 1/R² —— v2.7 真出过这个线上回归。
       await sleep(320); // 推镜 420 + 延迟 480 + 拉回 520 ≈ 1000ms，多等一拍再读
@@ -325,6 +397,21 @@ try {
     return !!z && z.R > 1 && Math.abs(z.zoom - z.R) <= 0.02;
   });
   report.checks.noConsoleErrors = report.errors.length === 0;
+  // ---------- v2.9 判定框 / 反击 ----------
+  // 站着不动的玩家仍然会被近战兵砍到（防止「改了判定框之后谁都打不到」）
+  report.checks.idlePlayerStillGetsHit = (() => {
+    const b = report.battle.act1;
+    return !!b?.idleHit && typeof b.idleHitAfter === 'number' && b.idleHitAfter < b.idleHit.hp0;
+  })();
+  // 精英挨打会还手：进入短前摇的 windup 且标记为反击
+  report.checks.eliteCounterFires = (() => {
+    const e = report.battle.act1?.eliteCounter;
+    return !!e && e.countering === true && e.state === 'windup';
+  })();
+  // Boss 挨打会「催招」：招式计时器必须被清零
+  report.checks.bossCounterAccelerates = keys.every(
+    (k) => (report.battle[k]?.bossCounter?.after ?? -1) === 0,
+  );
   report.failed = Object.entries(report.checks).filter(([, v]) => !v).map(([k]) => k);
   report.ok = report.failed.length === 0;
 } catch (err) {

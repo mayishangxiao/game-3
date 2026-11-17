@@ -6064,9 +6064,18 @@ export class LevelScene extends Phaser.Scene {
           onRangedAttack: (from, tx, ty) => this.spawnEnemyProjectile(from, tx, ty),
           // 敌人近战也要有刀光（甲方：「敌人没有攻击动作，没有刀光显示范围」）
           // 出手声按档位分：杂鱼尖促、精英更沉、军舰带风压——听声就知道谁在砍你。
-          onMeleeSwing: (from, ang, reach) => {
+          // 扇形的半径与角度直接取这一击的判定框，刀光画多大就真能打到多大。
+          onMeleeSwing: (from, ang, reach, arcDeg) => {
             audio.swing(presenceOf(from.def.tier).weight);
-            this.slashAt(from.x, from.y - 10, ang, reach, PALETTE.redDark, 76);
+            // 还手那一下用更亮的红：玩家能看出「这一刀是被我打急了反手砍的」
+            this.slashAt(
+              from.x,
+              from.y - 10,
+              ang,
+              reach,
+              from.isCountering ? PALETTE.redBright : PALETTE.redDark,
+              arcDeg,
+            );
           },
           onDeath: (en) => this.onEnemyDeath(en),
           onTelegraph: (en, r) => this.telegraphRing(en, r),
