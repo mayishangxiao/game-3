@@ -7,6 +7,8 @@ import Phaser from 'phaser';
 import { CharacterRig } from '../gfx/CharacterRig';
 import type { MapRenderer } from '../gfx/MapRenderer';
 import { PALETTE, SHIP_ART_SETS, SHIP_TEX, TILE, unitArtOf } from '../core/constants';
+import { presenceOf, type PresenceDef } from '../core/combatPresence';
+import { makePresenceAura, spawnDebris } from '../gfx/CombatFx';
 import { computeDamage, type Rng } from '../core/balance';
 import { advanceWithCollision, ENEMY_FOOT, isFootBlocked } from '../core/space';
 import type { BalanceConfig, BossPhase, EnemyDef } from '../core/types';
@@ -96,8 +98,17 @@ export class Enemy {
   /** 血条：老师要求「敌人、精英、BOSS 全部显示血条」 */
   private hpBg: Phaser.GameObjects.Rectangle;
   private hpFill: Phaser.GameObjects.Rectangle;
+  /** 护甲色块：精英 1 层、Boss 2 层。只看图形就能读出「这层甲还有多厚」 */
+  private hpArmor: Phaser.GameObjects.Rectangle[] = [];
   private readonly barW: number;
+  private readonly barH: number;
   private readonly barOffY: number;
+  /** 这一档的「实力感」配置（顿帧/击退抗性/火花/音色档都在里面，见 core/combatPresence） */
+  private readonly presence: PresenceDef;
+  /** 血条受击抖动剩余比例 1→0：弱者抖得厉害，强者几乎不动 */
+  private barShake = 0;
+  /** 脚下气场（只有精英与 Boss 有）：描边光环 + 极淡内芯的 Container */
+  private auraGlow: Phaser.GameObjects.Container | null = null;
 
   private stateTimer = 0;
   /** 连续「两轴都走不动」的累计时长（ms）：超时就翻面，换一侧沿墙绕 */
@@ -159,6 +170,9 @@ export class Enemy {
     }
 
     // ---- 血条（画在头顶，随实体移动）----
+    // 厚度按档位走：杂鱼 3px 单薄一条，Boss 5px 厚重一杠（`core/combatPresence.ts`）。
+    this.presence = presenceOf(def.tier);
+    this.barH = this.presence.barH;
     this.barW = this.isBoss ? 46 : def.tier === 'elite' ? 28 : 20;
     this.barOffY = this.isBoss ? -38 : def.tier === 'elite' ? -30 : -22;
     if (def.body === 'ship') {
@@ -170,12 +184,33 @@ export class Enemy {
     const barColor =
       def.tier === 'boss' ? PALETTE.redBright : def.tier === 'elite' ? PALETTE.star : PALETTE.red;
     this.hpBg = scene.add
-      .rectangle(x, y + this.barOffY, this.barW + 2, 5, PALETTE.ink, 0.85)
+      .rectangle(x, y + this.barOffY, this.barW + 2, this.barH + 2, PALETTE.ink, 0.85)
       .setDepth(97);
     this.hpFill = scene.add
-      .rectangle(x - this.barW / 2, y + this.barOffY, this.barW, 3, barColor)
+      .rectangle(x - this.barW / 2, y + this.barOffY, this.barW, this.barH, barColor)
       .setOrigin(0, 0.5)
       .setDepth(98);
+    // 护甲层：贴在血条上沿的 2px 奶白细条，有几层就是几层甲。精英 1 层、Boss 2 层，
+    // 杂鱼没有——不用写「重甲」两个字，玩家自己看得出这一条比别人的厚。
+    // 颜色必须用 paper 而不是浅红：浅红压在红血条上等于没有（实拍确认过）。
+    for (let i = 0; i < this.presence.armorLayers; i++) {
+      this.hpArmor.push(
+        scene.add
+          .rectangle(
+            x - this.barW / 2,
+            y + this.barOffY - this.barH / 2 - 2 - i * 3,
+            this.barW,
+            2,
+            PALETTE.paper,
+          )
+          .setOrigin(0, 0.5)
+          .setDepth(98),
+      );
+    }
+    // 强者脚下的一层微光（精英 16px / Boss 30px）。
+    // **军舰不画**：96×48 的船体把 30px 的圆环几乎全遮住，只剩一条读不出来的细线
+    // （v2.7 实拍三次确认）；军舰的重量感交给 5px 血条 + 2 层护甲 + 90ms 顿帧 + 煤烟。
+    this.auraGlow = def.body === 'ship' ? null : makePresenceAura(scene, x, y, this.presence);
 
     // ---- 指挥官光环：地上一圈金色虚线感的光环，说明「他在给周围友军加成」----
     const aura = def.ai_params?.aura;
@@ -211,13 +246,24 @@ export class Enemy {
   /** 血条跟随实体（含死亡隐藏） */
   private syncBar(): void {
     const by = this.y + this.barOffY;
-    this.hpBg.setPosition(this.x, by).setVisible(this.alive);
+    // 受击抖动：幅度 = 1 − 击退抗性。杂鱼被打得血条乱晃，Boss 那条纹丝不动——
+    // 这是「打不动」最便宜的视觉信号，不用额外贴图。
+    const amp = (1 - this.presence.knockResist) * 2.6;
+    const sx = this.barShake > 0 ? Math.sin(this.barShake * 26) * amp : 0;
+    const fillW = Math.max(0, Math.round(this.barW * this.hpRatio));
+    this.hpBg.setPosition(this.x + sx, by).setVisible(this.alive);
     this.auraLabel?.setPosition(this.x, by - 14).setVisible(this.alive);
-    this.hpFill
-      .setPosition(this.x - this.barW / 2, by)
-      .setVisible(this.alive);
-    this.hpFill.width = Math.max(0, Math.round(this.barW * this.hpRatio));
+    this.hpFill.setPosition(this.x - this.barW / 2 + sx, by).setVisible(this.alive);
+    this.hpFill.width = fillW;
+    // 护甲层与血量同比例缩短：甲还剩多少，眼神就能读出来
+    for (let i = 0; i < this.hpArmor.length; i++) {
+      this.hpArmor[i]
+        .setPosition(this.x - this.barW / 2 + sx, by - this.barH / 2 - 2 - i * 3)
+        .setVisible(this.alive);
+      this.hpArmor[i].width = fillW;
+    }
     if (this.auraRing) this.auraRing.setPosition(this.x, this.y + 8).setVisible(this.alive);
+    this.auraGlow?.setPosition(this.x, this.y + 8).setVisible(this.alive);
     // 舰船残血换破损帧（内部去重，够每帧调）
     if (this.def.body === 'ship') this.rig.setDamaged(this.hpRatio <= 0.35);
   }
@@ -278,7 +324,10 @@ export class Enemy {
     if (!this.alive) return false;
     const prevHp = this.hp;
     this.hp = Math.max(0, this.hp - damage);
-    this.rig.hitFlash(crit ? 110 : 60);
+    // 闪白时长按档位：杂鱼 40ms 一闪就没，Boss 110ms 能看出「这一下他扛住了」
+    this.rig.hitFlash(crit ? Math.max(110, this.presence.flashMs + 30) : this.presence.flashMs);
+    // 血条抖动只在「打得动」的目标上出现（Boss 的 knockResist = 1，这条恒为 0）
+    this.barShake = this.presence.knockResist < 1 ? 1 : 0;
     this.updatePhase();
     if (this.checkFinalStrike(prevHp)) this.onFinalStrike?.(this);
 
@@ -291,7 +340,18 @@ export class Enemy {
 
     if (this.hp <= 0) {
       this.alive = false;
-      this.rig.playDeath();
+      // 强者死得慢：杂鱼 220ms 一闪而过，Boss 要 900ms 才躺完
+      this.rig.playDeath(undefined, this.presence.deathMs);
+      // 倒下的碎片（军舰不撒：海上飘木块很怪，它有自己的破损帧与沉没演出）
+      if (this.presence.debris > 0 && this.def.body !== 'ship') {
+        spawnDebris(
+          this.scene,
+          this.x,
+          this.y - 8,
+          this.presence.debris,
+          this.presence.weight === 'heavy' ? PALETTE.star : PALETTE.greyPlum,
+        );
+      }
       this.syncBar();
       void cfg;
       return true;
@@ -458,6 +518,8 @@ export class Enemy {
       return;
     }
     if (this.weakpointMs > 0) this.weakpointMs -= dtMs;
+    // 血条受击抖动随时间衰减（220ms 抖完）。Boss 的 barShake 恒为 0，不走这条。
+    if (this.barShake > 0) this.barShake = Math.max(0, this.barShake - dtMs / 220);
 
     // Boss 走独立的招式循环，不用普通敌人的近身状态机
     if (this.isBoss) {
@@ -614,7 +676,10 @@ export class Enemy {
   destroy(): void {
     this.hpBg.destroy();
     this.hpFill.destroy();
+    for (const a of this.hpArmor) a.destroy();
+    this.hpArmor.length = 0;
     this.auraRing?.destroy();
+    this.auraGlow?.destroy();
     this.rig.destroy();
   }
 

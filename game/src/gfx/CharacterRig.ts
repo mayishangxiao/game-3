@@ -717,7 +717,7 @@ export class CharacterRig extends Phaser.GameObjects.Container {
   }
 
   /** 死亡：倒地淡出。就义等庄重段落由场景另行处理，不走此动画 */
-  playDeath(onDone?: () => void): void {
+  playDeath(onDone?: () => void, durationMs = 300): void {
     if (this.dead) return;
     this.dead = true;
     // 死亡瞬间先撤掉受击闪白：dead 之后 tick() 首行就 return，
@@ -728,7 +728,8 @@ export class CharacterRig extends Phaser.GameObjects.Container {
       targets: this,
       angle: this.facing === 'left' ? -90 : 90,
       alpha: 0,
-      duration: 300,
+      // 倒地时长按「实力感」档位走：杂鱼一闪就没，精英/Boss 拖得久，倒下更有重量
+      duration: durationMs,
       ease: 'Quad.easeIn',
       onComplete: () => {
         onDone?.();

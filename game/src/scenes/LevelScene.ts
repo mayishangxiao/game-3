@@ -37,6 +37,8 @@ import {
   type WeaponOption,
 } from '../core/weaponSwap';
 import { DEFEAT_TEXT } from '../core/defeat';
+import { knockScale, presenceOf } from '../core/combatPresence';
+import { spawnHitSpark } from '../gfx/CombatFx';
 import {
   CRIT_SHAKE_DURATION_MS,
   critShakeIntensity,
@@ -462,6 +464,13 @@ export class LevelScene extends Phaser.Scene {
   /** 舰炮预警齐射正在播（一轮播完前不再起新的一轮，否则圈会叠成一片红） */
   private salvoActive = false;
 
+  /**
+   * 打击顿帧剩余（ms）。命中精英/Boss 时把世界冻结一拍再放开，
+   * 是「这一下很重」最便宜也最有效的信号（见 `core/combatPresence.ts`）。
+   * 只冻世界逻辑，tween 与相机震动照常走——否则震屏也会一起停住。
+   */
+  private hitStopMs = 0;
+
   /* v2.6 海战「双舰交锋」：只在带 `NodeDef.ship_duel` 的节点生效，其它关卡零影响 */
   /** 已播报过的交锋阶段下标，重进关卡清空 */
   private duelPhasesShown = new Set<number>();
@@ -600,6 +609,9 @@ export class LevelScene extends Phaser.Scene {
     this.floorItems = [];
     this.worldObjects = [];
     this.nodeIndex = 0;
+    // 强敌登场会短暂推镜（zoomTo），重进关卡必须归位——
+    // 否则上一局停在推镜中途切场景，新一关整个世界会是放大的。
+    this.cameras.main.setZoom(1);
     // 副本引用必须在这里清掉：create() 复用同一个实例，若上一轮刷过副本，
     // 这一轮的 boot() 会看到残留的 this.dungeon 而重开副本，正片节点根本不会进。
     this.dungeon = null;
@@ -619,6 +631,8 @@ export class LevelScene extends Phaser.Scene {
     this.shipTimer = 0;
     this.shipMoving = false;
     this.salvoActive = false;
+    // 顿帧不跨局：上一局若停在重击的一拍上被重开，世界会一直冻着
+    this.hitStopMs = 0;
     // 百姓句柄也要在重进关卡时清空：旧场景的 Image 已经随场景销毁，
     // 留着引用只会让 `buildWorld` 去 destroy 一堆已死的对象。
     this.crowdSprites = [];
@@ -3771,6 +3785,11 @@ export class LevelScene extends Phaser.Scene {
     emitObjective(`Boss：${names.join(' ＆ ')}`);
     emitToast(`${names.join(' 与 ')} 出现`, 2000);
     this.cameras.main.shake(300, 0.007);
+    // 强敌登场：镜头缓慢推近 6% 再拉回，和「普通波次刷怪」在开场半秒内就分开。
+    // 只动 LevelScene 主相机（世界层）；HUD 在 UIScene、文字在 DOM，都不受影响。
+    const cam = this.cameras.main;
+    cam.zoomTo(1.06, 420, 'Sine.easeOut', true);
+    this.time.delayedCall(480, () => cam.zoomTo(1, 520, 'Sine.easeInOut', true));
 
     const place = (enemyDef: EnemyDef, slot: number) => {
       const stats = enemyStats(enemyDef, this.enemyLevel, this.cfg);
@@ -4666,8 +4685,23 @@ export class LevelScene extends Phaser.Scene {
       rng,
     );
     const died = e.takeDamage(res.damage, res.crit, this.cfg);
-    // 命中音在 takeDamage 之后：爆击与死亡各自还有自己的反馈，这里只给「砍到了」
-    audio.hit();
+    // 命中反馈全部按对手档位走（core/combatPresence.ts）：打杂鱼是「一小闪」，
+    // 砍精英/Boss 是顿帧 + 震屏 + 大片火花 + 低频命中音。玩家不用读任何文字，
+    // 手上就能分出「这个砍得动」和「这个砍不动」。
+    const p = presenceOf(e.def.tier);
+    audio.hit(p.weight);
+    spawnHitSpark(
+      this,
+      e.x,
+      e.y - (e.def.body === 'ship' ? 20 : 10),
+      p.weight === 'heavy' ? PALETTE.star : PALETTE.redBright,
+      p.sparkN,
+      p.sparkScale,
+      p.sparkMs,
+    );
+    // 顿帧取最大值而不是累加：连击时不会越砍越卡
+    if (p.hitStopMs > 0) this.hitStopMs = Math.max(this.hitStopMs, p.hitStopMs);
+    if (p.shakeMs > 0) this.cameras.main.shake(p.shakeMs, p.shakeAmp);
 
     const fb = this.cfg.combat_feedback;
     // v1.8「震荡强击」：只给近战加额外击退，远程投射物不受影响
@@ -4679,10 +4713,12 @@ export class LevelScene extends Phaser.Scene {
     const len = Math.hypot(dx, dy) || 1;
     // 击退是 tween 直接平移，不查地形；落点必须在陆地上，否则小兵会被打出地图。
     // 这里把「落点是否可站」交给调用方判断，不可站就缩到贴着边界。
-    if (e.def.tier !== 'boss') {
+    // 距离再乘击退抗性：精英只退半步、Boss 一步不退（knockScale = 0）。
+    const kbs = knockScale(e.def.tier);
+    if (kbs > 0) {
       e.rig.knockback(
-        (dx / len) * kb,
-        (dy / len) * kb,
+        (dx / len) * kb * kbs,
+        (dy / len) * kb * kbs,
         // 击退落点同样要过脚盒判据：把人推到贴墙处，下一帧他就走不动了
         (tx, ty) => this.enemyFootUnsafe(tx, ty),
       );
@@ -5550,6 +5586,18 @@ export class LevelScene extends Phaser.Scene {
             );
             // 剑气自带固定伤害（老游戏是武器伤害的 0.85 倍），其余投射物仍按当前武器倍率算
             const died = e.takeDamage(p.dmgOverride ?? res.damage, res.crit, this.cfg);
+            // 远程命中给一小撮火花；**不加顿帧**——连射时每发都顿会变成卡顿，
+            // 顿帧只留给近战砍在硬目标上的那一下。
+            const rp = presenceOf(e.def.tier);
+            spawnHitSpark(
+              this,
+              e.x,
+              e.y - 10,
+              PALETTE.star,
+              Math.max(2, rp.sparkN - 2),
+              rp.sparkScale * 0.7,
+              rp.sparkMs,
+            );
             if (died) this.onEnemyDeath(e);
             if (p.pierce > 0) p.pierce -= 1;
             else {
@@ -5838,6 +5886,13 @@ export class LevelScene extends Phaser.Scene {
     // 节点切换期间（startNode 内有 await）不做任何世界逻辑
     if (this.transitioning) return;
 
+    // 打击顿帧：命中精英/Boss 时把世界冻住一拍再放开。相机震动与 tween 各自有
+    // 独立的管理器，不受这里的 return 影响——所以读起来是「画面定住、屏幕还在震」。
+    if (this.hitStopMs > 0) {
+      this.hitStopMs = Math.max(0, this.hitStopMs - delta);
+      return;
+    }
+
     this.dialogue?.update(delta);
     this.updateFloatPos(false);
 
@@ -5935,18 +5990,48 @@ export class LevelScene extends Phaser.Scene {
         this.map,
         this.cfg,
         {
-          onPlayerHit: (damage) => {
+          onPlayerHit: (damage, from) => {
             if (target.ally) {
               this.damageAlly(target.ally, damage);
               return;
             }
             const d = this.player.takeDamage(incoming(damage));
-            if (d > 0) this.cameras.main.shake(70, 0.003);
+            if (d <= 0) return;
+            // 打人者的档位决定「这一下有多重」：杂鱼砍你几乎不震，精英/军舰砸下来
+            // 整屏晃、还把你推出去一段。玩家不用看血条，身体先感觉到差距。
+            const foe = presenceOf(from.def.tier);
+            this.cameras.main.shake(
+              foe.shakeMs > 0 ? foe.shakeMs : 70,
+              foe.shakeAmp > 0 ? foe.shakeAmp : 0.003,
+            );
+            if (foe.shove > 0) {
+              const ddx = this.player.x - from.x;
+              const ddy = this.player.y - from.y;
+              const dlen = Math.hypot(ddx, ddy) || 1;
+              // 复用敌人那套脚盒判据：落点不可站会自动缩到边界，绝不把人推进海里
+              this.player.rig.knockback(
+                (ddx / dlen) * foe.shove,
+                (ddy / dlen) * foe.shove,
+                (tx, ty) => this.enemyFootUnsafe(tx, ty),
+              );
+              spawnHitSpark(
+                this,
+                this.player.x,
+                this.player.y - 8,
+                PALETTE.redSoft,
+                foe.sparkN,
+                foe.sparkScale * 0.8,
+                foe.sparkMs,
+              );
+            }
           },
           onRangedAttack: (from, tx, ty) => this.spawnEnemyProjectile(from, tx, ty),
           // 敌人近战也要有刀光（甲方：「敌人没有攻击动作，没有刀光显示范围」）
-          onMeleeSwing: (from, ang, reach) =>
-            this.slashAt(from.x, from.y - 10, ang, reach, PALETTE.redDark, 76),
+          // 出手声按档位分：杂鱼尖促、精英更沉、军舰带风压——听声就知道谁在砍你。
+          onMeleeSwing: (from, ang, reach) => {
+            audio.swing(presenceOf(from.def.tier).weight);
+            this.slashAt(from.x, from.y - 10, ang, reach, PALETTE.redDark, 76);
+          },
           onDeath: (en) => this.onEnemyDeath(en),
           onTelegraph: (en, r) => this.telegraphRing(en, r),
           // 军舰的「舷炮齐射」改成有落点预警的重炮（甲方 m12276）：

@@ -12,6 +12,8 @@
  *   3. **一次演出只建一条链**：master gain 复用一个，避免每次播放都往 graph 里塞节点。
  */
 
+import type { HitWeight } from '../core/combatPresence';
+
 type Ctx = AudioContext;
 
 class AudioKitImpl {
@@ -274,20 +276,39 @@ class AudioKitImpl {
   }
 
   /** 挥刀：刀风的带通噪声，从 3kHz 扫到 700Hz */
-  swing(): void {
+  /**
+   * 挥刀。按「实力感」分三档音色（`core/combatPresence.ts → weight`）：
+   * 杂鱼尖而短、精英更沉、Boss 低频带风压。不写文字，玩家听得出谁在出手。
+   */
+  swing(weight: HitWeight = 'light'): void {
     if (!this.throttle('swing', 70)) return;
     const ctx = this.ready();
     if (!ctx) return;
-    this.swish(ctx, 3000, 700, 0.12, 0.16);
+    if (weight === 'heavy') this.swish(ctx, 1600, 320, 0.2, 0.2);
+    else if (weight === 'medium') this.swish(ctx, 2300, 620, 0.15, 0.17);
+    else this.swish(ctx, 3000, 700, 0.12, 0.16);
   }
 
-  /** 命中：一记短闷响 + 一点金属噪声，和挥刀分开，玩家能听出「砍到了」 */
-  hit(): void {
+  /**
+   * 命中：一记短闷响 + 一点金属噪声，和挥刀分开，玩家能听出「砍到了」。
+   * 打杂鱼是清脆的一声；砍在精英/Boss 的甲上是低频轰鸣 + 长尾，越重越明显。
+   */
+  hit(weight: HitWeight = 'light'): void {
     if (!this.throttle('hit', 45)) return;
     const ctx = this.ready();
     if (!ctx) return;
-    this.thud(ctx, 260, 120, 0.1, 0.18);
-    this.swish(ctx, 4200, 2400, 0.05, 0.08);
+    if (weight === 'heavy') {
+      this.thud(ctx, 150, 55, 0.24, 0.32);
+      this.swish(ctx, 2200, 900, 0.14, 0.16);
+      // 第二层低音：只给重击，做出「余响压在胸口」的厚度
+      this.thud(ctx, 90, 40, 0.3, 0.18, 0.02);
+    } else if (weight === 'medium') {
+      this.thud(ctx, 210, 90, 0.14, 0.24);
+      this.swish(ctx, 3200, 1600, 0.07, 0.1);
+    } else {
+      this.thud(ctx, 260, 120, 0.1, 0.18);
+      this.swish(ctx, 4200, 2400, 0.05, 0.08);
+    }
   }
 
   /** 玩家受伤：低频下滑，比命中更闷更长一点 */

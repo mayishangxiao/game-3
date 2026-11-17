@@ -253,6 +253,32 @@ try {
 
   await shot('sea-battle.png');
 
+  /* ------------- 2.5 v2.7 实力感：Boss 档必须读得出「打不动」 ------------- */
+  // 甲方要求「光列文字不直观」，实力差要能被感觉到。这里读运行时对象，不看数据：
+  // 血条厚度 / 护甲层数 / 脚下气场 / 命中后的顿帧，全部是实体的真实字段。
+  const presenceInfo = await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    const boss = l.bossShip;
+    const beforeHp = boss.hp;
+    // 走真实近战入口（不是直接改 hp），才可能触发顿帧与火花
+    l.damageEnemy(boss, 1, 'melee');
+    return {
+      id: boss.def.id,
+      tier: boss.def.tier,
+      barH: boss.presence?.barH ?? null,
+      armorLayers: boss.hpArmor?.length ?? 0,
+      hasAura: !!boss.auraGlow,
+      hitStopMs: l.hitStopMs ?? 0,
+      hpDropped: boss.hp < beforeHp,
+    };
+  })()`);
+  report.snapshots.presenceBoss = presenceInfo;
+  // 军舰要读得出「打不动」：5px 厚血条 + 2 层奶白护甲 + 命中顿帧。
+  // 气场（hasAura）只给陆地精英/主将——军舰 96×48 会把 30px 光环整个遮住，
+  // 实拍三次都只剩一条读不出来的细线，所以这里**不**拿它当军舰的判据。
+  report.checks.bossHasArmorLayers = presenceInfo.barH === 5 && presenceInfo.armorLayers === 2;
+  report.checks.heavyHitStops = presenceInfo.hitStopMs > 0 && presenceInfo.hpDropped === true;
+
   /* ---------------- 3. 出怪落点：从甲板右舷登舰，不落进海里 ---------------- */
   const spawnInfo = await evaluate(`(() => {
     const l = window.__dshGame.scene.getScene('Level');
@@ -282,6 +308,44 @@ try {
   })()`);
   report.snapshots.enemyFeet = enemyFeet;
   report.checks.allEnemiesOnDeck = enemyFeet.every((e) => e.solid === false);
+
+  // 强弱对照（v2.7）：同一屏里放一个普通兵和一个精英（日军大尉）。
+  // 普通兵 = 薄血条 + 无护甲 + 无光环；大尉 = 4px 血条 + 1 层奶白护甲 + 脚下光环。
+  // 这才是甲方要的「不用读字就能看出差距」，所以必须读运行时的真实对象。
+  await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    l.spawnEnemy(l.findEnemy('en_jp_officer'), 'right');
+    return true;
+  })()`);
+  await sleep(700);
+  const foeInfo = await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    const pick = (tier) => {
+      const e = l.enemies.find(x => x.alive && x.def.tier === tier);
+      return e ? {
+        id: e.def.id, tier: e.def.tier,
+        barH: e.presence?.barH ?? null,
+        armorLayers: e.hpArmor?.length ?? 0,
+        hasAura: !!e.auraGlow,
+        // 屏幕坐标（相机 zoom 此时已归 1），供截图放大定位
+        sx: Math.round(e.x - l.cameras.main.scrollX),
+        sy: Math.round(e.y - l.cameras.main.scrollY),
+      } : null;
+    };
+    return { mob: pick('standard'), elite: pick('elite') };
+  })()`);
+  report.snapshots.presenceFoe = foeInfo;
+  report.checks.lightFoeIsThin = !!foeInfo.mob
+    && foeInfo.mob.armorLayers === 0
+    && foeInfo.mob.hasAura === false
+    && foeInfo.mob.barH < presenceInfo.barH;
+  report.checks.eliteHasArmorAndAura = !!foeInfo.elite
+    && foeInfo.elite.barH === 4
+    && foeInfo.elite.armorLayers === 1
+    && foeInfo.elite.hasAura === true;
+
+  // 分层实拍：同一屏里能同时看到「精英有护甲条 + 光环」和「普通兵只有一条薄血条」
+  await shot('sea-presence-tiers.png');
 
   /* ---------------- 4. v2.6 撞舰收尾：清空 Boss 后播「致远撞向吉野」 ---------------- */
   // 用场景调试入口直接清场（吉野没有 final_strike，不会走半血剧情杀），触发
