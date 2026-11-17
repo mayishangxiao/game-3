@@ -223,6 +223,43 @@ export const QUALITY_COLORS = {
   purple: { base: PALETTE.plumMid, hi: PALETTE.greyPlum, outline: PALETTE.ink },
 } as const;
 
+const cssHex = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
+
+/**
+ * 品质在 UI 上的唯一真值：文字取 hi、品质徽章底取 base、描边取 outline。
+ *
+ * 旧版三处界面各自硬编码颜色，紫装用 `#948DAB`（灰紫高光）冒充紫色，
+ * 选中行还会把整行刷成纸白，连「紫」字都一起变白。这里统一从 QUALITY_COLORS
+ * 派生，紫装徽章是深紫底 + 白字 + 亮紫描边，和其它两档共用同一套结构。
+ */
+export const QUALITY_STYLE = {
+  white: {
+    label: '白',
+    text: cssHex(QUALITY_COLORS.white.base),
+    chip: cssHex(QUALITY_COLORS.white.base),
+    chipText: cssHex(PALETTE.ink),
+    edge: cssHex(QUALITY_COLORS.white.outline),
+  },
+  blue: {
+    label: '蓝',
+    text: cssHex(QUALITY_COLORS.blue.hi),
+    chip: cssHex(QUALITY_COLORS.blue.base),
+    chipText: cssHex(PALETTE.paper),
+    edge: cssHex(QUALITY_COLORS.blue.hi),
+  },
+  purple: {
+    label: '紫',
+    text: cssHex(QUALITY_COLORS.purple.hi),
+    chip: cssHex(QUALITY_COLORS.purple.base),
+    chipText: cssHex(PALETTE.paper),
+    edge: cssHex(QUALITY_COLORS.purple.hi),
+  },
+} as const;
+
+export function qualityStyleOf(q: string): (typeof QUALITY_STYLE)[keyof typeof QUALITY_STYLE] {
+  return q === 'purple' ? QUALITY_STYLE.purple : q === 'blue' ? QUALITY_STYLE.blue : QUALITY_STYLE.white;
+}
+
 /** 渲染层级 */
 export const DEPTH = {
   ground: 0,

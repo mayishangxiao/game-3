@@ -417,6 +417,34 @@ export function formatStatDelta(delta: StatDelta, sep = ' '): string {
   return parts.length > 0 ? parts.map((p) => p.text).join(sep) : '属性持平';
 }
 
+/** 候选装备相对当前装备的直观结论，供背包列表与详情框共用一个真值 */
+export type GearVerdict = 'recommended' | 'mixed' | 'even' | 'worse';
+
+export interface GearAdvice {
+  verdict: GearVerdict;
+  /** 列表里的短标：推荐 / 权衡 / 持平 / 不如 */
+  label: string;
+  /** 更短的方向符，窄屏只放得下一个字 */
+  icon: string;
+  parts: StatDeltaPart[];
+}
+
+/**
+ * 把 compareWithEquipped 的值变成「一眼能判断换不换」的结论。
+ *
+ * 四项属性各自独立，绝不相加抵消：全涨=推荐，全跌=不如，有涨有跌=权衡，
+ * 完全没变=持平。空槽换装算全涨，因此新装备会标「推荐」，符合直觉。
+ */
+export function gearAdvice(item: ItemInstance, equipped: Partial<Record<Slot, ItemInstance | null>>): GearAdvice {
+  const parts = statDeltaParts(compareWithEquipped(item, equipped));
+  if (parts.length === 0) return { verdict: 'even', label: '持平', icon: '=', parts };
+  const up = parts.some((p) => p.positive);
+  const down = parts.some((p) => !p.positive);
+  if (up && !down) return { verdict: 'recommended', label: '推荐', icon: '▲', parts };
+  if (!up && down) return { verdict: 'worse', label: '不如', icon: '▼', parts };
+  return { verdict: 'mixed', label: '权衡', icon: '±', parts };
+}
+
 /** 按 tier 取出敌人基准表 */
 export function tierBase(tier: EnemyTier, cfg: BalanceConfig): { hp: number; atk: number; def: number } {
   return cfg.enemy_tiers[tier];

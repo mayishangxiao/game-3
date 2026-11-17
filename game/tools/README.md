@@ -84,6 +84,7 @@ node tools/serve.mjs dist 4173        # 极简静态服务器，无依赖；手�
 | 脚本 | 作用 | 备注 |
 | --- | --- | --- |
 | `gen_maps.py` | 生成第一幕两张地图（30×16 瓦片） | 手写 480 个格号必错，布局改动改脚本再跑 |
+| `clear_airwalls.py` | **孤立空气墙清理器**（v2.9.6）：清掉场地内部「四邻皆空」的单格阻挡及其装置瓦片，让通道开阔；跳过最外圈边界、销烟池 6/7 的 28 格、海战图、`sky_rows` 远景行、`objects` 格，以及整图唯一的叙事装置（会馆灯笼 / 武昌军旗）。单层 ground 用邻居地面补洞，补不到就撤销该格 | **重跑任何 `gen_maps*.py` / `gen_late_qing_maps.py` / `gen_taiping_tilemap.py` 之后跑一次**，否则生成器会把散点重新写回去。`--check` 只报告不改文件，用来回归核对；可重复执行，第二次必然报 0 |
 | `gen_maps_act2.py` | 生成第二幕两张地图（金田村山地 / 天京城） | 同上 |
 | `gen_maps_dungeon.py` | 生成三个副本地图（租界暗巷 / 城外匪寨 / 沪上码头） | 靠墙体做出「窄」的手感 |
 | `gen_taiping_tilemap.py` | 太平天国篇章瓦片地图包：36 张 16×16 PNG + 8 列拼版 + `tileset.json` + 三张 `map_ch00_tp_*.json` + 四层编辑源 + 12 张预览 + `design/taiping_tilemap_preview.html` | **纯标准库**（自写 PNG 编码，无需 Pillow）；与 `gen_maps*.py` 互不覆盖，只写 `map_ch00_tp_*`；每次运行自检边界 / 可达性 / 按键避让 / 布景 payload / **禁止 `pickup` 与木箱瓦片（防第一幕鸦片箱串幕）** / 四层折叠一致性。规格见 `design/12_taiping_tilemap_spec.md` |

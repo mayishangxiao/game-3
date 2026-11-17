@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, RENDER_SCALE, SCAR_TEX, SEA_SHEET_TEX, SEA_TILESET_ID, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, YOSHINO_TEX, ZHIYUAN_TEX, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, qualityStyleOf, PART_ART, PART_ART_ROOT, partKey, RENDER_SCALE, SCAR_TEX, SEA_SHEET_TEX, SEA_TILESET_ID, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, YOSHINO_TEX, ZHIYUAN_TEX, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -1187,7 +1187,7 @@ export class LevelScene extends Phaser.Scene {
     } else {
       gained.slice(0, 6).forEach((it, i) => {
         const color =
-          it.quality === 'purple' ? '#948DAB' : it.quality === 'blue' ? '#7FB2D9' : '#C2BCD1';
+          qualityStyleOf(it.quality).text;
         const affix = it.affixes.length > 0 ? `　[${it.affixes.length} 词条]` : '';
         overlay.add(
           this.add
@@ -2870,7 +2870,7 @@ export class LevelScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       box.on('pointerdown', () => this.selectWeaponOption(o.id));
       c.add(box);
-      const qColor = o.quality === 'purple' ? '#948DAB' : o.quality === 'blue' ? '#7FB2D9' : '#C2BCD1';
+      const qColor = qualityStyleOf(o.quality).text;
       c.add(addText(84, y + 1, `${idx + 1}. ${o.name}`, '9.5px', o.available || o.current ? qColor : '#6B6489', 0));
       c.add(
         addText(396, y + 1, `${o.weaponName} · ${o.kindText}`, '9px', o.available ? '#F0C419' : '#6B6489', 1),
@@ -6351,5 +6351,5 @@ export class LevelScene extends Phaser.Scene {
 const DIST_MELEE = 'melee' as const;
 
 function qualityLabel(q: Quality): string {
-  return q === 'purple' ? '紫' : q === 'blue' ? '蓝' : '白';
+  return qualityStyleOf(q).label;
 }

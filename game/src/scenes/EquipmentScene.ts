@@ -9,7 +9,7 @@
  */
 
 import Phaser from 'phaser';
-import { DEPTH, HUD_H, PALETTE, VIEW_H, VIEW_W } from '../core/constants';
+import { DEPTH, HUD_H, PALETTE, qualityStyleOf, VIEW_H, VIEW_W } from '../core/constants';
 import {
   compareWithEquipped,
   enhanceCost,
@@ -17,7 +17,9 @@ import {
   enhanceGain,
   firstGainfulEnhance,
   formatStatDelta,
+  gearAdvice,
   salvageValue,
+  type GearVerdict,
 } from '../core/balance';
 import { slotProgress, type SlotProgressInfo } from '../core/SaveManager';
 import { dataLoader } from '../core/DataLoader';
@@ -36,12 +38,18 @@ const SLOT_NAMES: { key: Slot; label: string }[] = [
 
 const PAGE_SIZE = 12;
 
-function qualityColor(q: string): string {
-  return q === 'purple' ? '#948DAB' : q === 'blue' ? '#7FB2D9' : '#C2BCD1';
-}
+/** 换装结论配色：绿=全涨，红=全跌，金=有得有失，灰=没变 */
+const VERDICT_COLOR: Record<GearVerdict, string> = {
+  recommended: '#7EC08A',
+  worse: '#E85C4A',
+  mixed: '#F0C419',
+  even: '#948DAB',
+};
+
 function qualityLabel(q: string): string {
-  return q === 'purple' ? '紫' : q === 'blue' ? '蓝' : '白';
+  return qualityStyleOf(q).label;
 }
+
 
 /** 左列第二行：这一槽位「已有最高品质 / 还差什么」 */
 function progressText(p: SlotProgressInfo): string {
@@ -230,6 +238,33 @@ export class EquipmentScene extends Phaser.Scene {
     this.root.removeAll(true);
   }
 
+  /** 品质徽章：底色就是品质色，字取反色；名字另起 Text，选中时不会被刷白 */
+  private qualityChip(q: string, x: number, y: number): void {
+    const s = qualityStyleOf(q);
+    const chip = this.add
+      .rectangle(x + 5, y + 7, 11, 10, Number.parseInt(s.chip.slice(1), 16), 1)
+      .setStrokeStyle(1, Number.parseInt(s.edge.slice(1), 16));
+    const label = this.add.text(x + 5, y + 7, s.label, {
+      fontFamily: FONT_UI,
+      fontSize: '8px',
+      color: s.chipText,
+    }).setOrigin(0.5);
+    this.root.add([chip, label]);
+  }
+
+  /** 列表行尾的换装结论，颜色与文字都由 gearAdvice 的 verdict 决定 */
+  private verdictTag(x: number, y: number, icon: string, label: string, verdict: GearVerdict): void {
+    this.root.add(
+      this.add
+        .text(x, y, `${icon}${label}`, {
+          fontFamily: FONT_UI,
+          fontSize: '9px',
+          color: VERDICT_COLOR[verdict],
+        })
+        .setOrigin(1, 0),
+    );
+  }
+
   private render(): void {
     this.clear();
     const save = getSave();
@@ -294,7 +329,7 @@ export class EquipmentScene extends Phaser.Scene {
           this.add.text(58, y, `${it.name}${it.enhance > 0 ? ` +${it.enhance}` : ''}`, {
             fontFamily: FONT_UI,
             fontSize: '9.5px',
-            color: qualityColor(it.quality),
+            color: qualityStyleOf(it.quality).text,
           }),
         );
         c.add(
@@ -372,79 +407,102 @@ export class EquipmentScene extends Phaser.Scene {
           }),
       );
       const affix = it.affixes.length > 0 ? ` ·${it.affixes.length}词` : '';
+      const advice = gearAdvice(it, save.equipment);
+      // 品质徽章 + 独立名字：选中只换底色高亮，品质色与「紫」字都不再被刷白
+      this.qualityChip(it.quality, 228, y);
       c.add(
-        this.add.text(228, y, `${qualityLabel(it.quality)} ${it.name}${it.enhance > 0 ? `+${it.enhance}` : ''}${affix}`, {
+        this.add.text(244, y, `${it.name}${it.enhance > 0 ? ` +${it.enhance}` : ''}${affix}`, {
           fontFamily: FONT_UI,
           fontSize: '9px',
-          color: active ? '#F2EDE4' : qualityColor(it.quality),
+          color: qualityStyleOf(it.quality).text,
         }),
       );
       c.add(
-        this.add
-          .text(462, y, `${it.stat.toUpperCase()} ${enhancedValue(it)}`, {
-            fontFamily: FONT_UI,
-            fontSize: '9px',
-            color: '#C2BCD1',
-          })
-          .setOrigin(1, 0),
+        this.add.text(384, y, `${it.stat.toUpperCase()} ${enhancedValue(it)}`, {
+          fontFamily: FONT_UI,
+          fontSize: '9px',
+          color: '#C2BCD1',
+        }),
       );
+      // 一行给出换装结论：全涨=推荐，全跌=不如，有涨有跌=权衡
+      this.verdictTag(464, y, advice.icon, advice.label, advice.verdict);
     });
 
-    // ---- 左下：选中装备的详情（顺便填上左列下方那片空白）----
+    // ---- 左下：选中装备的详情 ----
     const det = this.selected();
     const dx = 14;
-    const dy = 198;
+    // dy=190：第五槽位第二行到 y≈189，详情框从 190 起；词条行 y=234 到 244，
+    // 与底部按钮顶边 y=248 留 4px，避免 9px 字的行高把最后一行压到按钮上。
+    const dy = 190;
     c.add(
       this.add
-        .rectangle(dx + 92, dy + 26, 184, 52, PALETTE.plumDark, 0.55)
+        .rectangle(dx + 92, dy + 28, 184, 56, PALETTE.plumDark, 0.55)
         .setStrokeStyle(1, PALETTE.ink)
         .setOrigin(0.5),
     );
     if (det) {
       const slotLabel = SLOT_NAMES.find((s) => s.key === det.slot)?.label ?? det.slot;
+      const advice = gearAdvice(det, save.equipment);
+      const own = this.equipSel !== null || save.equipment[det.slot]?.uid === det.uid;
+      // 第一行：品质徽章 + 名字（名字用品质色，不受选中态影响）
+      this.qualityChip(det.quality, dx, dy);
       c.add(
-        this.add.text(
-          dx + 6,
-          dy,
-          `${qualityLabel(det.quality)} ${det.name}${det.enhance > 0 ? ` +${det.enhance}` : ''}`,
-          {
-            fontFamily: FONT_UI,
-            fontSize: '10px',
-            color: qualityColor(det.quality),
-          },
-        ),
+        this.add.text(dx + 16, dy - 1, `${det.name}${det.enhance > 0 ? ` +${det.enhance}` : ''}`, {
+          fontFamily: FONT_UI,
+          fontSize: '9.5px',
+          color: qualityStyleOf(det.quality).text,
+        }),
+      );
+      // 第二行：槽位 +「等级」= 强化档位 / 5，右侧放核心属性
+      c.add(
+        this.add.text(dx + 6, dy + 11, `${slotLabel} · 强化 ${det.enhance}/5`, {
+          fontFamily: FONT_UI,
+          fontSize: '8.5px',
+          color: '#948DAB',
+        }),
       );
       c.add(
-        this.add.text(
-          dx + 6,
-          dy + 13,
-          `${slotLabel}　${det.stat.toUpperCase()} ${enhancedValue(det)}（基础 ${det.value}）`,
-          {
+        this.add
+          .text(dx + 178, dy + 11, `${det.stat.toUpperCase()} ${enhancedValue(det)}`, {
             fontFamily: FONT_UI,
             fontSize: '9px',
-            color: '#C2BCD1',
-          },
-        ),
+            color: '#F0C419',
+          })
+          .setOrigin(1, 0),
       );
-      if (det.affixes.length > 0) {
-        c.add(
-          this.add.text(dx + 6, dy + 26, det.affixes.map((a) => `${a.id} +${a.value}`).join('　'), {
-            fontFamily: FONT_UI,
-            fontSize: '8.5px',
-            color: '#948DAB',
-            wordWrap: { width: 172 },
-            lineSpacing: 2,
-          }),
-        );
-      } else {
-        c.add(
-          this.add.text(dx + 6, dy + 26, this.equipSel ? '正装备着（卸下后才可拆解）' : '没有随机词条', {
-            fontFamily: FONT_UI,
-            fontSize: '8.5px',
-            color: '#6B6489',
-          }),
-        );
-      }
+      // 第三行：与当前装备的逐项差距（绿涨红跌，四项独立不相加）
+      const deltaText = advice.parts.length > 0 ? advice.parts.map((p) => p.text).join('　') : '与当前装备属性持平';
+      c.add(
+        this.add.text(dx + 6, dy + 22, deltaText, {
+          fontFamily: FONT_UI,
+          fontSize: '8.5px',
+          color: advice.verdict === 'even' ? '#948DAB' : VERDICT_COLOR[advice.verdict],
+          wordWrap: { width: 172 },
+        }),
+      );
+      // 第四行：结论 + 词条，玩家不用先装备再回来看是否换亏了
+      const adviceText: Record<GearVerdict, string> = {
+        recommended: '全项提升，建议换上',
+        worse: '全项下降，留着拆解',
+        mixed: '有得有失，按需选择',
+        even: '属性持平，无需更换',
+      };
+      const affixText = det.affixes.length > 0 ? det.affixes.map((a) => `${a.id} +${a.value}`).join(' ') : '无词条';
+      c.add(
+        this.add.text(dx + 6, dy + 34, `${advice.icon} ${own ? '当前装备 · ' : ''}${adviceText[advice.verdict]}`, {
+          fontFamily: FONT_UI,
+          fontSize: '8.5px',
+          color: VERDICT_COLOR[advice.verdict],
+        }),
+      );
+      c.add(
+        this.add.text(dx + 6, dy + 44, `词条：${affixText}`, {
+          fontFamily: FONT_UI,
+          fontSize: '8px',
+          color: '#948DAB',
+          wordWrap: { width: 172 },
+        }),
+      );
     }
 
     if (totalPages > 1) {
@@ -468,8 +526,11 @@ export class EquipmentScene extends Phaser.Scene {
     const enhanceLabel = sel
       ? `强化 R (${cost}) → ${sel.stat.toUpperCase()} ${enhancedValue(sel)}→${enhancedValue(sel) + gain}`
       : '强化 R';
-    // 没有操作消息时，这行常驻显示「这次强化到底涨几点」；收益为 0 会直接说明要等到哪一档
-    const hint = sel ? enhanceHint(sel) : '';
+    // 没有操作消息时，这行先给换装结论、再给强化预测，玩家不必逐项心算。
+    const selAdvice = sel ? gearAdvice(sel, save.equipment) : null;
+    const hint = sel && selAdvice
+      ? `${selAdvice.icon}${selAdvice.label}　${selAdvice.parts.map((p) => p.text).join(' ')}　${enhanceHint(sel)}`
+      : '';
     // 消息放右列底部空白（左列 y=198..250 是详情框，原来的 x=14 会压在详情文字上）。
     // 常驻强化提示上线后这行几乎一直有内容，重叠就从偶发变成了常态。
     c.add(

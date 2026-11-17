@@ -219,7 +219,7 @@ HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser
 
 验证脚本：`node tools/_cdp/domstale.mjs "<msedge.exe>" <url> <out>` —— 走 Hub→Level→Hub→Level 四跳，逐跳把 `#dom-ui` 的子元素列出来（第二跳之后是关键，隐式钩子的坑只在第二次离开时暴露）。本地与线上四跳均干净、`errors: []`；`touch.mjs` 7/7、`salvo.mjs` ALL PASS。右上两枚按钮的专项是 `node tools/_cdp/top-buttons-label.mjs "<msedge.exe>" [staticDir] <out>`（45 项断言，含缩放对齐、暂停/背包往返、场景停建与 DOM 清理）。
 
-### 单元测试锁定了什么（33 个文件 / 589 条）
+### 单元测试锁定了什么（35 个文件 / 604 条）
 
 | 文件 | 数量 | 锁定内容 |
 | --- | --- | --- |
@@ -227,6 +227,8 @@ HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser
 | `sceneDialogue.test.ts` | 14 | **v1.8.7 场景对白完整性**：逐句说话人 / 在场人物的纯函数判据；每段对白每句都有说话人且能查到显示名；9 个剧情节点 + 3 个副本都有不相同的开场与收尾对白、`participants` 与两段实际说话人集合一致；11 张事件卡 `figures` 非空（清单见 `design/14_scene_dialogue_roster.md`）。**v1.9.0 加 4 条**：`isNpcInteractable` 闸门（谈完的 NPC 不再是交互目标），以及林则徐「只搭一次话」——修「第二次按交互键一直重复旁白」 |
 | `balance.test.ts` | 38 | 等级属性、经验曲线、关卡系数、伤害公式（暴击/弱点/等级压制/保底）、词条与掉落、知识加成、装备差值与强化收益 |
 | `save.test.ts` | 18 | 存档迁移不清档、紫装背包满不丢失、完成度权重归一化、五槽位进度 |
+| `airwall.test.ts` | 7 | v2.9.6 空气墙：孤立阻挡清零、销烟池/边界/海面/sky 带保留、叙事装置未误清 |
+| `equipment.test.ts` | 8 | v2.9.6 装备展示：紫装深紫徽章、三档品质样式统一、推荐结论四档与强化参与差值 |
 | `autoSave.test.ts` | 7 | v2.9.4 自动存档节奏：60 秒周期只挂一个定时器、900ms debounce 连打只写一次、同步 persist 后不重复写、离页强制写、周期顺带清 debounce、`stop()` 可重启 |
 | `quiz.test.ts` | 15 | 抽题不重复、通过线、知识卡复习列表、四档评价、题库数据完整性 |
 | `management.test.ts` | 32 | 分配校验、消耗曲线、阈值事件，以及**穷举 19 种分配策略全部崩盘**；v1.6.3 追加 4 条面板几何断言：文字盒与按钮图元同心、不越出面板、标题/提示/结算互不压字；**v2.2 追加 8 条**（`core/eraText.ts` 五幕目标条 / 第三幕机器局口径 / 副本中性 6 条 + 节点 `params.months` 让第三幕跑 6 个月、19 种策略仍全崩 2 条） |
