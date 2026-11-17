@@ -111,6 +111,12 @@ export interface NodeDef {
   participants?: string[];
   enemy_ref?: string | null;
   map_ref?: string | null;
+  /**
+   * 无地图节点（过场 / 抉择）的「布景地图」：`map_ref=null` 时不建世界，
+   * 只把这张地图的瓦片铺在屏幕后面，让对白不再是黑色空场。
+   * 与 `map_ref` 互斥——有真实关卡地图时不读这个字段。
+   */
+  backdrop_map?: string | null;
   /** 左上角 HUD 显示的「这一场叫什么」。缺省时退回幕名。 */
   title?: string;
   /** 史实年份（数字），显示成「1841 年」 */

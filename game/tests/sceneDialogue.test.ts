@@ -273,3 +273,51 @@ describe('无地图过场对白仍要打字推进（v2.9.1）', () => {
     }
   });
 });
+
+/**
+ * 无地图过场不能是一片黑（v2.9.2）——对白修好之后甲方截图反馈「没有地图啊」。
+ * 解法是给这类节点在 JSON 里配 `backdrop_map`：只铺瓦片、不建玩家/敌人。
+ * 这里锁数据完整性与「布景绝不混进真实世界」的接线顺序。
+ */
+describe('无地图节点的布景地图（v2.9.2）', () => {
+  const sceneSrc = readFileSync(join(ROOT, 'src/scenes/LevelScene.ts'), 'utf8');
+  const noMap = nodes.filter((n) => !n.map_ref);
+  const knownTilesets = new Set(['tp_act2', 'tp_sea', 'tp_late_qing', 'placeholder']);
+
+  it('每个无地图节点都配了存在且合法的布景地图', () => {
+    expect(noMap.length).toBeGreaterThan(0);
+    for (const n of noMap) {
+      const ref = String(n.backdrop_map ?? '');
+      expect(ref, `${n.id} 没有 backdrop_map`).not.toBe('');
+      const map = readJson<{ id: string; tileset: string }>(`public/data/maps/${ref}.json`);
+      expect(map.id, `${n.id} 的布景地图 ${ref} id 不匹配`).toBe(ref);
+      expect(knownTilesets.has(map.tileset), `${ref} 用了未知图集`).toBe(true);
+    }
+  });
+
+  it('有真实地图的节点不写 backdrop_map（两者互斥）', () => {
+    for (const n of nodes.filter((x) => !!x.map_ref)) {
+      expect(n.backdrop_map ?? null, `${n.id} 同时配了两种地图`).toBeNull();
+    }
+  });
+
+  it('洋务开场用同一时期的江南制造总局地图，不是上一幕的天京战场', () => {
+    const zongli = nodes.find((n) => n.id === 'nd_1861_zongli_dialog');
+    expect(zongli?.backdrop_map).toBe('map_ch00_act3_factory');
+    expect(zongli?.map_ref ?? null).toBeNull();
+  });
+
+  it('切节点先清布景、且布景不建玩家（不会变成提前开打）', () => {
+    const startAt = sceneSrc.indexOf('private async startNodeInner(');
+    const buildAt = sceneSrc.indexOf('await this.buildWorld(mapRef)', startAt);
+    const clearAt = sceneSrc.indexOf('this.clearBackdrop()', startAt);
+    expect(clearAt).toBeGreaterThan(startAt);
+    expect(buildAt).toBeGreaterThan(clearAt);
+    const fn = sceneSrc.slice(sceneSrc.indexOf('private async showBackdrop('));
+    const body = fn.slice(0, fn.indexOf('\n  }'));
+    expect(body).toContain('new MapRenderer(this, def)');
+    expect(body).not.toContain('new Player(');
+    expect(body).not.toContain('buildWorld(');
+    expect(sceneSrc).toContain('this.clearBackdrop();'); // SHUTDOWN 兜底
+  });
+});

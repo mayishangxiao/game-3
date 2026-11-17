@@ -267,6 +267,14 @@ export class LevelScene extends Phaser.Scene {
   private node!: NodeDef;
 
   private map: MapRenderer | null = null;
+  /**
+   * 无地图节点（过场/抉择）身后的布景地图。`map_ref=null` 时没有 player/world，
+   * 旧版只剩一片黑底；这里只铺瓦片，不建玩家、不刷敌人、不生成可交互物。
+   * 与 `map` 互斥：任一节点开始都会先清掉它，且它的地面纹理自己负责回收
+   * （MapRenderer.destroy 会 removeTexture），不会像孤儿地面那样盖住新关卡。
+   */
+  private cutsceneBackdrop: MapRenderer | null = null;
+  private backdropBuildSeq = 0;
   /** 第三幕氛围层的对象。它们不进 worldObjects（否则会被当成可交互物），
    *  所以 buildWorld 重入时必须自己先销毁，不然每换一张图就多蒙一层黑。 */
   private atmosphereObjects: Phaser.GameObjects.GameObject[] = [];
@@ -625,6 +633,7 @@ export class LevelScene extends Phaser.Scene {
     // 不重跑字段初始化，而上一轮的显示对象已被销毁。这里显式丢弃旧引用，
     // 避免后续访问已销毁的精灵（同类 bug 已在 HubScene 上出现过）。
     this.map = null;
+    this.clearBackdrop();
     this.player = null as unknown as Player;
     this.camFollow = null;
     this.dialogue = null as unknown as DialogueBox;
@@ -988,6 +997,8 @@ export class LevelScene extends Phaser.Scene {
       // 兜底：任何异常路径下只要场景关闭，残留的「载入中」文字都必须清掉
       this.loadingLabel?.destroy();
       this.loadingLabel = null;
+      // 地图纹理是按实例烘的，过场布景不跟着 Phaser 的显示列表自动回收
+      this.clearBackdrop();
       // 面板可能在节点结算 / 暂停返回主菜单时还开着，先把全局界面状态还回去
       this.closeWeaponBag('auto');
       setWeaponBagVisible(false);
@@ -2292,9 +2303,14 @@ export class LevelScene extends Phaser.Scene {
     hideOverlay();
 
     const mapRef = (node.map_ref as string | null) ?? null;
+    // 布景地图和真实关卡地图互斥：先清旧的（含它烘出来的地面纹理），
+    // 否则上一场的整片地面会压在新地图/新布景上（孤儿地面老问题）。
+    this.clearBackdrop();
     if (mapRef && (!this.map || this.map.def.id !== mapRef)) {
       this.clearWorldObjects();
       await this.buildWorld(mapRef);
+    } else if (!mapRef && node.backdrop_map) {
+      void this.showBackdrop(node.backdrop_map);
     }
 
     this.carrying = false;
@@ -2416,6 +2432,35 @@ export class LevelScene extends Phaser.Scene {
     // 世界与模式都已就绪，此时才允许本节点被完成
     this.nodeBusy = false;
     this.pushHud();
+  }
+
+  /**
+   * 清掉无地图节点的布景：`MapRenderer.destroy()` 会连自己烘的地面纹理一起 remove，
+   * 只 destroy 显示对象会留下不透明全屏贴图盖住下一张地图（见 MapRenderer 的注释）。
+   */
+  private clearBackdrop(): void {
+    this.backdropBuildSeq++;
+    this.cutsceneBackdrop?.destroy();
+    this.cutsceneBackdrop = null;
+  }
+
+  /**
+   * 无地图节点的纯布景：只铺一层瓦片，让对白不要再浮在黑色空场上。
+   *
+   * 刻意不复用 `buildWorld()`：那条路径会创建玩家、相机跟随、可交互物和敌人波次，
+   * 过场里一多出个小人站在场地中央，看着就像「剧情没结束就开始玩了」。
+   * 这里只做 loadMap + new MapRenderer，镜头固定 0,0（地图正好一屏）。
+   */
+  private async showBackdrop(mapId: string): Promise<void> {
+    const ticket = ++this.backdropBuildSeq;
+    const def = await dataLoader.loadMap(mapId);
+    // loadMap 是异步的：这期间可能已经切到下个节点（包括有地图的关卡），
+    // 或者玩家退出了场景。两种情况下都要把这张迟到的布景丢掉。
+    if (ticket !== this.backdropBuildSeq || !this.scene.isActive() || !this.cameras?.main) return;
+    if (this.map || this.node?.map_ref) return;
+    this.cameras.main.stopFollow();
+    this.cameras.main.setScroll(0, 0);
+    this.cutsceneBackdrop = new MapRenderer(this, def);
   }
 
   private async buildWorld(mapId: string): Promise<void> {

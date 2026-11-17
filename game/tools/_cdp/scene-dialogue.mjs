@@ -308,6 +308,8 @@ try {
     const l = window.__dshGame.scene.getScene('Level');
     return {
       hasPlayer: !!l.player, hasMap: !!l.map,
+      backdrop: l.cutsceneBackdrop?.def?.id ?? null,
+      backdropGround: !!l.cutsceneBackdrop?.groundImg?.visible,
       active: !!l.dialogue?.isActive,
       typed: l.dialogue?.typed ?? -1,
       body: document.getElementById('dom-dlg-body')?.textContent ?? '',
@@ -317,6 +319,7 @@ try {
   report.snapshots.nomapIntro = nomap;
   report.checks.nomapDialogueAutotypes = !nomap.hasPlayer && !nomap.hasMap && nomap.active &&
     nomap.typed > 0 && nomap.body.includes('总理各国事务衙门') && nomap.speaker === '旁白';
+  report.checks.nomapHasBackdropMap = nomap.backdrop === 'map_ch00_act3_factory' && nomap.backdropGround;
   await shot('nomap-dialogue.png');
   // 键盘也要能推进：DialogueBox 的注释承诺「E/Enter 推进」，但 show() 会 setInputEnabled(false)，
   // UIScene 的 InputSystem 因此不再读键盘；无地图过场里这一条最容易暴露。
@@ -335,13 +338,21 @@ try {
     const l = window.__dshGame.scene.getScene('Level');
     return l?.node?.id === 'nd_1865_jiangnan_manage';
   })()`), 30000, 'next node after nomap');
-  const nomapFlow = await evaluate(`({
-    introTaps: ${n1}, outroTaps: ${n2},
-    node: window.__dshGame.scene.getScene('Level').node?.id ?? null,
-    settled: !!window.__dshGame.scene.getScene('Level').save?.progress?.events?.includes('ev_1861_zongli'),
-  })`);
+  const nomapFlow = await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    return {
+      introTaps: ${n1}, outroTaps: ${n2},
+      node: l.node?.id ?? null,
+      settled: !!l.save?.progress?.events?.includes('ev_1861_zongli'),
+      backdropAfter: l.cutsceneBackdrop?.def?.id ?? null,
+      mapAfter: l.map?.def?.id ?? null,
+    };
+  })()`);
   report.snapshots.nomapFlow = nomapFlow;
   report.checks.nomapFlowAdvances = n1 >= 0 && n2 >= 0 && nomapFlow.node === 'nd_1865_jiangnan_manage' && nomapFlow.settled;
+  // 布景必须在进真实地图前清掉：否则它那张不透明全屏地面会盖住新节点（老 Bug 的模式）
+  report.checks.backdropClearedOnNextNode = nomapFlow.backdropAfter === null &&
+    nomapFlow.mapAfter === 'map_ch00_act3_factory';
 
   report.checks.noConsoleErrors = report.errors.length === 0;
 } catch (e) {

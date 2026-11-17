@@ -161,6 +161,7 @@
    ],
    "enemy_ref": null,
    "map_ref": null,
+   "backdrop_map": "map_ch00_act1b",
    "params": {
     "mode": "cutscene",
     "recommended_level": 1,
@@ -288,6 +289,7 @@
    ],
    "enemy_ref": null,
    "map_ref": null,
+   "backdrop_map": "map_ch00_tp_city",
    "params": {
     "mode": "cutscene",
     "recommended_level": 5,
@@ -385,6 +387,7 @@
    ],
    "enemy_ref": null,
    "map_ref": null,
+   "backdrop_map": "map_ch00_tp_battlefield",
    "params": {
     "mode": "choice",
     "recommended_level": 5,
@@ -418,6 +421,7 @@
    "outro_dialogue_ref": "dlg_ch00_act3_intro_outro",
    "enemy_ref": null,
    "map_ref": null,
+   "backdrop_map": "map_ch00_act3_factory",
    "params": {
     "mode": "cutscene",
     "recommended_level": 6,
@@ -613,6 +617,7 @@
    "outro_dialogue_ref": "dlg_ch00_act3_maguan_outro",
    "enemy_ref": null,
    "map_ref": null,
+   "backdrop_map": "map_ch00_act3_sea",
    "params": {
     "mode": "choice",
     "recommended_level": 6,
@@ -650,6 +655,7 @@
    "outro_dialogue_ref": "dlg_ch00_act4_intro_outro",
    "enemy_ref": null,
    "map_ref": null,
+   "backdrop_map": "map_ch00_act4_beijing",
    "params": {
     "mode": "cutscene",
     "recommended_level": 7,
@@ -672,6 +678,7 @@
    "outro_dialogue_ref": "dlg_ch00_act4_bianfa_outro",
    "enemy_ref": null,
    "map_ref": null,
+   "backdrop_map": "map_ch00_act4_beijing",
    "params": {
     "mode": "cutscene",
     "recommended_level": 7,
@@ -769,6 +776,7 @@
    "outro_dialogue_ref": "dlg_ch00_act4_liujunzi_outro",
    "enemy_ref": null,
    "map_ref": null,
+   "backdrop_map": "map_ch00_act4_beijing",
    "params": {
     "mode": "choice",
     "recommended_level": 7,
@@ -881,6 +889,7 @@
    "outro_dialogue_ref": "dlg_ch00_act5_nanjing_outro",
    "enemy_ref": null,
    "map_ref": null,
+   "backdrop_map": "map_ch00_act5_wuchang",
    "params": {
     "mode": "cutscene",
     "recommended_level": 8,
@@ -902,6 +911,7 @@
    "outro_dialogue_ref": "dlg_ch00_final",
    "enemy_ref": null,
    "map_ref": null,
+   "backdrop_map": "map_ch00_act5_wuchang",
    "params": {
     "mode": "choice",
     "recommended_level": 8,
