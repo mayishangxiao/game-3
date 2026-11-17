@@ -58,6 +58,8 @@ tools/_cdp/*/
 !tools/_cdp/crit-shake.mjs
 # 知识图谱右下角对齐探针（canvas 底板与 DOM 文字共用几何 / 长提示不钻到按钮下）
 !tools/_cdp/graph-align.mjs
+# 手机端长廊探针（v2.9.7：横滑换幕 / 点门只选中 / 确认才进关 / 门标签不换行 / 旧 HUD 不残留）
+!tools/_cdp/hub-mobile.mjs
 # 战斗 UI／空气墙探针（「闪」键不被 HUD/画布裁切且可点 / 实心格边界亮沿像素）
 !tools/_cdp/battle-ui.mjs
 # 强化三选一「选中 → 确认」两步流程探针（真实鼠标连点不生效 / 未选中确认无效 / 确认才生效）

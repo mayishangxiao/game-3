@@ -219,7 +219,7 @@ HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser
 
 验证脚本：`node tools/_cdp/domstale.mjs "<msedge.exe>" <url> <out>` —— 走 Hub→Level→Hub→Level 四跳，逐跳把 `#dom-ui` 的子元素列出来（第二跳之后是关键，隐式钩子的坑只在第二次离开时暴露）。本地与线上四跳均干净、`errors: []`；`touch.mjs` 7/7、`salvo.mjs` ALL PASS。右上两枚按钮的专项是 `node tools/_cdp/top-buttons-label.mjs "<msedge.exe>" [staticDir] <out>`（45 项断言，含缩放对齐、暂停/背包往返、场景停建与 DOM 清理）。
 
-### 单元测试锁定了什么（35 个文件 / 604 条）
+### 单元测试锁定了什么（36 个文件 / 624 条）
 
 | 文件 | 数量 | 锁定内容 |
 | --- | --- | --- |
@@ -228,6 +228,7 @@ HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser
 | `balance.test.ts` | 38 | 等级属性、经验曲线、关卡系数、伤害公式（暴击/弱点/等级压制/保底）、词条与掉落、知识加成、装备差值与强化收益 |
 | `save.test.ts` | 18 | 存档迁移不清档、紫装背包满不丢失、完成度权重归一化、五槽位进度 |
 | `airwall.test.ts` | 7 | v2.9.6 空气墙：孤立阻挡清零、销烟池/边界/海面/sky 带保留、叙事装置未误清 |
+| `hubNav.test.ts` | 20 | v2.9.7 手机端长廊：相机上下限、拖动方向、松手吸附、点选容差、横滑阈值 |
 | `equipment.test.ts` | 8 | v2.9.6 装备展示：紫装深紫徽章、三档品质样式统一、推荐结论四档与强化参与差值 |
 | `autoSave.test.ts` | 7 | v2.9.4 自动存档节奏：60 秒周期只挂一个定时器、900ms debounce 连打只写一次、同步 persist 后不重复写、离页强制写、周期顺带清 debounce、`stop()` 可重启 |
 | `quiz.test.ts` | 15 | 抽题不重复、通过线、知识卡复习列表、四档评价、题库数据完整性 |

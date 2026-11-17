@@ -280,6 +280,10 @@ export class UIScene extends Phaser.Scene {
       // 谁往 #dom-ui 塞东西谁自己收：hideOverlay() 现在会保留常驻 HUD 文字，
       // 所以退出战斗（回主菜单 / 回长廊）时必须由本场景把这两行字摘掉，
       // 否则标题页会浮着没有底板的「暂停」「背包」。下次 create() 会重建。
+      // 左上角那几行字同理：它们的 DOM 不会随场景销毁自动消失，
+      // 长廊 / 标题页再走 showOverlay() 时就变成「上一关战役名压在长廊标题上」
+      // （手机端实拍里的两层字）。停场景就整块收掉，下次 create() 会按需点亮。
+      setHudVisible(false);
       document.getElementById('dom-hud-buttons')?.remove();
       document.getElementById('dom-pause-btn')?.remove();
       document.getElementById('dom-bag-btn')?.remove();
