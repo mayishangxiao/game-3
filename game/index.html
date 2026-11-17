@@ -386,6 +386,8 @@
           <div id="dom-hud-level" style="position:absolute;left:20%;bottom:3px;color:#C2BCD1;font:13px/1 sans-serif;display:none;"></div>
           <div id="dom-hud-weapon" style="position:absolute;right:6px;bottom:3px;color:#F2EDE4;font:13px/1 sans-serif;display:none;"></div>
           <div id="dom-toast" style="position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);background:rgba(13,11,20,.9);color:#F2EDE4;font:18px/1.4 sans-serif;padding:3px 8px;display:none;white-space:nowrap;"></div>
+          <!-- 自动存档的小字提示：只在写盘后闪 1.6 秒，位置避开右上角「暂停/背包」与下方战斗键 -->
+          <div id="dom-autosave" data-dom-ui-persist="1" style="position:absolute;right:1.5%;top:8%;display:none;background:rgba(13,11,20,.85);color:#948DAB;font:10px/1.2 sans-serif;padding:2px 5px;white-space:nowrap;"></div>
           <div id="dom-float" style="display:none;position:absolute;background:#241F35;color:#FFE08A;font:12px sans-serif;padding:2px 6px;transform:translate(-50%,-100%);white-space:nowrap;"></div>
           <div id="dom-overlay" style="display:none;position:absolute;left:0;top:0;width:100%;height:100%;color:#F2EDE4;font:13px/1.4 sans-serif;pointer-events:none;overflow:hidden;z-index:3;"></div>
         </div>

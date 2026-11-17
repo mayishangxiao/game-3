@@ -11,7 +11,7 @@ import { DYNASTY_MAX } from '../core/cannon';
 import { FONT_UI } from '../gfx/TextStyle';
 import { audio } from '../systems/AudioKit';
 import { bgm } from '../systems/Bgm';
-import { getSave, persist } from './BootScene';
+import { flushPersist, getSave, persist } from './BootScene';
 import { hideDialogue, hideFloat, hideOverlay, hidePauseScreen, scaleHudButtons, setHudDynasty, setHudLevel, setHudObjective, setHudScene, setHudVisible, setHudWeapon, showDialogue, showOverlay, showPauseScreen, showToast } from '../systems/DomUi';
 
 const BAR_X = 6;
@@ -555,7 +555,7 @@ export class UIScene extends Phaser.Scene {
     const on = (v: number): string => (v > 0 ? '开' : '关');
     // 文字块顶部 = 按钮中心 - 10（14px 字的行高约 19），四行与 canvas 上的框逐一对齐
     const textHtml = `<div style="position:absolute;left:0;top:${cy - 66}px;width:100%;text-align:center;font-size:22px;color:#F0C419;">暂　停</div>
-       <div style="position:absolute;left:0;top:${cy - 38}px;width:100%;text-align:center;font-size:11px;color:#C2BCD1;">战斗进度已冻结</div>
+       <div style="position:absolute;left:0;top:${cy - 38}px;width:100%;text-align:center;font-size:11px;color:#C2BCD1;">战斗已冻结 · 进度自动存档</div>
        <div style="position:absolute;left:0;top:${cy - 16}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">继　续</div>
        <div style="position:absolute;left:0;top:${cy + 9}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">音乐：${on(s.music)}</div>
        <div style="position:absolute;left:0;top:${cy + 34}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">音效：${on(s.sound)}</div>
@@ -677,6 +677,9 @@ export class UIScene extends Phaser.Scene {
   }
 
   private backToTitle(): void {
+    // 关卡中途退出：把刚才拿到的经验/掉落立刻落盘，不等 60 秒周期。
+    // 下一次「继续」会从幕首重开（没有节点级 checkpoint），但至少不会退回进关前。
+    flushPersist('pagehide');
     this.pauseOpen = false;
     this.unbindPauseInput();
     this.bagOpenNow = false;

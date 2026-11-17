@@ -10,6 +10,7 @@
  */
 
 import { DOM_Z } from '../core/constants';
+import type { AutoSaveReason } from '../core/autoSave';
 
 let ui: HTMLDivElement | null = null;
 let dlg: HTMLDivElement | null = null;
@@ -36,6 +37,9 @@ let hudLevel: HTMLDivElement | null = null;
 let hudWeapon: HTMLDivElement | null = null;
 let toast: HTMLDivElement | null = null;
 let toastTimer: number | null = null;
+/** 自动存档的小字提示：不抢中央 toast，只在右上角闪一下 */
+let autoSaveBadge: HTMLDivElement | null = null;
+let autoSaveTimer: number | null = null;
 let title: HTMLDivElement | null = null;
 let titleHint: HTMLDivElement | null = null;
 let float: HTMLDivElement | null = null;
@@ -63,6 +67,7 @@ function ensure(): void {
   hudLevel = ui.querySelector('#dom-hud-level') as HTMLDivElement;
   hudWeapon = ui.querySelector('#dom-hud-weapon') as HTMLDivElement;
   toast = ui.querySelector('#dom-toast') as HTMLDivElement;
+  autoSaveBadge = ui.querySelector('#dom-autosave') as HTMLDivElement | null;
   title = ui.querySelector('#dom-title') as HTMLDivElement;
   titleHint = ui.querySelector('#dom-title-hint') as HTMLDivElement;
   float = ui.querySelector('#dom-float') as HTMLDivElement;
@@ -234,9 +239,25 @@ export function hideToast(): void {
   toast.style.display = 'none';
 }
 
+/**
+ * 自动存档提示。用右上角小字而不是中央 toast：后者是叙事/战斗反馈，
+ * 每 60 秒弹一次会把重要台词顶掉。离页时那次不显示（页面正在关，没人看）。
+ */
+export function showAutoSaveStatus(reason: AutoSaveReason): void {
+  ensure();
+  if (!autoSaveBadge || reason === 'pagehide') return;
+  autoSaveBadge.textContent = reason === 'interval' ? '进度已自动存档' : '已自动存档';
+  autoSaveBadge.style.display = 'block';
+  if (autoSaveTimer) window.clearTimeout(autoSaveTimer);
+  autoSaveTimer = window.setTimeout(() => {
+    if (autoSaveBadge) autoSaveBadge.style.display = 'none';
+    autoSaveTimer = null;
+  }, 1600);
+}
+
 export function setHudVisible(v: boolean): void {
   ensure();
-  const nodes = [hudPanel, hudObjective, hudLevel, hudWeapon, hudDynasty];
+  const nodes = [hudPanel, hudObjective, hudLevel, hudWeapon, hudDynasty, autoSaveBadge];
   for (const n of nodes) {
     if (!n) continue;
     n.style.visibility = v ? 'visible' : 'hidden';

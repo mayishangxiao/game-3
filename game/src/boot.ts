@@ -16,7 +16,7 @@
 
 import Phaser from 'phaser';
 import { GAME_H, GAME_W, PALETTE, RENDER_SCALE, CONTROL_LAYOUT, refreshRenderScale } from './core/constants';
-import { BootScene } from './scenes/BootScene';
+import { BootScene, autoSaver, flushPersist, schedulePersist } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
 import { HubScene } from './scenes/HubScene';
 import { LevelScene } from './scenes/LevelScene';
@@ -117,6 +117,13 @@ export function boot(): Phaser.Game {
   (window as unknown as { __dshControls?: typeof controls }).__dshControls = controls;
   // 按钮坐标也挂出去：E2E 不该硬编码按钮位置（每次加新按钮都会重排）
   (window as unknown as { __dshLayout?: typeof CONTROL_LAYOUT }).__dshLayout = CONTROL_LAYOUT;
+  // 自动存档钩子：探针要证明「打标后 900ms 真写盘、离页立刻写、写完不重复写」，
+  // 而 60 秒周期在测试里不可能等；这里只暴露调度入口与状态，不参与游戏逻辑。
+  (window as unknown as { __dshAutoSave?: unknown }).__dshAutoSave = {
+    markDirty: () => schedulePersist(),
+    flush: () => flushPersist('flush'),
+    state: () => ({ dirty: autoSaver.isDirty, lastSaved: autoSaver.lastSaved }),
+  };
   // 音频钩子：探针要证明「这一刻该响哪首」、暂停菜单的开关是不是真的落到播放器上。
   // 无头浏览器没有音箱，能断言的只有播放器状态，所以把两个单例交出去。
   (window as unknown as { __dshAudio?: unknown }).__dshAudio = { bgm, audio };

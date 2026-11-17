@@ -135,7 +135,7 @@ import { isNpcInteractable, shouldPlayOutro } from '../core/sceneDialogue';
 import { songIdOfAct } from '../core/bgm';
 import { audio } from '../systems/AudioKit';
 import { bgm } from '../systems/Bgm';
-import { getSave, persist } from './BootScene';
+import { getSave, persist, schedulePersist } from './BootScene';
 import type {
   ActDef,
   BalanceConfig,
@@ -5062,6 +5062,9 @@ export class LevelScene extends Phaser.Scene {
     this.save.player.hp = res.stats.hp;
     this.save.player.atk = res.stats.atk;
     this.save.player.def = res.stats.def;
+    // 击杀经验会在结算前不断累积；打标走 900ms debounce，避免每杀一个敌人写一次盘。
+    // 节点结算里的 persist() 会撤掉这个待写队列，所以不会重复写。
+    schedulePersist();
     this.pushHud();
   }
 

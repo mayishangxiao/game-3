@@ -7,11 +7,13 @@
 import Phaser from 'phaser';
 import { PALETTE, VIEW_H, VIEW_W } from '../core/constants';
 import { dataLoader } from '../core/DataLoader';
+import { AutoSaver, type AutoSaveReason } from '../core/autoSave';
 import { SaveManager } from '../core/SaveManager';
 import type { SaveData } from '../core/types';
 import { FONT_UI } from '../gfx/TextStyle';
 import { audio } from '../systems/AudioKit';
 import { bgm } from '../systems/Bgm';
+import { showAutoSaveStatus } from '../systems/DomUi';
 
 /**
  * 开局引导层（index.html 的 #tap-gate）的「浏览器里已经重新开始了」标记。
@@ -57,6 +59,34 @@ export function hasGateBeenStarted(): boolean {
 export const saveManager = new SaveManager();
 export let SAVE: SaveData | null = null;
 
+/**
+ * 自动存档单例。写盘内容与 `persist()` 完全相同，区别只在时机：
+ * - 场景里主动 `persist()`：立刻写 + 撤掉 debounce（不重复写）
+ * - 内存态改了但没主动存：`schedulePersist()` 打标，900ms 后写一次
+ * - 每 60 秒无条件写一次（设计书 4.8.2）
+ * - 页面隐藏 / 关闭前强制写一次（手机上切后台、直接关标签页都不丢）
+ */
+export const autoSaver = new AutoSaver({
+  save: () => {
+    if (SAVE) saveManager.save(SAVE);
+  },
+  notify: (reason: AutoSaveReason) => showAutoSaveStatus(reason),
+});
+
+let autoSaveHooksInstalled = false;
+
+function installAutoSaveHooks(): void {
+  if (autoSaveHooksInstalled) return;
+  autoSaveHooksInstalled = true;
+  autoSaver.start();
+  // pagehide 覆盖关闭标签页 / 前进后退缓存；visibilitychange 覆盖手机切后台/锁屏。
+  // 两者都可能连续触发，flush 里会清掉 debounce，重复写一次也只是同一份 JSON。
+  window.addEventListener('pagehide', () => autoSaver.flush('pagehide', true));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') autoSaver.flush('pagehide', true);
+  });
+}
+
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('Boot');
@@ -80,6 +110,7 @@ export class BootScene extends Phaser.Scene {
     try {
       await dataLoader.loadGlobals();
       SAVE = saveManager.init(dataLoader.getBalance());
+      installAutoSaveHooks();
       // 音量先按存档记下来；AudioContext 仍然懒创建，第一次播放（标题曲）才真正建
       audio.setVolume(SAVE.settings.sound);
       bgm.setVolume(SAVE.settings.music);
@@ -133,7 +164,20 @@ export function getSave(): SaveData {
 }
 
 export function persist(): void {
-  if (SAVE) saveManager.save(SAVE);
+  if (!SAVE) return;
+  saveManager.save(SAVE);
+  // 已经同步写过盘：撤掉可能挂着的 debounce，免得 900ms 后又写同一份。
+  autoSaver.clearPending();
+}
+
+/** 内存态变了但暂时不值得立刻写盘（例如击杀经验）：交给 900ms debounce。 */
+export function schedulePersist(): void {
+  autoSaver.markDirty();
+}
+
+/** 主动退出（返回主菜单、关暂停）时的最后一次落盘。 */
+export function flushPersist(reason: AutoSaveReason = 'flush'): void {
+  autoSaver.flush(reason, true);
 }
 
 /**
@@ -142,6 +186,8 @@ export function persist(): void {
  * 不重读的话界面显示的还是导入前的数据。
  */
 export function reloadSave(): SaveData {
+  // 导入/重置会直接换掉磁盘内容：旧 debounce 若还挂着，会把内存里的旧 SAVE 写回去。
+  autoSaver.clearPending();
   SAVE = saveManager.init(dataLoader.getBalance());
   return SAVE;
 }
