@@ -9,6 +9,8 @@
  * 这样百分比定位就和游戏坐标系对应（480×270 逻辑）。
  */
 
+import { DOM_Z } from '../core/constants';
+
 let ui: HTMLDivElement | null = null;
 let dlg: HTMLDivElement | null = null;
 let dlgName: HTMLDivElement | null = null;
@@ -24,6 +26,7 @@ let dlgHint: HTMLDivElement | null = null;
 let dlgPortrait: HTMLImageElement | null = null;
 /** 对白框右上角的「在场：A · B」——本场参与对话的人物（v1.8.7） */
 let dlgCast: HTMLDivElement | null = null;
+let hudRoot: HTMLDivElement | null = null;
 let hudScene: HTMLDivElement | null = null;
 let hudObjective: HTMLDivElement | null = null;
 let hudPanel: HTMLDivElement | null = null;
@@ -37,6 +40,9 @@ let title: HTMLDivElement | null = null;
 let titleHint: HTMLDivElement | null = null;
 let float: HTMLDivElement | null = null;
 let overlay: HTMLDivElement | null = null;
+/** 暂停专用顶层。整屏吃事件，显示与交互优先于对白/HUD/情境卡。 */
+let pauseScreen: HTMLDivElement | null = null;
+let pauseBox: HTMLDivElement | null = null;
 
 function ensure(): void {
   if (ui) return;
@@ -48,6 +54,7 @@ function ensure(): void {
   dlgHint = ui.querySelector('#dom-dlg-hint') as HTMLDivElement;
   dlgPortrait = ui.querySelector('#dom-dlg-portrait') as HTMLImageElement;
   dlgCast = ui.querySelector('#dom-dlg-cast') as HTMLDivElement;
+  hudRoot = ui.querySelector('#dom-hud') as HTMLDivElement;
   hudScene = ui.querySelector('#dom-hud-scene') as HTMLDivElement;
   hudObjective = ui.querySelector('#dom-hud-objective') as HTMLDivElement;
   hudPanel = ui.querySelector('#dom-hud-panel') as HTMLDivElement;
@@ -60,6 +67,15 @@ function ensure(): void {
   titleHint = ui.querySelector('#dom-title-hint') as HTMLDivElement;
   float = ui.querySelector('#dom-float') as HTMLDivElement;
   overlay = ui.querySelector('#dom-overlay') as HTMLDivElement;
+  pauseScreen = ui.querySelector('#dom-pause-screen') as HTMLDivElement | null;
+  pauseBox = ui.querySelector('#dom-pause-box') as HTMLDivElement | null;
+
+  // 层级只在唯一真值 DOM_Z 里定义一次；这里覆盖 HTML 的初始值，防止改了常量忘改 CSS。
+  if (dlg) dlg.style.zIndex = String(DOM_Z.dialogue);
+  if (hudRoot) hudRoot.style.zIndex = String(DOM_Z.hud);
+  if (toast) toast.style.zIndex = String(DOM_Z.toast);
+  if (overlay) overlay.style.zIndex = String(DOM_Z.overlay);
+  if (pauseScreen) pauseScreen.style.zIndex = String(DOM_Z.pause);
 }
 
 /** 每帧/每次 resize 时把 #dom-ui 对齐到 canvas 的实际盒。 */
@@ -75,6 +91,7 @@ export function syncDomUiToCanvas(canvas: HTMLCanvasElement): void {
   ui.style.height = `${canvas.clientHeight}px`;
   scaleOverlay();
   scaleHudButtons();
+  scalePauseScreen();
 }
 
 export function showDialogue(): void {
@@ -285,7 +302,7 @@ export function hideOverlay(): void {
   // 只剩右上角两个空框。带 data-dom-ui-persist 的一律保留，两个 id 再兜一层底。
   document
     .querySelectorAll(
-      '#dom-ui > div:not(#dom-title):not(#dom-dialogue):not(#dom-hud):not(#dom-toast):not(#dom-overlay):not(#dom-float)' +
+      '#dom-ui > div:not(#dom-title):not(#dom-dialogue):not(#dom-hud):not(#dom-toast):not(#dom-overlay):not(#dom-float):not(#dom-pause-screen)' +
         ':not(#dom-pause-btn):not(#dom-bag-btn):not(#dom-hud-buttons):not([data-dom-ui-persist])',
     )
     .forEach((el) => el.remove());
@@ -320,4 +337,34 @@ export function scaleHudButtons(): void {
   host.style.height = '270px';
   host.style.transform = `scale(${s})`;
   host.style.transformOrigin = 'top left';
+}
+
+/**
+ * 暂停面板的 DOM 顶层：与 canvas 的 480×270 逻辑坐标同一套换算。
+ * 里面自带整屏遮罩、面板底板和四个按钮，因此不再被对白底板压住半截，
+ * 也不会让点击穿透到下面的 HUD / 摇杆 / 对白。
+ */
+export function showPauseScreen(html: string): void {
+  ensure();
+  if (!pauseScreen || !pauseBox) return;
+  pauseBox.innerHTML = html;
+  pauseScreen.style.display = 'block';
+  scalePauseScreen();
+}
+
+export function hidePauseScreen(): void {
+  ensure();
+  if (!pauseScreen || !pauseBox) return;
+  pauseScreen.style.display = 'none';
+  pauseBox.innerHTML = '';
+}
+
+function scalePauseScreen(): void {
+  if (!pauseBox) return;
+  const canvas = document.querySelector('#game-root canvas') as HTMLCanvasElement | null;
+  const s = (canvas?.clientWidth ?? 480) / 480;
+  pauseBox.style.width = '480px';
+  pauseBox.style.height = '270px';
+  pauseBox.style.transform = `scale(${s})`;
+  pauseBox.style.transformOrigin = 'top left';
 }

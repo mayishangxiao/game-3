@@ -12,7 +12,7 @@ import { FONT_UI } from '../gfx/TextStyle';
 import { audio } from '../systems/AudioKit';
 import { bgm } from '../systems/Bgm';
 import { getSave, persist } from './BootScene';
-import { hideFloat, hideOverlay, scaleHudButtons, setHudDynasty, setHudLevel, setHudObjective, setHudScene, setHudVisible, setHudWeapon, showOverlay, showToast } from '../systems/DomUi';
+import { hideDialogue, hideFloat, hideOverlay, hidePauseScreen, scaleHudButtons, setHudDynasty, setHudLevel, setHudObjective, setHudScene, setHudVisible, setHudWeapon, showDialogue, showOverlay, showPauseScreen, showToast } from '../systems/DomUi';
 
 const BAR_X = 6;
 const BAR_W = 84;
@@ -61,6 +61,11 @@ export class UIScene extends Phaser.Scene {
   // 会被 setHudShown(true) 重新点亮，和 DOM 的「暂停」叠成「暂停暂停」。
   private pauseOpen = false;
   private pauseLayer: Phaser.GameObjects.GameObject[] = [];
+  /** 暂停时挂到 window 捕获阶段的键盘闸门：保证没有按键穿透到下面的场景 */
+  private pauseKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+  private pauseFocusIndex = 0;
+  /** 暂停前对白框是否露出；恢复时只把它还回去，不在没有对白的场景凭空生成空框 */
+  private dialogueHiddenByPause = false;
   /** 暂停前摇杆是不是露着的，恢复时按这个还原 */
   private controlsBeforePause = true;
   /** 战斗内换武器面板开着：两个顶部按钮一起收起，杜绝「暂停盖在背包上」 */
@@ -278,6 +283,7 @@ export class UIScene extends Phaser.Scene {
       document.getElementById('dom-hud-buttons')?.remove();
       document.getElementById('dom-pause-btn')?.remove();
       document.getElementById('dom-bag-btn')?.remove();
+      this.unbindPauseInput();
       this.inputSystem.destroy();
     });
   }
@@ -494,6 +500,10 @@ export class UIScene extends Phaser.Scene {
     if (level && level.scene.isActive()) this.scene.pause('Level');
     setControlsVisible(false);
     this.setHudShown(false);
+    // 对白底板即使被暂停遮罩压暗也还能读出字来，暂停时整块收起，恢复时原样还回去
+    const dlg = document.getElementById('dom-dialogue') as HTMLDivElement | null;
+    this.dialogueHiddenByPause = dlg?.style.display === 'block';
+    if (this.dialogueHiddenByPause) hideDialogue();
     hideFloat(); // 暂停时藏掉 NPC 头顶浮动标签
 
     const cx = VIEW_W / 2;
@@ -503,14 +513,14 @@ export class UIScene extends Phaser.Scene {
       return o;
     };
 
-    push(this.add.rectangle(cx, cy, VIEW_W, VIEW_H, PALETTE.ink, 0.8).setDepth(DEPTH.overlay + 1));
+    push(this.add.rectangle(cx, cy, VIEW_W, VIEW_H, PALETTE.ink, 0.8).setDepth(DEPTH.pause + 1));
     // v1.9.0：面板从 118 加高到 158，塞进「音乐 / 音效」两行。
     // 这两项是存档 `settings` 里早就有的字段，之前没有任何入口，等于写了不生效。
     push(
       this.add
         .rectangle(cx, cy + 6, 172, 158, PALETTE.plumDark, 0.96)
         .setStrokeStyle(1, PALETTE.star)
-        .setDepth(DEPTH.overlay + 2),
+        .setDepth(DEPTH.pause + 2),
     );
 
     // 四行按钮：y 之间留 25px（框高 21），文字才不会互相贴住；
@@ -525,7 +535,7 @@ export class UIScene extends Phaser.Scene {
       const box = this.add
         .rectangle(cx, b.y, 132, 21, PALETTE.ink, 0.95)
         .setStrokeStyle(1, PALETTE.greyPlum)
-        .setDepth(DEPTH.overlay + 3)
+        .setDepth(DEPTH.pause + 3)
         .setInteractive({ useHandCursor: true });
       // 点击音放在 onTap 之前：关音效的那一下也要听得见
       box.on('pointerdown', () => {
@@ -538,20 +548,99 @@ export class UIScene extends Phaser.Scene {
     this.renderPauseText();
   }
 
-  /** 暂停面板的文字（DOM 层）：开关切换后要整块重画，才能看到「音乐：关」 */
+  /** 暂停面板文字：#dom-overlay 留一份给旧探针读，显示与交互都在 #dom-pause-screen 顶层。 */
   private renderPauseText(): void {
     const cy = VIEW_H / 2;
     const s = getSave().settings;
     const on = (v: number): string => (v > 0 ? '开' : '关');
     // 文字块顶部 = 按钮中心 - 10（14px 字的行高约 19），四行与 canvas 上的框逐一对齐
-    showOverlay(
-      `<div style="position:absolute;left:0;top:${cy - 66}px;width:100%;text-align:center;font-size:22px;color:#F0C419;">暂　停</div>
+    const textHtml = `<div style="position:absolute;left:0;top:${cy - 66}px;width:100%;text-align:center;font-size:22px;color:#F0C419;">暂　停</div>
        <div style="position:absolute;left:0;top:${cy - 38}px;width:100%;text-align:center;font-size:11px;color:#C2BCD1;">战斗进度已冻结</div>
        <div style="position:absolute;left:0;top:${cy - 16}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">继　续</div>
        <div style="position:absolute;left:0;top:${cy + 9}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">音乐：${on(s.music)}</div>
        <div style="position:absolute;left:0;top:${cy + 34}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">音效：${on(s.sound)}</div>
-       <div style="position:absolute;left:0;top:${cy + 59}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">返回主菜单</div>`,
+       <div style="position:absolute;left:0;top:${cy + 59}px;width:100%;text-align:center;font-size:14px;color:#F2EDE4;">返回主菜单</div>`;
+    showOverlay(textHtml);
+
+    // 顶层 DOM 用 canvas 的同一组逻辑坐标：scrim 整屏吃点击，面板底板盖住对白，
+    // 四个按钮是真 DOM 元素——不会被对白底板抢走点击，也不需要 canvas 参与命中。
+    const actions = ['resume', 'music', 'sfx', 'title'] as const;
+    const labels = ['继　续', `音乐：${on(s.music)}`, `音效：${on(s.sound)}`, '返回主菜单'];
+    const buttonHtml = actions
+      .map((act, i) => {
+        const y = cy - 6 + i * 25;
+        return `<div data-pause-action="${act}" tabindex="-1" style="position:absolute;left:${VIEW_W / 2 - 66}px;top:${y - 10.5}px;width:132px;height:21px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;background:rgba(13,11,20,.95);border:1px solid #948DAB;color:#F2EDE4;font:14px sans-serif;">${labels[i]}</div>`;
+      })
+      .join('');
+    showPauseScreen(
+      // 0.94 与对白底板同档：暂停时下面的字不该还读得出来（甲方要的是「覆盖」，不是半透明叠字）
+      `<div style="position:absolute;left:0;top:0;width:${VIEW_W}px;height:${VIEW_H}px;background:rgba(13,11,20,.94);"></div>` +
+        `<div style="position:absolute;left:${VIEW_W / 2 - 86}px;top:${cy + 6 - 79}px;width:172px;height:158px;box-sizing:border-box;background:rgba(47,43,69,.96);border:1px solid #D4A840;"></div>` +
+        `<div style="position:absolute;left:0;top:0;width:${VIEW_W}px;height:${VIEW_H}px;pointer-events:none;">${textHtml}</div>` +
+        buttonHtml,
     );
+    this.bindPauseDom();
+  }
+
+  /** 暂停按钮的点击与键盘都走这里：window 捕获阶段先拦，绝不穿透到下面的场景。 */
+  private bindPauseDom(): void {
+    const screen = document.getElementById('dom-pause-screen') as HTMLDivElement | null;
+    if (!screen) return;
+    screen.onclick = (e) => {
+      const el = (e.target as HTMLElement | null)?.closest('[data-pause-action]') as HTMLElement | null;
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      audio.click();
+      switch (el.dataset.pauseAction) {
+        case 'resume': this.closePause(); break;
+        case 'music': this.toggleMusic(); break;
+        case 'sfx': this.toggleSfx(); break;
+        case 'title': this.backToTitle(); break;
+      }
+    };
+    this.bindPauseKeys();
+  }
+
+  private bindPauseKeys(): void {
+    if (this.pauseKeyHandler) return; // 音乐/音效重绘时不重置焦点
+    const handler = (e: KeyboardEvent): void => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (e.type === 'keyup') return;
+      if (e.key === 'Escape') {
+        this.closePause();
+        return;
+      }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const dir = e.key === 'ArrowDown' ? 1 : -1;
+        this.pauseFocusIndex = (this.pauseFocusIndex + dir + 4) % 4;
+        this.focusPauseButton();
+        return;
+      }
+      if (e.key === 'Enter' || e.key === ' ') this.focusPauseButton()?.click();
+    };
+    window.addEventListener('keydown', handler, true);
+    window.addEventListener('keyup', handler, true);
+    this.pauseKeyHandler = handler;
+  }
+
+  private focusPauseButton(): HTMLElement | null {
+    const buttons = document.querySelectorAll<HTMLElement>('#dom-pause-box [data-pause-action]');
+    const el = buttons[this.pauseFocusIndex] ?? null;
+    el?.focus();
+    return el;
+  }
+
+  private unbindPauseInput(): void {
+    if (this.pauseKeyHandler) {
+      window.removeEventListener('keydown', this.pauseKeyHandler, true);
+      window.removeEventListener('keyup', this.pauseKeyHandler, true);
+      this.pauseKeyHandler = null;
+    }
+    const screen = document.getElementById('dom-pause-screen') as HTMLDivElement | null;
+    if (screen) screen.onclick = null;
+    hidePauseScreen();
   }
 
   /** 音乐开关：0 与 0.6 两档（存档里的 music 字段），改完立刻写盘 */
@@ -575,9 +664,12 @@ export class UIScene extends Phaser.Scene {
   private closePause(): void {
     if (!this.pauseOpen) return;
     this.pauseOpen = false;
+    this.unbindPauseInput();
     for (const o of this.pauseLayer) o.destroy();
     this.pauseLayer = [];
     hideOverlay();
+    if (this.dialogueHiddenByPause) showDialogue();
+    this.dialogueHiddenByPause = false;
     const level = this.scene.get('Level');
     if (level && level.scene.isPaused()) this.scene.resume('Level');
     this.setHudShown(true);
@@ -586,6 +678,7 @@ export class UIScene extends Phaser.Scene {
 
   private backToTitle(): void {
     this.pauseOpen = false;
+    this.unbindPauseInput();
     this.bagOpenNow = false;
     for (const o of this.pauseLayer) o.destroy();
     this.pauseLayer = [];

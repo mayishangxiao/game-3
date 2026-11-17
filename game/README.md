@@ -219,7 +219,7 @@ HUD 里所有中文都搬到了 `#dom-ui`（DOM 层），而 **DOM 不吃 Phaser
 
 验证脚本：`node tools/_cdp/domstale.mjs "<msedge.exe>" <url> <out>` —— 走 Hub→Level→Hub→Level 四跳，逐跳把 `#dom-ui` 的子元素列出来（第二跳之后是关键，隐式钩子的坑只在第二次离开时暴露）。本地与线上四跳均干净、`errors: []`；`touch.mjs` 7/7、`salvo.mjs` ALL PASS。右上两枚按钮的专项是 `node tools/_cdp/top-buttons-label.mjs "<msedge.exe>" [staticDir] <out>`（45 项断言，含缩放对齐、暂停/背包往返、场景停建与 DOM 清理）。
 
-### 单元测试锁定了什么（32 个文件 / 579 条）
+### 单元测试锁定了什么（32 个文件 / 582 条）
 
 | 文件 | 数量 | 锁定内容 |
 | --- | --- | --- |

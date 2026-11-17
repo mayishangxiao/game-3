@@ -354,6 +354,73 @@ try {
   report.checks.backdropClearedOnNextNode = nomapFlow.backdropAfter === null &&
     nomapFlow.mapAfter === 'map_ch00_act3_factory';
 
+  /* ---------- ⑨ 暂停顶层：压住对白，点击/键盘都不穿 ----------
+   * 甲方截图：暂停面板下半截被对白框盖住，「音效 / 返回主菜单」按钮看不见也点不到。
+   * 现在暂停走 #dom-pause-screen（DOM_Z.pause=100，pointer-events:auto），
+   * 对白仍在 20 层，但整屏遮罩先接事件；ESC 走 window 捕获阶段，不会顺手翻对白。
+   */
+  await startLevel({ actId: 'ch00_act3', chapterId: 'ch00', startNode: 0 });
+  await waitFor(() => evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    return !!(l && l.node?.id === 'nd_1861_zongli_dialog' && l.dialogue?.isActive);
+  })()`), 40000, 'pause-over-dialogue');
+  await sleep(700);
+  await evaluate(`window.__dshGame.scene.getScene('UI').openPause(); 1`);
+  await sleep(300);
+  const pauseTop = await evaluate(`(() => {
+    const c = document.querySelector('#game-root canvas');
+    const r = c.getBoundingClientRect();
+    const at = (fx, fy) => {
+      const el = document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy);
+      return { inPause: !!el?.closest('#dom-pause-screen'), id: el?.id ?? '' };
+    };
+    const l = window.__dshGame.scene.getScene('Level');
+    const ps = document.getElementById('dom-pause-screen');
+    const dlg = document.getElementById('dom-dialogue');
+    return {
+      center: at(0.5, 0.5), bottom: at(0.5, 0.8),
+      x: r.left + r.width * 0.5, y: r.top + r.height * 0.8,
+      pauseZ: Number(getComputedStyle(ps).zIndex), dlgZ: Number(getComputedStyle(dlg).zIndex),
+      pointer: getComputedStyle(ps).pointerEvents,
+      dlgDisplay: getComputedStyle(dlg).display,
+      pauseOpen: window.__dshGame.scene.getScene('UI').pauseShownNow(),
+      dialogueActive: !!l.dialogue?.isActive, index: l.dialogue?.index ?? -1,
+    };
+  })()`);
+  report.snapshots.pauseTop = pauseTop;
+  report.checks.pauseCoversDialogue = pauseTop.pauseOpen && pauseTop.dialogueActive &&
+    pauseTop.center.inPause && pauseTop.bottom.inPause &&
+    pauseTop.pauseZ > pauseTop.dlgZ && pauseTop.pointer === 'auto' &&
+    pauseTop.dlgDisplay === 'none';
+  await shot('pause-over-dialogue.png');
+  // 点在对白原来的位置：只能被暂停遮罩吃掉，不能翻页
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: pauseTop.x, y: pauseTop.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: pauseTop.x, y: pauseTop.y, button: 'left', clickCount: 1 });
+  await sleep(250);
+  const afterPauseClick = await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    return { index: l.dialogue?.index ?? -1, pauseOpen: window.__dshGame.scene.getScene('UI').pauseShownNow() };
+  })()`);
+  report.snapshots.afterPauseClick = afterPauseClick;
+  report.checks.pauseSwallowsDialogueClick = afterPauseClick.pauseOpen && afterPauseClick.index === pauseTop.index;
+  // ESC 只关暂停，不推进对白（捕获阶段先拦，下面的场景收不到）
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await sleep(350);
+  const afterEsc = await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    return {
+      pauseOpen: window.__dshGame.scene.getScene('UI').pauseShownNow(),
+      index: l.dialogue?.index ?? -1,
+      dialogueActive: !!l.dialogue?.isActive,
+      screenHidden: document.getElementById('dom-pause-screen')?.style.display === 'none',
+      dlgDisplay: getComputedStyle(document.getElementById('dom-dialogue')).display,
+    };
+  })()`);
+  report.snapshots.afterEsc = afterEsc;
+  report.checks.escClosesPauseOnly = !afterEsc.pauseOpen && afterEsc.screenHidden &&
+    afterEsc.index === pauseTop.index && afterEsc.dialogueActive && afterEsc.dlgDisplay === 'block';
+
   report.checks.noConsoleErrors = report.errors.length === 0;
 } catch (e) {
   report.errors.push(String(e?.stack ?? e));

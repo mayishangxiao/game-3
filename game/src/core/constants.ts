@@ -236,6 +236,29 @@ export const DEPTH = {
   vignette: 99,
   hud: 100,
   overlay: 110,
+  /** 暂停面板：canvas 世界内的最上层（DOM 里另有更高的 #dom-pause-screen） */
+  pause: 120,
+} as const;
+
+/**
+ * DOM 层内部分层（都在 `#dom-ui` 里，数值越大越靠上）。
+ *
+ * 以前 `#dom-dialogue` 与 `#dom-hud` 只靠 DOM 先后顺序叠，暂停面板画在 UIScene 的
+ * canvas 上，结果被 94% 不透明的对白底板盖住半截（甲方截图「音效/返回主菜单被挡」）。
+ * 现在按用途固定：对白 < HUD/情境卡 < 暂停，暂停层自己吃点击和键盘，绝不穿透。
+ *
+ * 系统层不在这里：横屏提示 200 / 旋转按钮 250 / 点入闸 300 在 `#game-root` 之外，
+ * 本来就压在所有游戏界面之上，不应该被游戏内的暂停盖掉。
+ */
+export const DOM_Z = {
+  dialogue: 20,
+  hud: 30,
+  /** HUD 盒内的次级顺序：顶部按钮 < toast < 情境卡/面板 */
+  hudButtons: 1,
+  toast: 2,
+  overlay: 3,
+  /** 游戏内最高层：全屏、pointer-events:auto */
+  pause: 100,
 } as const;
 
 /**

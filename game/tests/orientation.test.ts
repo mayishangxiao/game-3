@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { DEPTH, DOM_Z } from '../src/core/constants';
 import { isPortrait, planOrientation, toGameSpace, unrotateToLocal } from '../src/core/orientation';
 
 describe('屏幕方向判定', () => {
@@ -83,5 +86,47 @@ describe('本地坐标 → 游戏坐标', () => {
       x: 0,
       y: 0,
     });
+  });
+});
+
+/**
+ * 界面层级（v2.9.3）——甲方截图里暂停面板下半截被对白底板盖住，
+ * 「音效 / 返回主菜单」看不见也点不到。现在按用途固定顺序：
+ * 世界 < 对白 < HUD/情境卡 < 暂停；暂停层自己吃点击与键盘，绝不穿透。
+ */
+describe('界面层级顺序（v2.9.3）', () => {
+  const ROOT = process.cwd();
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const uiSrc = readFileSync(join(ROOT, 'src/scenes/UIScene.ts'), 'utf8');
+  const domSrc = readFileSync(join(ROOT, 'src/systems/DomUi.ts'), 'utf8');
+
+  it('DOM_Z 固定对白 < HUD/面板 < 暂停，暂停层吃事件', () => {
+    expect(DOM_Z.dialogue).toBeLessThan(DOM_Z.hud);
+    expect(DOM_Z.hud).toBeLessThan(DOM_Z.pause);
+    expect(DOM_Z.pause).toBe(100);
+    expect(html).toMatch(/id="dom-dialogue"[^>]*z-index:20/);
+    expect(html).toMatch(/id="dom-hud"[^>]*z-index:30/);
+    expect(html).toMatch(/id="dom-pause-screen"[^>]*pointer-events:auto/);
+    expect(domSrc).toContain('pauseScreen.style.zIndex = String(DOM_Z.pause)');
+    // hideOverlay() 清场景级 DOM 时不能把暂停容器连根删掉
+    expect(domSrc).toContain(':not(#dom-pause-screen)');
+  });
+
+  it('canvas 里的暂停深度也高于其它覆盖层', () => {
+    expect(DEPTH.pause).toBeGreaterThan(DEPTH.overlay);
+    expect(uiSrc).toContain('DEPTH.pause + 3');
+    expect(uiSrc).not.toContain('DEPTH.overlay + 3');
+  });
+
+  it('暂停的点击与键盘走同一条最上层入口，关闭时解绑', () => {
+    expect(uiSrc).toContain('screen.onclick = (e) =>');
+    expect(uiSrc).toContain("closest('[data-pause-action]')");
+    expect(uiSrc).toContain("window.addEventListener('keydown', handler, true)");
+    expect(uiSrc).toContain('e.stopImmediatePropagation()');
+    expect(uiSrc).toContain('this.unbindPauseInput();');
+    expect(uiSrc).toContain('hidePauseScreen()');
+    // 对白整块收起再原样恢复，不在暂停时透出可辨认的字
+    expect(uiSrc).toContain('if (this.dialogueHiddenByPause) hideDialogue()');
+    expect(uiSrc).toContain('if (this.dialogueHiddenByPause) showDialogue()');
   });
 });
