@@ -5,9 +5,11 @@
  * 这一关和别的关卡有三处结构性不同，都是**改回陆地就会静默失效**的那类，
  * 所以单独锁一份：
  *   1. 地图是 `tp_sea` 图集、可走区只有中间一条甲板，四周是海（碰撞层）；
- *   2. Boss 是 `body: 'ship'` 的松岛舰，锚点必须落在能砍到的距离内
+ *   2. Boss 是 `body: 'ship'` 的吉野号，锚点必须落在能砍到的距离内
  *      （默认的「右端 −100px」在这儿会让敌舰停在 90 多像素外，近战 60px 够不着）；
- *   3. 文案不残留陆战词（平壤 / 城下 / 阵地 / 后路断了），
+ *   3. v2.6 我方也有军舰「致远舰」：ship_duel 数据锁住五项实力对比、逐阶段交锋、
+ *      以及「致远撞向吉野」的撞舰收尾，敌方帧集换成吉野号（双烟囱 / 高速飞剪艏）；
+ *   4. 文案不残留陆战词（平壤 / 城下 / 阵地 / 后路断了），
  *      否则会出现「点击开始战斗，写着平壤城下，画面上是一条军舰」。
  */
 
@@ -31,6 +33,11 @@ interface MapDef {
   spawn: { x: number; y: number };
   layers: { name: string; data: number[][]; collidable: boolean }[];
 }
+interface ShipCompareRow {
+  label: string;
+  ours: string;
+  enemy: string;
+}
 interface NodeDef {
   id: string;
   title: string;
@@ -39,6 +46,15 @@ interface NodeDef {
   banner?: { time: string; place: string; scene?: string; power?: { ours: string; enemy: string; gap?: string } };
   params: { boss?: string; waves?: { spawns: { enemy: string; count: number; spawn: string }[] }[] };
   participants: string[];
+  ship_duel?: {
+    title: string;
+    ours: { name: string; scale: number };
+    enemy: { name: string; scale: number };
+    rows: ShipCompareRow[];
+    gap: string;
+    phases: { at: number; title: string; line: string }[];
+    finale: { title: string; lines: string[] };
+  };
 }
 interface EnemyDef {
   id: string;
@@ -162,7 +178,7 @@ describe('海战节点：Boss 是一艘船，而且砍得到', () => {
     expect(seaNode.banner?.power?.ours).toMatch(/炮/);
   });
 
-  it('Boss 是 ship body 的松岛舰，且锚点落在近战射程内', () => {
+  it('Boss 是 ship body 的吉野号，且锚点落在近战射程内', () => {
     const bossId = seaNode.params.boss as string;
     const boss = enemies.find((e) => e.id === bossId) as EnemyDef;
     expect(boss, `节点引用的 Boss ${bossId} 不存在`).toBeTruthy();
@@ -323,17 +339,17 @@ describe('海面不许铺近黑噪点', () => {
   });
 });
 
-describe('松岛舰专属 6 帧（不再复用第一幕英舰）', () => {
+describe('吉野号专属 6 帧（不再复用第一幕英舰）', () => {
   const frames = [0, 1, 2, 3, 4, 5].map((i) =>
-    tileRgb(`art/ship/matsushima_${String(i).padStart(2, '0')}.png`),
+    tileRgb(`art/ship/yoshino_${String(i).padStart(2, '0')}.png`),
   );
   type EnemyLite = { id: string; body?: string; ship_art?: string };
   const raw = read<EnemyLite[] | { enemies: EnemyLite[] }>('enemies/enemies_ch00.json');
   const list = Array.isArray(raw) ? raw : raw.enemies;
 
-  it('数据里松岛舰用 matsushima 帧集、英舰仍用 steamfrigate', () => {
+  it('数据里吉野号用 yoshino 帧集、英舰仍用 steamfrigate', () => {
     const byId = new Map(list.map((e) => [e.id, e]));
-    expect(byId.get('en_boss_jp_matsushima')?.ship_art).toBe('matsushima');
+    expect(byId.get('en_boss_jp_yoshino')?.ship_art).toBe('yoshino');
     expect(byId.get('en_boss_steamfrigate')?.ship_art).toBe('steamfrigate');
   });
 
@@ -381,5 +397,53 @@ describe('松岛舰专属 6 帧（不再复用第一幕英舰）', () => {
       }
       expect(red, `红日只有 ${red} 像素`).toBeGreaterThanOrEqual(15);
     }
+  });
+});
+
+describe('双舰交锋剧本（v2.6：致远撞吉野）', () => {
+  const duel = seaNode.ship_duel!;
+
+  it('海战节点带 ship_duel：我方致远、敌方吉野，对照卡有名字', () => {
+    expect(duel, '海战节点必须写 ship_duel，否则不会有对照卡与撞舰收尾').toBeTruthy();
+    expect(duel.title).toContain('致远');
+    expect(duel.title).toContain('吉野');
+    expect(duel.ours.name).toBe('致远舰');
+    expect(duel.enemy.name).toBe('吉野号');
+    // 敌方显示倍率必须明显大于我方——舰体规模差距靠这个一眼可见
+    expect(duel.enemy.scale).toBeGreaterThan(duel.ours.scale);
+  });
+
+  it('五项实力对比齐全：舰体规模 / 火力配置 / 航速 / 装甲 / 战场态势', () => {
+    const labels = duel.rows.map((r) => r.label);
+    expect(labels).toEqual(['舰体规模', '火力配置', '航速', '装甲', '战场态势']);
+    for (const r of duel.rows) {
+      expect(r.ours.length).toBeGreaterThan(0);
+      expect(r.enemy.length).toBeGreaterThan(0);
+    }
+    // 吉野那侧要读得出速射炮 / 吨位优势，不能两边.write 一样的话
+    const fire = duel.rows.find((r) => r.label === '火力配置')!;
+    expect(fire.enemy).toMatch(/速射炮/);
+    expect(fire.ours).toMatch(/旧炮/);
+  });
+
+  it('交锋阶段数值递减、写「交锋」，最后一句收在致远撞向吉野', () => {
+    expect(duel.phases.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < duel.phases.length; i++) {
+      expect(duel.phases[i].at, '阶段 at 必须递减，否则播报顺序会乱').toBeLessThan(duel.phases[i - 1].at);
+    }
+    for (const p of duel.phases) expect(p.title).toContain('交锋');
+    const finale = duel.finale.lines.join('');
+    expect(finale).toMatch(/冲上去|撞/);
+    expect(duel.finale.title).toContain('致远');
+    expect(duel.finale.title).toContain('吉野');
+  });
+
+  it('引擎接线：LevelScene 读 ship_duel 播对照卡与撞舰，Enemy 有阶段回调', () => {
+    const scene = readFileSync(join(ROOT, 'src', 'scenes', 'LevelScene.ts'), 'utf8');
+    const enemy = readFileSync(join(ROOT, 'src', 'entities', 'Enemy.ts'), 'utf8');
+    expect(scene).toContain('showShipCompare(node.ship_duel');
+    expect(scene).toContain('playShipFinale(duel');
+    expect(scene).toContain('announceDuelPhase(duel, 0)');
+    expect(enemy).toContain('this.onPhaseChange?.(this, next)');
   });
 });

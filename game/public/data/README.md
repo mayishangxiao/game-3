@@ -14,7 +14,7 @@
 | `nodes/nodes_ch00.json` | 节点（关卡内的一次挑战）：`type` = explore/combat/cutscene/choice/escort/management + `params` | 20 | `id` |
 | `events/events_ch00.json` | 历史事件卡（图鉴条目 + 关卡题材）：时间、地点、人物、文献、结果、五要素核对 | 24 | `id` |
 | `knowledge/knowledge_all.json` | 知识卡：摘要/详解/出处/标签/**`links`（因果边，图谱玩法就靠它，只能指向事件卡 id）** | 25 | `id` |
-| `enemies/enemies_ch00.json` | 敌人：`tier` `hp_base` `atk_base` `def_base` `spd` `ai_params`（`attack_cooldown_ms` = 出手间隔）、`boss_phases`、**`final_strike`（Boss 半血剧情杀）**、`color` `size`、**`ship_art`（`body:'ship'` 时选 6 帧贴图集：`steamfrigate` 第一幕英舰 / `matsushima` 第三幕日舰；缺省回落英舰帧）** | 23 | `id` |
+| `enemies/enemies_ch00.json` | 敌人：`tier` `hp_base` `atk_base` `def_base` `spd` `ai_params`（`attack_cooldown_ms` = 出手间隔）、`boss_phases`、**`final_strike`（Boss 半血剧情杀）**、`color` `size`、**`ship_art`（`body:'ship'` 时选 6 帧贴图集：`steamfrigate` 第一幕英舰 / `yoshino` 第三幕日舰吉野号；缺省回落英舰帧）** | 23 | `id` |
 | `equipment/items_base.json` | 装备模板：`slot` `quality` `stat` `base_value` `quality_multiplier` `source`，武器模板可选 `weapon_ref`（指向 `config.json.weapons`，进关卡真的换武器；见 `design/03_systems.md` 4.3.7） | 16 | `id` |
 | `equipment/drops.json` | 掉落规则：按来源类型的掉率、部位权重、品质权重；`pity` 保底参数 | 5 条规则 | `rules[].source_type` |
 | `dungeons/dungeons.json` | 副本：波次（`waves[]`）、Boss、`quality_weights`、`unique_drop`、`unlock_act` | 3 | `id` |
@@ -125,7 +125,7 @@ dungeons[].unlock_act  ──▶ index.chapters[0].acts 里真实存在的幕 id
 > **海战图（`map_ch00_act3_sea.json`）是第二套图集，不是 `tp_act2`**：它的 `tileset` 是 `tp_sea`，
 > 瓦片在 `public/art/tiles/sea/`（24 块：海面 / 甲板 / 舷墙 / 舰炮 / 沉船），由 `tools/gen_sea_tiles.py` 生成。
 > 可走区只有中间一条甲板（col 4..19 × row 6..12），四周与上下都是不可走的海面；
-> `boss_anchor` 把松岛舰钉在右舷外，保证玩家近战 60px 够得着它（默认的右端 −100px 会让它飘在 90 多像素外）。
+> `boss_anchor` 把吉野号钉在右舷外，保证玩家近战 60px 够得着它（默认的右端 −100px 会让它飘在 90 多像素外）。第三幕海战节点 `nd_1894_jiawu_battle` 还带 `ship_duel`：双舰对照卡（五项实力对比）/ 逐阶段交锋 / 致远撞向吉野的撞舰收尾，全部数据驱动。
 > **v1.2**：`objects[]` 只放 `kind:'prop'` 静态布景，禁止第一幕的 `pickup/crate` 鸦片箱；
 > 装饰层也不再摆放 `tp_deco_crate` 木箱瓦片。生成器与 `tests/data.test.ts` 双重断言。
 

@@ -1083,7 +1083,7 @@
     "scene_name": "黄海 · 大东沟海面",
     "year": "1894 · 甲午海战",
     "act": "ch00_act3",
-    "purpose": "Boss 战（北洋定远舰甲板 vs 日本联合舰队松岛舰）",
+    "purpose": "Boss 战（北洋致远舰甲板 vs 日本联合舰队吉野号）",
     "node_hint": "nd_1894_jiawu_battle",
     "bounds": "可走区 col 4..19 × row 6..12（定远舰甲板）；col 3..20 × row 5..13 的边界是舷墙（碰撞）；其余为海（碰撞）",
     "special": "sky_rows=4 + tp_sea 图集 + boss_anchor；右侧整列是海，出怪由 spawnPoints 的『最右可走列』兜底落到甲板右舷",

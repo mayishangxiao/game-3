@@ -117,6 +117,64 @@ export interface NodeDef {
   year?: number;
   /** 战斗开场「情境卡」：时间、地点、双方兵力。甲方要求背景上必须写清这三样。 */
   banner?: BannerDef;
+  /**
+   * 海战专属「双舰交锋」演出（v2.6）。只有带两艘军舰的节点才写：
+   * 开场对照卡 + Boss 血量分阶段播报 + 撞舰收束，全部由数据驱动。
+   */
+  ship_duel?: ShipDuelDef;
+}
+
+/* ============ 5.2.5b 海战「双舰交锋」（v2.6） ============ */
+
+/** 对照卡里的一艘船：名字、显示倍率、一句舰种说明。 */
+export interface ShipSpecDef {
+  name: string;
+  /** 显示倍率：我方 0.9 / 敌方 1.3，舰体规模差距靠这个一眼可见 */
+  scale: number;
+  caption: string;
+}
+
+/** 实力对照的一行维度，例如「火力配置｜7 门旧炮｜11 门速射炮」。 */
+export interface ShipCompareRow {
+  label: string;
+  ours: string;
+  enemy: string;
+}
+
+/** Boss 血量跌破 `at`（百分比）时的一次战场播报，数值必须递减。 */
+export interface ShipDuelPhase {
+  at: number;
+  /** 常驻在目标条上的阶段名（「交锋 ①/②/③」） */
+  title: string;
+  /** 中央短播报，写「双方交锋」而不是单方面挨打 */
+  line: string;
+}
+
+/** Boss 清空后的撞舰收束：最后一句必须是「致远撞向吉野」。 */
+export interface ShipFinaleDef {
+  title: string;
+  lines: string[];
+  hint?: string;
+}
+
+/**
+ * 一场「两艘军舰对轰」的全部演出数据。
+ *
+ * 设计约束（用户 2026-11-16）：我方也要有军舰且是致远舰、敌方叫吉野号；
+ * 通过舰体规模 / 火力配置 / 速度 / 装甲 / 战场态势五项明确实力差距；
+ * 战斗围绕双方交锋逐步推进紧张局势；以「致远舰撞向吉野号」收尾。
+ * 所以：对照卡读 `rows`，逐阶段读 `phases`，结算读 `finale`，三者缺一不可。
+ */
+export interface ShipDuelDef {
+  title: string;
+  subtitle: string;
+  ours: ShipSpecDef;
+  enemy: ShipSpecDef;
+  rows: ShipCompareRow[];
+  /** 结论行，用红色强调 */
+  gap: string;
+  phases: ShipDuelPhase[];
+  finale: ShipFinaleDef;
 }
 
 /**
@@ -304,11 +362,12 @@ export interface EnemyDef {
   /** 占位形体：'ship' 画成铁壳蒸汽炮舰（英军 Boss），缺省人形 */
   body?: 'human' | 'ship';
   /**
-   * `body:'ship'` 时用哪套 6 帧贴图。`'matsushima'` = 第三幕日本联合舰队松岛舰，
+   * `body:'ship'` 时用哪套 6 帧贴图。`'yoshino'` = 第三幕日舰吉野号，
    * 缺省 / `'steamfrigate'` = 第一幕英军蒸汽炮舰。两套都是 96×48、都走 SHIP_FRAME，
    * 没登记时一律回落英舰帧，保证老存档与老数据行为不变。
+   * 我方致远舰不是敌人，不在这里登记（见 `NodeDef.ship_duel`）。
    */
-  ship_art?: 'steamfrigate' | 'matsushima';
+  ship_art?: 'steamfrigate' | 'yoshino';
   /**
    * 半血剧情杀（甲方：军舰半血时全屏打击，伤害 = 角色血量的三倍，必死）。
    *

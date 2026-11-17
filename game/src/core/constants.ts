@@ -308,15 +308,30 @@ export const ART = {
     `${ART_ROOT}/ship/boss_steamfrigate_04.png`,
     `${ART_ROOT}/ship/boss_steamfrigate_05.png`,
   ],
-  /** 第三幕日本联合舰队「松岛舰」专用 6 帧：同规格 96×48、同一套 SHIP_FRAME 语义，
-   *  但换成日章旗 / 双烟囱 / 主炮塔 / 舷侧速射炮群，不再复用第一幕英舰的十字旗。 */
-  matsushimaFrames: [
-    `${ART_ROOT}/ship/matsushima_00.png`,
-    `${ART_ROOT}/ship/matsushima_01.png`,
-    `${ART_ROOT}/ship/matsushima_02.png`,
-    `${ART_ROOT}/ship/matsushima_03.png`,
-    `${ART_ROOT}/ship/matsushima_04.png`,
-    `${ART_ROOT}/ship/matsushima_05.png`,
+  /**
+   * 第三幕敌方「吉野号」6 帧：同规格 96×48、同一套 SHIP_FRAME 语义。
+   * v2.6 从「松岛舰」换成吉野号 —— 致远最后要撞的是第一游击队旗舰吉野，
+   * 松岛那门 320mm 巨炮会把「火力 / 航速 / 舰龄」三项对比全画反。
+   * 吉野是 4150 吨 / 23 节的新式防护巡洋舰：飞剪艏、双烟囱、11 门带盾速射炮、
+   * 两座 152mm 炮塔、日章旗。
+   */
+  yoshinoFrames: [
+    `${ART_ROOT}/ship/yoshino_00.png`,
+    `${ART_ROOT}/ship/yoshino_01.png`,
+    `${ART_ROOT}/ship/yoshino_02.png`,
+    `${ART_ROOT}/ship/yoshino_03.png`,
+    `${ART_ROOT}/ship/yoshino_04.png`,
+    `${ART_ROOT}/ship/yoshino_05.png`,
+  ],
+  /**
+   * 第三幕我方「致远舰」3 帧（0 完整 / 1 带伤 / 2 冲刺）：2300 吨 / 18 节，
+   * 短一截的旧式圆艏、单烟囱、7 门裸露旧炮、黄龙旗。
+   * 用在开场「双舰对照」卡、战场远景与我方舰影、结算「致远撞向吉野」演出。
+   */
+  zhiyuanFrames: [
+    `${ART_ROOT}/ship/zhiyuan_00.png`,
+    `${ART_ROOT}/ship/zhiyuan_01.png`,
+    `${ART_ROOT}/ship/zhiyuan_02.png`,
   ],
   /** 鸦片箱 20×20（地图可捡物） */
   crate: `${ART_ROOT}/props/opium_chest.png`,
@@ -636,9 +651,9 @@ export function unitArtOf(enemyId: string): string {
     case 'en_jp_infantry':
       return 'jp_infantry';
     case 'en_jp_officer':
-    // 松岛舰是 ship body，实体本身走 SHIP_TEX，这个映射只保证「万一退回小人」
+    // 吉野号是 ship body，实体本身走 YOSHINO_TEX，这个映射只保证「万一退回小人」
     // 也是一身日军军官的皮，而不是默认的英军步兵（历史上最不该出现的错）。
-    case 'en_boss_jp_matsushima':
+    case 'en_boss_jp_yoshino':
       return 'jp_officer';
     case 'en_boss_qing_zhitong':
       return 'qing_batou';
@@ -729,17 +744,23 @@ export const SHIP_FRAME = {
  */
 export const SHIP_TEX = ART.shipBossFrames.map((_, i) => `ship_boss_${i}`);
 
-/** 松岛舰 6 帧的纹理 key（与 ART.matsushimaFrames 一一对应） */
-export const MATSUSHIMA_TEX = ART.matsushimaFrames.map((_, i) => `ship_matsushima_${i}`);
+/** 吉野号 6 帧的纹理 key（与 ART.yoshinoFrames 一一对应） */
+export const YOSHINO_TEX = ART.yoshinoFrames.map((_, i) => `ship_yoshino_${i}`);
+
+/** 致远舰 3 帧的纹理 key（与 ART.zhiyuanFrames 一一对应） */
+export const ZHIYUAN_TEX = ART.zhiyuanFrames.map((_, i) => `ship_zhiyuan_${i}`);
 
 /**
  * `body:'ship'` 的敌人按 `ship_art` 选帧集：第一幕英舰走 steamfrigate，
- * 第三幕松岛舰走 matsushima。两套都是 6 帧 / 96×48 / 同一套 SHIP_FRAME 语义，
+ * 第三幕吉野号走 yoshino。两套都是 6 帧 / 96×48 / 同一套 SHIP_FRAME 语义，
  * 未登记或拼错一律回落英舰帧，绝不出现空贴图。
+ *
+ * `zhiyuan` **不在**这张表里：致远是我方舰，不是敌人，不会由 `CharacterRig`
+ * 驱动 SHIP_FRAME 状态机；它由 `LevelScene` 直接以静态 Image / 演出精灵使用。
  */
 export const SHIP_ART_SETS: Record<string, readonly string[]> = {
   steamfrigate: SHIP_TEX,
-  matsushima: MATSUSHIMA_TEX,
+  yoshino: YOSHINO_TEX,
 };
 
 /** 纹理 key：鸦片箱 */

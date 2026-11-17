@@ -906,15 +906,15 @@
       "lines": [
         {
           "speaker": "narrator",
-          "text": "光绪二十年八月十八，\n黄海大东沟。\n两支舰队迎头撞上。"
-        },
-        {
-          "speaker": "deng_shichang",
-          "text": "定远中弹起火。\n炮位别停，\n打沉一艘是一艘。"
+          "text": "光绪二十年八月十八，\n黄海大东沟。\n致远舰，迎上了吉野号。"
         },
         {
           "speaker": "jp_captain",
-          "text": "速射炮压住他们的炮位。\n北洋的炮是大，\n可他们一分钟打不了一发。"
+          "text": "吉野比致远快五节，\n炮多一倍，装甲还厚。\n这一仗不用打就赢了。"
+        },
+        {
+          "speaker": "deng_shichang",
+          "text": "炮打不穿它，\n就用舰艏撞。\n致远轮不到后退。"
         },
         {
           "speaker": "li_hongzhang",
@@ -931,16 +931,16 @@
       ],
       "lines": [
         {
-          "speaker": "deng_shichang",
-          "text": "致远沉了。\n全舰二百余人，\n无一生还。"
+          "speaker": "narrator",
+          "text": "致远撞进吉野舷侧，\n舰艏卷成一团铁。\n大东沟的海面烧了半边。"
         },
         {
           "speaker": "narrator",
-          "text": "黄海一战，北洋五舰沉没。\n此后退守威海卫，\n次年二月，全军覆没。"
+          "text": "致远沉了，全舰二百余人无一生还。\n吉野带伤退走，\n北洋五舰沉没。"
         },
         {
           "speaker": "narrator",
-          "text": "三十年洋务，\n打不过一个岛国。"
+          "text": "此后退守威海卫，次年二月全军覆没。\n三十年洋务，\n打不过一个岛国。"
         }
       ]
     },

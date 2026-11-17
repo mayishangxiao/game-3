@@ -5,10 +5,12 @@
 //   ① 这一关的地图是**新做的海洋图**（tileset=tp_sea、30×16、sky_rows=4），
 //      而且瓦片真的画上去了 —— 从 ground canvas 里数颜色，回退成纯色块会当场露馅；
 //   ② 可走区只有中间那条甲板，四周海面与舷墙都撞得住（抽 5 个格断言）；
-//   ③ Boss 是**船**（松岛舰），并且停在甲板右舷能砍到的距离内，
+//   ③ Boss 是**船**（吉野号），并且停在甲板右舷能砍到的距离内，
 //      而不是按默认算法飘在 90 多像素外的海面上；
-//   ④ （v2.5）Boss 实体真的拿到 `ship_matsushima_*` 6 帧，而不是静默回落成
-//      第一幕英舰贴图或矩形占位形体 —— 读 `rig.shipKeys` 才算数。
+//   ④ （v2.6）Boss 实体真的拿到 `ship_yoshino_*` 6 帧，而不是静默回落成
+//      第一幕英舰贴图或矩形占位形体 —— 读 `rig.shipKeys` 才算数；
+//   ⑤ （v2.6）海战带 `ship_duel`：开场对照卡、交锋阶段播报、致远撞吉野的撞舰
+//      收尾都由数据驱动，不能只是「换了个 Boss 名字」。
 //
 // 用法：node tools/_cdp/jiawu-sea.mjs "<edgePath>" [staticDir|baseUrl] [outDir]
 import { spawn } from 'node:child_process';
@@ -148,6 +150,31 @@ try {
   };
   await tap(480, 270);
   await sleep(600);
+
+  // v2.6：情境卡之后紧跟一张「致远 vs 吉野」双舰对照卡，先拍再点掉。
+  // 没有这张卡的话 drainDialogue() 会被 introOpen 冻结挡住，后续全盘失败。
+  const duelInfo = await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    const d = l.node?.ship_duel ?? null;
+    const o = document.getElementById('dom-overlay');
+    const text = o && o.style.display !== 'none' ? (o.innerText || '') : '';
+    return {
+      hasDuel: !!d,
+      rows: d?.rows?.length ?? 0,
+      phases: d?.phases?.length ?? 0,
+      finaleTitle: d?.finale?.title ?? '',
+      overlay: text.slice(0, 260),
+      introOpen: !!l.introOpen,
+    };
+  })()`);
+  report.snapshots.shipDuelCard = duelInfo;
+  report.checks.shipDuelData = duelInfo.hasDuel && duelInfo.rows === 5 && duelInfo.phases >= 3
+    && duelInfo.finaleTitle.includes('致远') && duelInfo.finaleTitle.includes('吉野');
+  report.checks.compareCardShown = duelInfo.overlay.includes('致远') && duelInfo.overlay.includes('吉野')
+    && duelInfo.overlay.includes('舰体规模') && duelInfo.introOpen;
+  await shot('sea-compare-card.png');
+  await tap(480, 270);
+  await sleep(500);
   await drainDialogue();
   await sleep(500);
 
@@ -207,7 +234,7 @@ try {
     const deckInner = 19 * 16 + 8;   // 甲板最右可走格的格心
     return ship ? {
       id: ship.def.id, name: ship.def.name, body: ship.def.body,
-      // 松岛舰必须真的拿到专属 6 帧，而不是静默回落成第一幕英舰（空数组 = 矩形占位）
+      // 吉野号必须真的拿到专属 6 帧，而不是静默回落成第一幕英舰（空数组 = 矩形占位）
       shipArt: ship.rig?.shipKeys?.[0] ?? null,
       shipArtCount: ship.rig?.shipKeys?.length ?? 0,
       x: Math.round(ship.x), y: Math.round(ship.y),
@@ -217,10 +244,10 @@ try {
     } : null;
   })()`);
   report.snapshots.boss = bossInfo;
-  report.checks.bossIsShip = !!bossInfo && bossInfo.body === 'ship' && bossInfo.id === 'en_boss_jp_matsushima';
-  report.checks.bossUsesMatsushimaFrames = !!bossInfo
+  report.checks.bossIsShip = !!bossInfo && bossInfo.body === 'ship' && bossInfo.id === 'en_boss_jp_yoshino';
+  report.checks.bossUsesYoshinoFrames = !!bossInfo
     && bossInfo.shipArtCount === 6
-    && String(bossInfo.shipArt).startsWith('ship_matsushima_');
+    && String(bossInfo.shipArt).startsWith('ship_yoshino_');
   // 近战 60px：船心到甲板最右可走格心的距离必须 < 60，否则玩家永远砍不到它
   report.checks.bossReachable = !!bossInfo && Math.abs(bossInfo.gapToDeckCenter) < 60;
 
@@ -255,6 +282,30 @@ try {
   })()`);
   report.snapshots.enemyFeet = enemyFeet;
   report.checks.allEnemiesOnDeck = enemyFeet.every((e) => e.solid === false);
+
+  /* ---------------- 4. v2.6 撞舰收尾：清空 Boss 后播「致远撞向吉野」 ---------------- */
+  // 用场景调试入口直接清场（吉野没有 final_strike，不会走半血剧情杀），触发
+  // onBossPhaseCleared → playShipFinale。读 finaleStage 判到达了 impact 那一拍。
+  await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    l.enemies.forEach(e => { e.hp = 0; e.alive = false; });
+    return true;
+  })()`);
+  await waitFor(() => evaluate(`window.__dshGame.scene.getScene('Level').finaleStage === 'impact'`), 8000, 'finale impact');
+  const finaleInfo = await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    const o = document.getElementById('dom-overlay');
+    return {
+      stage: l.finaleStage,
+      played: l.finalePlayed,
+      overlay: o && o.style.display !== 'none' ? (o.innerText || '') : '',
+    };
+  })()`);
+  report.snapshots.finale = finaleInfo;
+  report.checks.finaleImpactReached = finaleInfo.played && finaleInfo.stage === 'impact';
+  report.checks.finaleText = finaleInfo.overlay.includes('致远') && finaleInfo.overlay.includes('吉野')
+    && finaleInfo.overlay.includes('冲上去');
+  await shot('sea-finale-impact.png');
 
   report.checks.noConsoleErrors = report.errors.length === 0;
 } catch (err) {

@@ -624,8 +624,8 @@
       }
     },
     {
-      "id": "en_boss_jp_matsushima",
-      "name": "松岛舰",
+      "id": "en_boss_jp_yoshino",
+      "name": "吉野号",
       "tier": "boss",
       "hp_base": 1400,
       "atk_base": 52,
@@ -682,7 +682,7 @@
         "h": 48
       },
       "body": "ship",
-      "ship_art": "matsushima"
+      "ship_art": "yoshino"
     },
     {
       "id": "en_boss_qing_zhitong",

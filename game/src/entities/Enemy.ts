@@ -110,6 +110,14 @@ export class Enemy {
   private weakpointMs = 0;
   readonly isBoss: boolean;
 
+  /**
+   * Boss 阶段切换回调（v2.6 海战「逐步推进紧张局势」用）。
+   *
+   * 放在实体上、由场景按 `ship_duel` 注册：只有带双舰剧本的那一关会播报，
+   * 其它 Boss 的阶段切换还是原来那一套（顿帧 + 弱点期），一个像素都不变。
+   */
+  onPhaseChange: ((e: Enemy, index: number) => void) | null = null;
+
   /** Boss 专用：招式冷却与当前招式 */
   private bossTimer = 2000;
   private bossAction: BossAction | null = null;
@@ -140,7 +148,7 @@ export class Enemy {
       weaponColor: def.tier === 'ranged' ? PALETTE.brownDeep : PALETTE.greyPlum,
       scale: Math.max(size.w / 24, size.h / 32),
       body: def.body ?? 'human',
-      // 舰船按数据里的 ship_art 选 6 帧贴图：松岛舰用日舰专属帧，英舰用老帧。
+      // 舰船按数据里的 ship_art 选 6 帧贴图：吉野号用日舰专属帧，英舰用老帧。
       // 未登记 / 拼错一律回落 SHIP_TEX；贴图没加载成功时 CharacterRig 再兜一层矩形占位形体。
       art: def.body === 'ship'
         ? (SHIP_ART_SETS[def.ship_art ?? 'steamfrigate'] ?? SHIP_TEX)
@@ -255,6 +263,7 @@ export class Enemy {
       if (phases[next].weakpoint) this.weakpointMs = 8000;
       // 阶段切换顿帧
       this.scene.cameras.main.shake(120, 0.004);
+      this.onPhaseChange?.(this, next);
     }
   }
 

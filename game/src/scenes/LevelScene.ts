@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MATSUSHIMA_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SEA_SHEET_TEX, SEA_TILESET_ID, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SEA_SHEET_TEX, SEA_TILESET_ID, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, YOSHINO_TEX, ZHIYUAN_TEX, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -146,6 +146,7 @@ import type {
   NodeDef,
   Quality,
   SaveData,
+  ShipDuelDef,
   WaveUpgradeTuning,
   WeaponDef,
 } from '../core/types';
@@ -461,6 +462,14 @@ export class LevelScene extends Phaser.Scene {
   /** 舰炮预警齐射正在播（一轮播完前不再起新的一轮，否则圈会叠成一片红） */
   private salvoActive = false;
 
+  /* v2.6 海战「双舰交锋」：只在带 `NodeDef.ship_duel` 的节点生效，其它关卡零影响 */
+  /** 已播报过的交锋阶段下标，重进关卡清空 */
+  private duelPhasesShown = new Set<number>();
+  /** 撞舰收束只放一次（Boss 清空判定每帧都会命中） */
+  private finalePlayed = false;
+  /** 撞舰演出阶段，只给探针与截图脚本读 */
+  finaleStage: 'none' | 'charge' | 'impact' | 'done' = 'none';
+
   constructor() {
     super('Level');
   }
@@ -488,10 +497,16 @@ export class LevelScene extends Phaser.Scene {
       const key = SHIP_TEX[i] as string;
       if (!this.textures.exists(key)) this.load.image(key, path);
     });
-    // 第三幕松岛舰的 6 帧与英舰完全独立（日章旗 / 双烟囱 / 主炮塔 / 舷侧速射炮）。
+    // 第三幕吉野号的 6 帧与英舰完全独立（日章旗 / 双烟囱 / 152mm 炮塔 / 11 门速射炮）。
     // 两套都要抢在 buildWorld 之前进纹理表，缺一套会静默回落成第一幕的英舰。
-    ART.matsushimaFrames.forEach((path, i) => {
-      const key = MATSUSHIMA_TEX[i] as string;
+    ART.yoshinoFrames.forEach((path, i) => {
+      const key = YOSHINO_TEX[i] as string;
+      if (!this.textures.exists(key)) this.load.image(key, path);
+    });
+    // 我方致远舰 3 帧（完整 / 带伤 / 冲刺）：不是敌人，不走 Enemy 的帧状态机，
+    // 只给双舰对照卡、战场远景与撞舰结算演出用。
+    ART.zhiyuanFrames.forEach((path, i) => {
+      const key = ZHIYUAN_TEX[i] as string;
       if (!this.textures.exists(key)) this.load.image(key, path);
     });
     if (!this.textures.exists(TEX_CRATE)) this.load.image(TEX_CRATE, ART.crate);
@@ -597,6 +612,9 @@ export class LevelScene extends Phaser.Scene {
     this.finalStrikeStage = 'none';
     this.finalStrikeRunning = false;
     this.bossShip = null;
+    this.duelPhasesShown.clear();
+    this.finalePlayed = false;
+    this.finaleStage = 'none';
     this.seaTiles.clear();
     this.shipTimer = 0;
     this.shipMoving = false;
@@ -1585,6 +1603,69 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /**
+   * 双舰交锋对照卡（v2.6）——开场「时间地点兵力」卡之后紧跟的第二张卡。
+   *
+   * 致远在左、吉野在右，两舰底边对齐同一条 y，体量差**全靠 scale**（我方 0.9 /
+   * 敌方 1.3）直接画出来，不用写「敌舰更大」这种玩家没感觉的字。五项实力对比读
+   * `ship_duel.rows`，一张卡说清「处处下风、只剩撞上去」这一条路。
+   *
+   * 与 showBattleIntro 同样的冻结/恢复套路：introOpen 挡世界更新，HUD 与对白收起，
+   * 关闭时清 pendingCardTap、放回摇杆，否则 E2E 的 tapCard() 推不动。
+   */
+  private showShipCompare(d: ShipDuelDef, onDone: () => void): void {
+    this.introOpen = true;
+    setHudVisible(false);
+    this.dialogue?.hide();
+    const c = this.add.container(0, 0).setDepth(DEPTH.overlay).setScrollFactor(0);
+    c.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.9).setScrollFactor(0));
+    // 两舰底边对齐（origin 0.5,1 落在同一 y）：短一截的致远和长近一倍的吉野一眼可分
+    const shipY = 110;
+    const zhi = this.add.image(112, shipY, ZHIYUAN_TEX[0] as string).setOrigin(0.5, 1).setScale(d.ours.scale).setScrollFactor(0);
+    const yoshi = this.add.image(362, shipY, YOSHINO_TEX[0] as string).setOrigin(0.5, 1).setScale(d.enemy.scale).setScrollFactor(0);
+    c.add([zhi, yoshi]);
+
+    const rowHtml = d.rows
+      .map(
+        (r) => `<div style="display:flex;margin:2px 0;font-size:11px;line-height:1.35;">
+          <span style="display:inline-block;width:60px;color:#F0C419;font-weight:bold;">${r.label}</span>
+          <span style="display:inline-block;width:174px;color:#7FD1AE;">${r.ours}</span>
+          <span style="display:inline-block;width:174px;color:#E85C4A;">${r.enemy}</span>
+        </div>`,
+      )
+      .join('');
+
+    showOverlay(
+      `<div style="position:absolute;left:0;top:8px;width:100%;text-align:center;color:#F0C419;font-weight:bold;font-size:20px;line-height:1.2;">${d.title}</div>
+       <div style="position:absolute;left:0;top:32px;width:100%;text-align:center;color:#C2BCD1;font-size:11px;">${d.subtitle}</div>
+       <div style="position:absolute;left:0;top:74px;width:100%;text-align:center;color:#F0C419;font-size:14px;font-weight:bold;">VS</div>
+       <div style="position:absolute;left:42px;top:114px;width:140px;text-align:center;color:#7FD1AE;font-weight:bold;font-size:13px;">${d.ours.name}</div>
+       <div style="position:absolute;left:298px;top:114px;width:140px;text-align:center;color:#E85C4A;font-weight:bold;font-size:13px;">${d.enemy.name}</div>
+       <div style="position:absolute;left:32px;top:134px;">${rowHtml}</div>
+       <div style="position:absolute;left:32px;right:32px;top:232px;text-align:center;color:#F0C419;font-size:12px;font-weight:bold;line-height:1.35;">${d.gap}</div>
+       <div id="dom-hint" style="position:absolute;left:0;top:252px;width:100%;text-align:center;color:#F0C419;font-size:13px;animation:blink 1.4s ease-in-out infinite;">点击继续</div>
+       <style>@keyframes blink{0%,100%{opacity:.4}50%{opacity:1}}</style>`,
+    );
+
+    const close = () => {
+      if (!this.introOpen) return;
+      this.introOpen = false;
+      this.pendingCardTap = null;
+      c.destroy();
+      hideOverlay();
+      setHudVisible(true);
+      setControlsVisible(this.mode === 'explore' || this.mode === 'combat' || this.mode === 'escort');
+      this.pushHud();
+      onDone();
+    };
+    const bg = this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.001).setScrollFactor(0).setInteractive();
+    c.add(bg);
+    bg.on('pointerdown', close);
+    this.input.keyboard?.once('keydown-ENTER', close);
+    this.input.keyboard?.once('keydown-SPACE', close);
+    this.pendingCardTap = close;
+  }
+
+  /**
    * 波次强化三选一：清完一波后屏幕中间的选卡。
    *
    * 甲方原话「每波次强化系统，只对弓强化，比如弹幕变两行之类的，以确保玩家能看到英军军舰，
@@ -2149,6 +2230,10 @@ export class LevelScene extends Phaser.Scene {
     this.wavePending = false;
     this.waveIndex = -1;
     this.bossSpawned = false;
+    // 双舰剧本按「这一场」重置：重打海战 / 切到下一节点都要从头播报
+    this.duelPhasesShown.clear();
+    this.finalePlayed = false;
+    this.finaleStage = 'none';
     this.enemyLevel = Number(node.params.recommended_level ?? this.save.player.level);
 
     // 先清理上一节点的实体，再构建/保留地图。
@@ -2271,11 +2356,17 @@ export class LevelScene extends Phaser.Scene {
             this.spawnWave(0);
           });
         };
-        if (dref && this.mode !== 'cutscene') {
-          this.playDialogue(dref, startWaves);
-        } else {
-          startWaves();
-        }
+        const afterCards = () => {
+          if (dref && this.mode !== 'cutscene') {
+            this.playDialogue(dref, startWaves);
+          } else {
+            startWaves();
+          }
+        };
+        // v2.6：有双舰剧本的海战，在「时间地点兵力」卡之后再看一张「致远 vs 吉野」
+        // 实力对照卡，然后才进对白与第一波。其它关卡仍是原来的一张卡。
+        if (node.ship_duel) this.showShipCompare(node.ship_duel, afterCards);
+        else afterCards();
       });
     }
 
@@ -3672,6 +3763,9 @@ export class LevelScene extends Phaser.Scene {
 
   /** 真正把 Boss（以及同场的额外首领）放进场，并挂上半血必杀 */
   private spawnBossEntities(def: EnemyDef, extraIds: string[]): void {
+    // v2.6 海战双舰剧本：只有这一关挂阶段播报与撞舰收束，其它 Boss 一个字都不多说。
+    // 从 NodeDef.ship_duel 读，不在场景里写死 act / enemy id。
+    const duel = this.dungeon ? undefined : (this.node?.ship_duel ?? undefined);
     // 设计书 3.3.2：湘军统领与洋枪队队长「两人同场，需分而治之」
     const names = [def.name, ...extraIds.map((id) => this.findEnemy(id)?.name).filter(Boolean) as string[]];
     emitObjective(`Boss：${names.join(' ＆ ')}`);
@@ -3694,10 +3788,15 @@ export class LevelScene extends Phaser.Scene {
       const e = new Enemy(this, x, y, enemyDef, stats);
       // 半血必杀：由实体在跌破一半时回调一次（见 Enemy.checkFinalStrike）
       e.onFinalStrike = (b) => this.startFinalStrike(b);
+      // v2.6 双舰交锋：只给主舰挂阶段播报。index 是 0-based 阶段号，phaseIndex 初始
+      // 就是 0（第一帧不触发），所以「交锋①」在出场时主动播一次，跌到 70/35% 时
+      // 实体切阶段再回调播 ②/③——逐步推进紧张局势，不去改 Enemy 的阶段逻辑。
+      if (duel && slot === 0) e.onPhaseChange = (_e, index) => this.announceDuelPhase(duel, index);
       this.enemies.push(e);
     };
 
     place(def, 0);
+    if (duel) this.announceDuelPhase(duel, 0);
     extraIds.forEach((id, i) => {
       const extra = this.findEnemy(id);
       if (extra) place(extra, i + 1);
@@ -3842,8 +3941,131 @@ export class LevelScene extends Phaser.Scene {
     this.time.delayedCall(fs.warn_ms ?? 2600, fall);
   }
 
-  /** Boss 阶段清空后的收束：副本去结算，剧情节点推进到下一节点 */
+  /* ========== v2.6 双舰交锋：阶段播报 + 撞舰收束 ========== */
+
+  /**
+   * Boss 血量跌破阶段时播一次「交锋 ①/②/③」。
+   * 用 `duelPhasesShown` 去重：三个阶段的 at 值必须递减，index 就是数组下标。
+   * 只写目标条 + 中央 toast，不改血量/招式——紧张感靠文案节奏，不靠数值。
+   */
+  private announceDuelPhase(duel: ShipDuelDef, index: number): void {
+    if (this.duelPhasesShown.has(index)) return;
+    const phase = duel.phases[index];
+    if (!phase) return;
+    this.duelPhasesShown.add(index);
+    emitObjective(phase.title);
+    emitToast(phase.line, 2600);
+  }
+
+  /**
+   * Boss 清空后的撞舰收束（v2.6 海战的「最终结尾」）：致远舰带伤从左侧冲入，
+   * 撞进右舷的吉野号，白光 + 长震屏，最后一句留在屏幕上等玩家点掉再结算。
+   *
+   * 演出阶段对探针公开（'charge' → 'impact' → 'done'）：无头浏览器里墙钟 sleep 不可靠，
+   * 截图脚本读 `finaleStage` 才能拍在正确的一拍上（同 finalStrikeStage 的约定）。
+   *
+   * 只在这一关、且只播一次（finalePlayed 闸门，Boss 清空判定每帧都会命中）。
+   *
+   * 演出期间必须立 `nodeBusy`：Boss 清空判定在 update 里每帧命中，第二帧若
+   * 没有这道闸，`onBossPhaseCleared` 会因为 `finalePlayed` 为真直接落到 else
+   * 分支 `completeNode()`——撞舰动画还没放完，outro 对白和结算就抢先弹出来，
+   * 截图里两套文字叠在一起（探针实拍撞见过）。finish 时先放开 nodeBusy 再
+   * 走正常结算，outro 对白才会接在撞舰之后播。
+   */
+  private playShipFinale(duel: ShipDuelDef, onDone: () => void): void {
+    if (this.finalePlayed) return;
+    this.finalePlayed = true;
+    this.finaleStage = 'charge';
+    this.nodeBusy = true;
+    // 摇杆的隐藏由 updateWorld 里的 `!this.pendingCardTap` 决定，而那行 setControlsVisible
+    // 又在 introOpen 的 return **之前**执行——所以光立 introOpen 挡不住，必须先把
+    // pendingCardTap 占住，否则摇杆「攻/闪」会在演出中途冒出来压在台词上（实拍撞见过）。
+    // tween 驱动演出，不依赖 updateWorld 往前走。
+    this.introOpen = true;
+    this.pendingCardTap = () => {};
+    setHudVisible(false);
+    setControlsVisible(false);
+    setCannonVisible(false);
+    this.dialogue?.hide();
+
+    const f = duel.finale;
+    const c = this.add.container(0, 0).setDepth(DEPTH.overlay).setScrollFactor(0);
+    c.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.82).setScrollFactor(0));
+    // 海平线：两舰都坐在同一条线上，撞击才读得出来
+    c.add(this.add.rectangle(VIEW_W / 2, 168, VIEW_W, 2, PALETTE.greyPlum, 0.5).setScrollFactor(0));
+    // 吉野在右舷挨撞：用带伤帧；致远用冲刺帧从左边冲进来
+    const foe = this.add.image(342, 162, YOSHINO_TEX[4] as string).setOrigin(0.5, 1).setScale(duel.enemy.scale).setScrollFactor(0);
+    const ally = this.add.image(20, 162, ZHIYUAN_TEX[2] as string).setOrigin(0.5, 1).setScale(duel.ours.scale).setScrollFactor(0);
+    c.add([foe, ally]);
+
+    const textLines = f.lines
+      .map((l) => `<div style="margin:3px 0;line-height:1.4;">${l}</div>`)
+      .join('');
+    showOverlay(
+      `<div style="position:absolute;left:0;top:22px;width:100%;text-align:center;color:#F0C419;font-weight:bold;font-size:20px;">${f.title}</div>
+       <div id="dom-finale-lines" style="position:absolute;left:70px;right:70px;top:190px;color:#F4EEDC;font-size:13px;text-align:center;">${textLines}</div>
+       <div id="dom-hint" style="position:absolute;left:0;top:254px;width:100%;text-align:center;color:#F0C419;font-size:13px;">${f.hint ?? '点击继续'}</div>`,
+    );
+
+    const finish = () => {
+      if (this.finaleStage === 'done') return;
+      this.finaleStage = 'done';
+      this.pendingCardTap = null;
+      // 先放开结算闸门：onDone → completeNode 开头会因 nodeBusy 提前 return。
+      this.nodeBusy = false;
+      this.introOpen = false;
+      c.destroy();
+      hideOverlay();
+      setHudVisible(true);
+      onDone();
+    };
+
+    // 致远冲向吉野：0.9s 的加速冲刺，撞上那帧切白光 + 长震屏
+    this.tweens.add({
+      targets: ally,
+      x: 296,
+      duration: 900,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        this.finaleStage = 'impact';
+        this.cameras.main.shake(420, 0.012);
+        // 白光别拉满到 alpha 1：那会把两舰与台词一起冲成一片白（实拍撞见过），
+        // 0.82 起淡出既能读出「撞上了」，又看得见致远顶在吉野舷侧。
+        const flash = this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, 0xffffff, 0.82)
+          .setScrollFactor(0)
+          .setDepth(DEPTH.overlay + 1);
+        c.add(flash);
+        this.tweens.add({
+          targets: flash,
+          alpha: 0,
+          duration: 550,
+          ease: 'Quad.easeOut',
+          onComplete: () => flash.destroy(),
+        });
+        foe.setTint(0xff8a6a);
+        // 撞击后给玩家一拍看最后一句话，再允许点掉
+        this.time.delayedCall(650, () => {
+          this.pendingCardTap = finish;
+        });
+      },
+    });
+    const bg = this.add
+      .rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, PALETTE.ink, 0.001)
+      .setScrollFactor(0)
+      .setInteractive();
+    c.add(bg);
+    bg.on('pointerdown', () => {
+      if (this.finaleStage === 'impact') finish();
+    });
+  }
+
+  /** Boss 阶段清空后的收束：海战先撞舰，副本去结算，剧情节点推进到下一节点 */
   private onBossPhaseCleared(): void {
+    const duel = this.dungeon ? undefined : (this.node?.ship_duel ?? undefined);
+    if (duel && !this.finalePlayed) {
+      this.playShipFinale(duel, () => this.completeNode());
+      return;
+    }
     if (this.dungeon) this.finishDungeon();
     else this.completeNode();
   }
