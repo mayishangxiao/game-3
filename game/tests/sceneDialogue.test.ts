@@ -223,3 +223,53 @@ describe('林则徐搭话只发生一次（v1.9.0）', () => {
     expect(isNpcInteractable(id, talkId, false)).toBe(true);
   });
 });
+
+/**
+ * 跨幕「无地图过场」的对白闸门（v2.9.1）——太平天国最后一节点是抉择（无地图），
+ * 紧接的洋务运动首节点 nd_1861_zongli_dialog 也是 map_ref=null。
+ * 旧版 updateWorld 在 `if (!this.player || !this.map) return;` 处早退，
+ * DialogueBox.show() 已经把名字/立绘/空正文写进 DOM，但 update() 永远不被调用：
+ * 玩家看到「倭仁」下面整块黑，点一下才硬填一行。这里锁住顺序与数据前提。
+ */
+describe('无地图过场对白仍要打字推进（v2.9.1）', () => {
+  const sceneSrc = readFileSync(join(ROOT, 'src/scenes/LevelScene.ts'), 'utf8');
+  const world = sceneSrc.slice(sceneSrc.indexOf('private updateWorld('));
+  const tickAt = world.indexOf('this.dialogue?.update(delta)');
+  const guardAt = world.indexOf('if (!this.player || !this.map)');
+
+  it('updateWorld 里打字机在「有没有世界」的早退之前', () => {
+    expect(tickAt, '找不到 dialogue.update()').toBeGreaterThan(-1);
+    expect(guardAt, '找不到 player/map 早退').toBeGreaterThan(tickAt);
+    // 早退分支里仍要能推进对白，否则玩家只能靠 canvas 的 pointerdown 硬填
+    const branch = world.slice(guardAt, guardAt + 420);
+    expect(branch).toContain('this.dialogue.advance()');
+  });
+
+  it('太平天国之后接的洋务首节点确实是无地图过场，且配了开场对白', () => {
+    const index = readJson<{ chapters: { id: string; acts: string[] }[] }>('public/data/index.json');
+    const chapter = index.chapters.find((c) => c.id === 'ch00');
+    const acts = (chapter?.acts ?? []).map((id) =>
+      readJson<{ id: string; nodes: string[] }>(`public/data/acts/${id}.json`),
+    );
+    const act3 = acts.find((a) => a.id === 'ch00_act3');
+    const first = nodes.find((n) => n.id === act3?.nodes[0]);
+    expect(first?.type).toBe('cutscene');
+    expect(first?.map_ref ?? null).toBeNull();
+    expect(blocks.has(String(first?.dialogue_ref))).toBe(true);
+    expect(first?.dialogue_ref).toBe('dlg_ch00_act3_intro');
+  });
+
+  it('键盘推进直接挂场景键盘，不依赖被 dialogue 关掉的 InputSystem', () => {
+    expect(sceneSrc).toContain("const DIALOGUE_KEYS = ['keydown-E', 'keydown-ENTER', 'keydown-J', 'keydown-SPACE']");
+    expect(sceneSrc).toContain('this.input.keyboard?.on(key, this.handleDialogueKey)');
+    expect(sceneSrc).toContain('if (event.repeat || !this.dialogue?.isActive) return;');
+  });
+
+  it('所有无地图节点都带开场对白，不能出现「有框没词」的数据前提', () => {
+    const noMap = nodes.filter((n) => !n.map_ref);
+    expect(noMap.length).toBeGreaterThan(0);
+    for (const n of noMap) {
+      expect(blocks.has(String(n.dialogue_ref)), `${n.id} 没有可用开场对白`).toBe(true);
+    }
+  });
+});

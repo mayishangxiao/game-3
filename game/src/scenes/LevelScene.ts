@@ -191,6 +191,9 @@ let PLAYER_DMG = 1;
 /** 战斗内换武器面板一屏能放几行；超出的用 ↑↓ 滚动，不分页（少一层状态） */
 const WEAPON_BAG_ROWS = 4;
 
+/** 对白推进键（触屏点击另有 pointerdown 路径）：DialogueBox 的注释承诺 E/Enter，J/SPACE 与攻击键同义 */
+const DIALOGUE_KEYS = ['keydown-E', 'keydown-ENTER', 'keydown-J', 'keydown-SPACE'] as const;
+
 /** 把敌方伤害按演示倍率折一下，最少 1 点（不能因为折扣出现「打了不掉血」） */
 function incoming(damage: number): number {
   return Math.max(1, Math.round(damage * DEMO_INCOMING_DAMAGE_MULT));
@@ -418,6 +421,17 @@ export class LevelScene extends Phaser.Scene {
   private readonly handleBagKey = (): void => {
     if (this.weaponBagOpen) this.closeWeaponBag('cancel');
     else this.openWeaponBag();
+  };
+  /**
+   * 对白专用键盘推进。DialogueBox.show() 会 setInputEnabled(false)，
+   * UIScene 的 InputSystem 于是连键盘都不再读（这是为了不让玩家边看台词边走动），
+   * 所以「按 E/Enter 推进」不能寄希望于 controls.interactPressed——任何无地图过场
+   * 都会把那条路径一起冻住。这里直接挂在场景键盘上，只在对话框真的开着时生效。
+   * event.repeat 挡住长按自动连发，避免一口气把整段台词翻完。
+   */
+  private readonly handleDialogueKey = (event: KeyboardEvent): void => {
+    if (event.repeat || !this.dialogue?.isActive) return;
+    this.dialogue.advance();
   };
 
   /* 演示版：虎门重炮与清王朝血条 */
@@ -979,6 +993,7 @@ export class LevelScene extends Phaser.Scene {
       setWeaponBagVisible(false);
       bus.off(EV.OPEN_WEAPON_BAG, this.openWeaponBag, this);
       this.input.keyboard?.off('keydown-B', this.handleBagKey);
+      for (const key of DIALOGUE_KEYS) this.input.keyboard?.off(key, this.handleDialogueKey);
       hideDialogue();
       hideFloat();
       hideOverlay();
@@ -988,6 +1003,7 @@ export class LevelScene extends Phaser.Scene {
     // 里直接操作 Level，保持两个场景之间只有 EventBus 这一条耦合线。
     bus.on(EV.OPEN_WEAPON_BAG, this.openWeaponBag, this);
     this.input.keyboard?.on('keydown-B', this.handleBagKey);
+    for (const key of DIALOGUE_KEYS) this.input.keyboard?.on(key, this.handleDialogueKey);
     this.input.on('pointerdown', () => this.onAdvanceInput());
 
     if (this.dungeon) {
@@ -5912,11 +5928,6 @@ export class LevelScene extends Phaser.Scene {
       setControlsVisible(false);
       return;
     }
-    if (!this.player || !this.map) return;
-    // 受伤音统一在这里判：4 条 takeDamage 路径（近战 / 投射物 / 炮火 / 环境）不必各插一行，
-    // 也不会因为某条新路径忘了加而变成「这次怎么没声音」。
-    if (this.lastHp > 0 && this.player.hp < this.lastHp) audio.hurt();
-    this.lastHp = this.player.hp;
     // 战败面板：冻结世界，也别让下面每帧的 setControlsVisible 把摇杆又放回来
     if (this.storyFailOpen) return;
     // 节点切换期间（startNode 内有 await）不做任何世界逻辑
@@ -5929,7 +5940,25 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
 
+    // 打字机必须先于「有没有世界」的判定：太平天国收尾之后接的是洋务运动的
+    // 无地图过场（nd_1861_zongli_dialog，map_ref=null），此时 player/map 都是 null。
+    // 旧版在下面这句之前就 return，对白框能弹出、名字和立绘也在，但正文永远是空的，
+    // 玩家每点一次才靠 advance() 硬填一行——截图里「倭仁」下面整块黑就是这个。
     this.dialogue?.update(delta);
+
+    if (!this.player || !this.map) {
+      // 没有世界的过场/抉择节点：不跑任何世界逻辑，但对白仍要能点得动、能读完结算。
+      setControlsVisible(false);
+      if (this.dialogue?.isActive && (controls.interactPressed || controls.attackPressed)) {
+        this.dialogue.advance();
+      }
+      return;
+    }
+
+    // 受伤音统一在这里判：4 条 takeDamage 路径（近战 / 投射物 / 炮火 / 环境）不必各插一行，
+    // 也不会因为某条新路径忘了加而变成「这次怎么没声音」。
+    if (this.lastHp > 0 && this.player.hp < this.lastHp) audio.hurt();
+    this.lastHp = this.player.hp;
     this.updateFloatPos(false);
 
     // 对话与全屏卡片进行时藏起摇杆与按键：它们会压在对话框/史料卡的文字上

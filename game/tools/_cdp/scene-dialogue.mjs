@@ -293,6 +293,56 @@ try {
     narratorPortrait.hasSrc === false && parseFloat(narratorPortrait.padLeft) === 0;
   await evaluate(`window.__dshGame.scene.getScene('Level').dialogue.hide()`);
 
+  /* ---------- ⑧ 跨幕无地图过场（太平天国收尾 → 洋务运动首节点）----------
+   * 这一节点的 map_ref=null，player/map 都是 null；旧版 updateWorld 在
+   * `if (!this.player || !this.map) return;` 处整体早退，打字机永远拿不到帧：
+   * 对白框弹出、名字与立绘都在，正文却一直空着（甲方截图「倭仁」下方整块黑）。
+   */
+  await startLevel({ actId: 'ch00_act3', chapterId: 'ch00', startNode: 0 });
+  await waitFor(() => evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    return !!(l && l.act?.id === 'ch00_act3' && l.node?.id === 'nd_1861_zongli_dialog' && l.dialogue?.isActive);
+  })()`), 40000, 'act3 intro');
+  await sleep(1000); // 第一句 19 字 × 40ms ≈ 760ms，留足打字机时间
+  const nomap = await evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    return {
+      hasPlayer: !!l.player, hasMap: !!l.map,
+      active: !!l.dialogue?.isActive,
+      typed: l.dialogue?.typed ?? -1,
+      body: document.getElementById('dom-dlg-body')?.textContent ?? '',
+      speaker: document.getElementById('dom-dlg-name')?.textContent ?? '',
+    };
+  })()`);
+  report.snapshots.nomapIntro = nomap;
+  report.checks.nomapDialogueAutotypes = !nomap.hasPlayer && !nomap.hasMap && nomap.active &&
+    nomap.typed > 0 && nomap.body.includes('总理各国事务衙门') && nomap.speaker === '旁白';
+  await shot('nomap-dialogue.png');
+  // 键盘也要能推进：DialogueBox 的注释承诺「E/Enter 推进」，但 show() 会 setInputEnabled(false)，
+  // UIScene 的 InputSystem 因此不再读键盘；无地图过场里这一条最容易暴露。
+  const idxBeforeKey = await evaluate(`window.__dshGame.scene.getScene('Level').dialogue?.index ?? -1`);
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'e', code: 'KeyE', windowsVirtualKeyCode: 69 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'e', code: 'KeyE', windowsVirtualKeyCode: 69 });
+  await sleep(200);
+  const idxAfterKey = await evaluate(`window.__dshGame.scene.getScene('Level').dialogue?.index ?? -1`);
+  report.snapshots.nomapKey = { before: idxBeforeKey, after: idxAfterKey };
+  report.checks.nomapKeyboardAdvances = idxAfterKey > idxBeforeKey;
+  // 后续回复逻辑：开场读完 → 收尾对白 → 结算 → 下一个经营节点，不能卡在无地图过场。
+  const n1 = await drainDialogue();
+  await sleep(900);
+  const n2 = await drainDialogue();
+  await waitFor(() => evaluate(`(() => {
+    const l = window.__dshGame.scene.getScene('Level');
+    return l?.node?.id === 'nd_1865_jiangnan_manage';
+  })()`), 30000, 'next node after nomap');
+  const nomapFlow = await evaluate(`({
+    introTaps: ${n1}, outroTaps: ${n2},
+    node: window.__dshGame.scene.getScene('Level').node?.id ?? null,
+    settled: !!window.__dshGame.scene.getScene('Level').save?.progress?.events?.includes('ev_1861_zongli'),
+  })`);
+  report.snapshots.nomapFlow = nomapFlow;
+  report.checks.nomapFlowAdvances = n1 >= 0 && n2 >= 0 && nomapFlow.node === 'nd_1865_jiangnan_manage' && nomapFlow.settled;
+
   report.checks.noConsoleErrors = report.errors.length === 0;
 } catch (e) {
   report.errors.push(String(e?.stack ?? e));
