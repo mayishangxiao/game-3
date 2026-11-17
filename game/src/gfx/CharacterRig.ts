@@ -724,6 +724,22 @@ export class CharacterRig extends Phaser.GameObjects.Container {
     // 留着 tintFill 永远等不到 clearFlash()，重开后会看到一个通体发白的人形。
     this.flashTimer = 0;
     this.clearFlash();
+    if (this.isShip) {
+      // 军舰不能套人形的「转 90° 倒地」：96×48 的船体在 900ms 里慢慢竖起来，
+      // 看着像被立起来的积木，不像被击沉。沉船是「船身下沉 + 轻微倾斜 + 淡出」。
+      this.scene.tweens.add({
+        targets: this,
+        y: this.y + 10,
+        angle: this.facing === 'left' ? -7 : 7,
+        alpha: 0,
+        duration: durationMs,
+        ease: 'Quad.easeIn',
+        onComplete: () => {
+          onDone?.();
+        },
+      });
+      return;
+    }
     this.scene.tweens.add({
       targets: this,
       angle: this.facing === 'left' ? -90 : 90,

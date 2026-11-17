@@ -8,7 +8,7 @@
  */
 
 import Phaser from 'phaser';
-import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, SCAR_TEX, SEA_SHEET_TEX, SEA_TILESET_ID, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, YOSHINO_TEX, ZHIYUAN_TEX, type SunnyProp } from '../core/constants';
+import { ART, BG_TEX, CHAR_H, CROWD_SCALE, CROWD_TEX, DEPTH, entityDepth, FIELD_H, FX_CANNON_FRAMES, FX_FRAME_MS, FX_TEX, HUMEN_POOL, LQ_SHEET_TEX, MELEE_RANGE_MAX, NPC_ART, NPC_FOOT_OFFSET_Y, PALETTE, PART_ART, PART_ART_ROOT, partKey, RENDER_SCALE, SCAR_TEX, SEA_SHEET_TEX, SEA_TILESET_ID, SHIP_TEX, SUNNY_GROUND_PROPS, SUNNY_PROPS, sunnyPropKey, TEX_CRATE, TILE, TP_SHEET_TEX, TP_TILESET_ID, UNIT_ART, VIEW_H, VIEW_W, YOSHINO_TEX, ZHIYUAN_TEX, type SunnyProp } from '../core/constants';
 import { dataLoader, type ChapterBundle } from '../core/DataLoader';
 import {
   rollQuality,
@@ -471,6 +471,16 @@ export class LevelScene extends Phaser.Scene {
    */
   private hitStopMs = 0;
 
+  /**
+   * 已经死掉、还在播倒地/沉船动画的尸体。
+   *
+   * 这些实体**不在** `enemies` 里（`alive === false` 就不参与任何战斗判定），
+   * 但显示对象要留到动画播完才 `destroy()`。v2.7 把倒地时长按档位拉开
+   * （杂兵 220ms / 精英 420ms / Boss 900ms），如果死亡当帧就销毁，
+   * 玩家只会看到「精英和杂兵一样瞬间消失」，这条分层等于没做。
+   */
+  private dyingEnemies: Enemy[] = [];
+
   /* v2.6 海战「双舰交锋」：只在带 `NodeDef.ship_duel` 的节点生效，其它关卡零影响 */
   /** 已播报过的交锋阶段下标，重进关卡清空 */
   private duelPhasesShown = new Set<number>();
@@ -605,13 +615,16 @@ export class LevelScene extends Phaser.Scene {
     this.camFollow = null;
     this.dialogue = null as unknown as DialogueBox;
     this.enemies = [];
+    this.dyingEnemies = [];
     this.projectiles = [];
     this.floorItems = [];
     this.worldObjects = [];
     this.nodeIndex = 0;
     // 强敌登场会短暂推镜（zoomTo），重进关卡必须归位——
     // 否则上一局停在推镜中途切场景，新一关整个世界会是放大的。
-    this.cameras.main.setZoom(1);
+    // 归位目标是 RENDER_SCALE 而不是 1：后缓冲是超采样尺寸（480×270 × R），
+    // 相机缩放 1 会让画面只占左上角 1/R²。v2.7 曾写成 1，实拍巡检当场看到画面缩成四分之一。
+    this.cameras.main.setZoom(RENDER_SCALE);
     // 副本引用必须在这里清掉：create() 复用同一个实例，若上一轮刷过副本，
     // 这一轮的 boot() 会看到残留的 this.dungeon 而重开副本，正片节点根本不会进。
     this.dungeon = null;
@@ -3787,9 +3800,13 @@ export class LevelScene extends Phaser.Scene {
     this.cameras.main.shake(300, 0.007);
     // 强敌登场：镜头缓慢推近 6% 再拉回，和「普通波次刷怪」在开场半秒内就分开。
     // 只动 LevelScene 主相机（世界层）；HUD 在 UIScene、文字在 DOM，都不受影响。
+    //
+    // 基准必须是 RENDER_SCALE（后缓冲超采样倍数），不是 1：
+    // 拉回 1 会让整个画面缩到左上角 1/R²（实拍看到的就是「地图只有四分之一屏」）。
     const cam = this.cameras.main;
-    cam.zoomTo(1.06, 420, 'Sine.easeOut', true);
-    this.time.delayedCall(480, () => cam.zoomTo(1, 520, 'Sine.easeInOut', true));
+    const baseZoom = RENDER_SCALE;
+    cam.zoomTo(baseZoom * 1.06, 420, 'Sine.easeOut', true);
+    this.time.delayedCall(480, () => cam.zoomTo(baseZoom, 520, 'Sine.easeInOut', true));
 
     const place = (enemyDef: EnemyDef, slot: number) => {
       const stats = enemyStats(enemyDef, this.enemyLevel, this.cfg);
@@ -4091,13 +4108,12 @@ export class LevelScene extends Phaser.Scene {
 
   /** 移出已死亡的敌人，避免 update 里反复对空气判定 */
   private clearDeadEnemies(): void {
-    this.enemies = this.enemies.filter((e) => {
-      if (!e.alive) {
-        e.destroy();
-        return false;
-      }
-      return true;
-    });
+    // 只从数组里移走；显示对象交给 scheduleCorpseCleanup 按档位延时销毁。
+    // 这里若直接 destroy，Boss 的 900ms 倒地会被「判空的同一帧」截断。
+    for (const e of this.enemies) {
+      if (!e.alive) this.scheduleCorpseCleanup(e);
+    }
+    this.enemies = this.enemies.filter((e) => e.alive);
   }
 
   private findEnemy(id: string): EnemyDef | undefined {
@@ -4383,7 +4399,11 @@ export class LevelScene extends Phaser.Scene {
 
   private clearEnemies(): void {
     this.enemies.forEach((e) => e.destroy());
+    // 尸体也要一起清：死亡是延时销毁的，换图时它们的定时器还在跑，
+    // 不清就会让上一张图的敌人挂在新地图上（第二幕换图踩过同类残留）。
+    this.dyingEnemies.forEach((e) => e.destroy());
     this.enemies = [];
+    this.dyingEnemies = [];
   }
 
   private clearProjectiles(): void {
@@ -4735,9 +4755,25 @@ export class LevelScene extends Phaser.Scene {
     this.rollDrop(e);
     // 指挥官被打死 → 周围友军的加成立刻消失（先打指挥官有回报）
     this.applyAuras();
-    this.time.delayedCall(320, () => {
-      e.destroy();
+    this.scheduleCorpseCleanup(e);
+  }
+
+  /**
+   * 尸体延时清理：按档位等倒地动画播完再销毁显示对象。
+   *
+   * 以前这里写死 320ms，比 v2.7 给精英（420）和 Boss（900）的倒地时长还短，
+   * 于是「强者倒下得更久」在实际游戏里根本看不到——实拍巡检才挖出来。
+   * 只把显示对象延后，`alive` 当帧就是 false，结算判定不受影响。
+   */
+  private scheduleCorpseCleanup(e: Enemy): void {
+    if (e.alive) return;
+    if (this.dyingEnemies.includes(e)) return;
+    this.dyingEnemies.push(e);
+    const wait = presenceOf(e.def.tier).deathMs + 80;
+    this.time.delayedCall(wait, () => {
+      this.dyingEnemies = this.dyingEnemies.filter((x) => x !== e);
       this.enemies = this.enemies.filter((x) => x !== e);
+      e.destroy();
     });
   }
 

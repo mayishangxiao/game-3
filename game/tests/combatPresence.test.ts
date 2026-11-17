@@ -143,3 +143,35 @@ describe('引擎接线：分档数值真的被用上', () => {
     expect(fx).toContain('Math.min(12');
   });
 });
+
+describe('尸体延时清理与相机基准（v2.8 巡检挖出的两个回归）', () => {
+  it('死亡后的显示对象按档位延时销毁，不许写死 320ms 抢在倒地动画前面', () => {
+    const scene = src('scenes/LevelScene.ts');
+    // 唯一入口
+    expect(scene).toContain('private scheduleCorpseCleanup(e: Enemy): void');
+    expect(scene).toContain('presenceOf(e.def.tier).deathMs + 80');
+    // 旧的写死时长必须彻底消失（它把精英 420 / Boss 900 全吃掉）
+    expect(scene).not.toContain('delayedCall(320, () => {\n      e.destroy();');
+    // 判空的同一帧也不能直接销毁尸体
+    expect(scene).toMatch(/clearDeadEnemies\(\): void \{[\s\S]{0,260}scheduleCorpseCleanup/);
+    // 换图/重开时必须连尸体一起清，否则上一张图的敌人挂在新地图上
+    expect(scene).toMatch(/clearEnemies\(\): void \{[\s\S]{0,220}this\.dyingEnemies\.forEach/);
+  });
+
+  it('军舰沉没不许套人形 90° 倒地（船体会在 900ms 里竖起来）', () => {
+    const rig = src('gfx/CharacterRig.ts');
+    expect(rig).toMatch(/if \(this\.isShip\) \{[\s\S]{0,420}angle: this\.facing === 'left' \? -7 : 7/);
+    expect(rig).toContain('y: this.y + 10');
+  });
+
+  it('相机推镜的基准是 RENDER_SCALE，不是 1（回 1 会缩成左上角 1/R²）', () => {
+    const scene = src('scenes/LevelScene.ts');
+    expect(scene).toContain('this.cameras.main.setZoom(RENDER_SCALE)');
+    expect(scene).toContain('const baseZoom = RENDER_SCALE');
+    expect(scene).toContain('cam.zoomTo(baseZoom * 1.06');
+    expect(scene).toContain('cam.zoomTo(baseZoom, 520');
+    // 硬编码 1 的两处都是线上事故现场，别再写回来
+    expect(scene).not.toContain('cameras.main.setZoom(1)');
+    expect(scene).not.toContain('cam.zoomTo(1, 520');
+  });
+});
